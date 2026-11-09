@@ -74,6 +74,8 @@ describe("the judge route", () => {
     for (let i = 0; i < RATE; i += 1) expect(allowed(t)).toBe(true);
     expect(allowed(t + 1000)).toBe(false);
     expect(await answer(await judge(post(), ENV, t + 2000))).toEqual([429, { error: "Too many attempts in a minute. Wait a moment." }]);
+    // the stand-in has no limit
+    expect((await judge(post(), { STANDINS: "1" }, t + 3000)).status).toBe(200);
     expect(allowed(t + 60000)).toBe(true);
     // the clock defaults to now
     expect((await judge(post(), ENV)).status).toBe(200);

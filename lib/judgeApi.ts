@@ -49,7 +49,8 @@ export async function judge(request: Request, env: JudgeEnv, now = Date.now(),
   if (Number(request.headers.get("Content-Length") ?? 0) > LIMIT) return json(413, { error: "The recording is too long." });
   const text = await request.text();
   if (text.length > LIMIT) return json(413, { error: "The recording is too long." });
-  if (!allowed(now)) return json(429, { error: "Too many attempts in a minute. Wait a moment." });
+  // the stand-in never calls Gemini, so it has no limit (the browser tests make many attempts a minute)
+  if (env.STANDINS !== "1" && !allowed(now)) return json(429, { error: "Too many attempts in a minute. Wait a moment." });
   let body: Body;
   try { body = JSON.parse(text); } catch { return json(400, { error: "Not JSON." }); }
   if (!body.audio || !body.mime || !body.target) return json(400, { error: "audio, mime and target are needed." });
