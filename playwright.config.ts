@@ -5,6 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
 export const PASSWORD = process.env.E2E_PASSWORD ?? "test-only-password";
 const PORT = 3100;
 const BASE = process.env.E2E_BASE_URL;
+// A fake microphone (a tone), allowed without asking.
+const MIC = { permissions: ["microphone"], launchOptions: { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] } };
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -13,8 +15,8 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: BASE ?? `http://localhost:${PORT}`, trace: "on-first-retry" },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "phone", use: { ...devices["Pixel 7"] } },
+    { name: "desktop", use: { ...devices["Desktop Chrome"], ...MIC } },
+    { name: "phone", use: { ...devices["Pixel 7"], ...MIC } },
   ],
   webServer: BASE ? undefined : {
     // Local D1 with the migrations applied; builds run in the request with stand-ins for the renderer and voice.
