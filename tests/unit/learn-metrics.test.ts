@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { metrics, slidesAt } from "@/lib/learn/metrics";
+import { metrics, slidesAt, weakest } from "@/lib/learn/metrics";
 import type { State } from "@/lib/learn/model";
 import { FIRST, GAP } from "@/lib/learn/rules";
 import type { Entry } from "@/lib/learn/store";
@@ -25,6 +25,17 @@ describe("metrics", () => {
       ["f", 2, true], ["c", 1, true]]);
     expect(metrics([], 0).session.rate).toBeNull();
     expect(metrics([e("x", 1, 100, 0.9), e("y", 2, 100, 0.5), e("y", 3, 100, 0.9)], 0).toBar).toEqual([{ kind: "sentence", nodes: 2, median: 1.5 }]);
+  });
+
+  test("the weakest phrases: runs of troubled words, the most trouble first", () => {
+    const tree = build([{ n: 1, sentences: [{ text: "We asked the families what they thought." }, { text: "Then we wrote it up." }] },
+      { n: 2, sentences: [{ text: "Thank you all." }] }]);
+    const [a, b] = tree.order, c = tree.roots.get(2) as string;
+    const st = (trouble?: number[]): State => ({ s: 0.5, at: 0, interval: FIRST, n: 1, passes: 1, lastPass: 0, run: 0, hid: 0, trouble });
+    const states: Record<string, State> = { [a]: st([0, 1, 1, 0.2, 0.4, 0.5, 0]), [b]: st([2, 2, 0, 0, 0]), [c]: st(), [tree.roots.get(1) as string]: st() };
+    expect(weakest(tree, (id) => states[id] ?? null, 0)).toEqual([
+      { slide: 1, phrase: "Then we", trouble: 4 }, { slide: 1, phrase: "asked the", trouble: 2 }, { slide: 1, phrase: "what they", trouble: 0.9 }]);
+    expect(weakest(tree, (id) => states[id] ?? null, 0, 1)).toHaveLength(1);
   });
 
   test("slides at the aim and nodes due", () => {

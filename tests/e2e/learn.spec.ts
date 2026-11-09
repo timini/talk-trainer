@@ -62,17 +62,24 @@ test("a miss zooms down to the part missed, and a pass climbs back up", async ({
   await walk(page, 4);
   await expect(position(page)).toHaveText("Whole slide: all 2 sentences");
   await expect(page.getByTestId("instruction")).toHaveText("From memory: say it from the slide.");
+  // the judge's quote is not exact: placed all the same
   await verdict(page, { heard: "Good morning, and thank you for coming.", meaning_ok: false,
-    problems: [{ kind: "left_out", script: "Today we bake bread." }] });
+    problems: [{ kind: "left_out", script: "today we baked the bread" }] });
   await attempt(page);
   await expect(page.getByTestId("verdict")).toContainText("Missed");
   await expect(page.getByTestId("known")).toHaveText(/^Known \d+% to \d+%; the bar is 85%\.$/);
+  // the words missed: underlined, and shaded by the trouble they have given
+  await expect(page.locator(".cue .miss.t-high")).toHaveText(["Today", "we", "bake", "bread."]);
+  await expect(page.locator(".cue .legend")).toBeVisible();
   await page.unroute("**/api/grade");
   await big(page, "Next").click();
   await expect(position(page)).toHaveText("Sentence 2 of 2");
   await expect(page.getByTestId("instruction")).not.toHaveText("Read it aloud.");
   await pass(page);
   await expect(position(page)).toHaveText("Whole slide: all 2 sentences");
+  await page.getByRole("button", { name: "End session" }).click();
+  await page.getByRole("button", { name: "Progress" }).click();
+  await expect(page.getByTestId("p-weakest")).toHaveText("slide 1: 'Today we bake bread.'");
 });
 
 test("after 2 hours a node is due and comes back first; the Progress screen shows the numbers", async ({ page }) => {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
 import { countdown } from "@/lib/schedule";
 import { redactBits } from "@/lib/text";
 import { deliveryLine, plural, savedLine, type Script, verdict } from "@/lib/train";
@@ -143,6 +144,8 @@ function Progress({ e }: { e: Engine }) {
         <dt>Retention</dt><dd data-testid="p-retention">{`${rate(m.retention)} passed after a gap of more than 30 minutes`}</dd>
         <dt>Attempts to the bar</dt>
         <dd data-testid="p-tobar">{m.toBar.length ? m.toBar.map((x) => `${x.kind}: ${x.median} (${plural(x.nodes, "part")})`).join("; ") : "none yet"}</dd>
+        <dt>Weakest phrases</dt>
+        <dd data-testid="p-weakest">{m.weakest.length ? m.weakest.map((x) => `slide ${x.slide}: '${x.phrase}'`).join("; ") : "none yet"}</dd>
         <dt>Most attempts</dt>
         <dd data-testid="p-slowest">{m.slowest.length ? m.slowest.map((x) => `slide ${x.slide} ${x.kind}: ${x.attempts}${x.reached ? "" : ", not yet"}`).join("; ") : "none yet"}</dd>
       </dl>
@@ -170,8 +173,18 @@ function Card({ e }: { e: Engine }) {
         })}
       </ol>);
   } else if (r && phase === "judged") {
-    words = r.parts.flatMap((part, pi) => part.words.map((w, wi) => (
-      <span key={`${pi}.${wi}`}>{pi || wi ? " " : ""}<span className={!w.ok ? (w.crit ? "miss crit" : "miss") : ""}>{w.w}</span></span>)));
+    // each word shaded by the trouble it has given (low, high), and this attempt's misses underlined in bold
+    const t = e.troubles(), base = r.parts.map((_, pi) => r.parts.slice(0, pi).reduce((a, p) => a + p.words.length, 0));
+    words = <>
+      {r.parts.flatMap((part, pi) => part.words.map((w, wi) => {
+        const k = base[pi] + wi;
+        const shade = t[k] >= TROUBLE_HIGH ? "t-high" : t[k] >= TROUBLE_LOW ? "t-low" : "";
+        return <span key={`${pi}.${wi}`}>{pi || wi ? " " : ""}
+          <span className={[!w.ok ? (w.crit ? "miss crit" : "miss") : "", shade].filter(Boolean).join(" ")}>{w.w}</span></span>;
+      }))}
+      {t.some((x) => x >= TROUBLE_LOW) && <small className="legend">Shaded: words that have given you trouble, darker for more.
+        Underlined: missed this time.</small>}
+    </>;
   } else {
     // each leaf hidden by its own score; its terms in full, by their first letter, or hidden; the opening words of
     // the node and its parts shown until it is passed. A hidden word is drawn as itself, invisible, over a line.

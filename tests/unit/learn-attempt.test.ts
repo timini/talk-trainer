@@ -24,6 +24,15 @@ describe("outcome", () => {
     expect(o.counted && [o.points, ...o.leaves.values()]).toEqual([45, 100, 0]);
   });
 
+  test("a near-quote is placed: its words marked missed on the card and given trouble", () => {
+    const o = outcome(tree, node(one), heard("Good morning, and thank you for coming.", [{ kind: "left_out", script: "today we baked the bread" }]), []);
+    expect(o.counted && o.result.parts.flatMap((p) => p.words.filter((w) => !w.ok).map((w) => w.w))).toEqual(["Today", "we", "bake", "bread."]);
+    expect(o.counted && o.trouble.get(b)).toEqual([1, 1, 1, 1]);
+    expect(o.counted && o.trouble.get(a)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    const t = outcome(tree, node(one), heard("Good morning, and thank you for coming. Today we bake bread.", [{ kind: "wrong_term", script: "bread" }]), []);
+    expect(t.counted && t.result.parts[1].words.map((w) => w.crit)).toEqual([false, false, false, true]);
+  });
+
   test("not counted: started at another part, or almost nothing heard", () => {
     expect(outcome(tree, node(a), heard("Today we bake bread."), [])).toEqual({ counted: false,
       why: "That started at 'Today we bake bread'. This one starts at 'Good morning, and thank...'." });
@@ -62,6 +71,9 @@ describe("a run-through", () => {
     // the talk: the mean of its parts (100, 40, 100, 70, 70)
     expect(out.get("t")?.s).toBeCloseTo(0.38);
     expect(out.get(three)?.passes).toBe(1);
+    // with the trouble placed on a slide's words
+    const withTrouble = run(tree, get, node("t"), new Map([[2, { points: 40, leaves: new Map([[two, 40]]), trouble: new Map([[two, [0, 1, 1, 1, 0]]]) }]]), 5, est);
+    expect(withTrouble.get(two)?.trouble).toEqual([0, 1, 1, 1, 0]);
   });
 
   test("stopped part way: only the slides said, and the bridges and runs whose slides were all said", () => {

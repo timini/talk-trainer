@@ -83,5 +83,17 @@ export const LIFT = 0.1;
 export const REVIEWS = 5;
 export const SAME = 3;
 
+// Placing the judge's problems (lib/learn/align.ts): a quoted phrase is placed where at least PLACE of its words match.
+// Each word placed in a problem takes on trouble: HIT for a phrase left out, changed or a wrong term, STUMBLE for a
+// stumble; every other word of the leaf attempted keeps KEEP of its trouble, and trouble fades with time as the score
+// does. The card colours a word low from TROUBLE_LOW and high from TROUBLE_HIGH; the Progress screen lists runs of
+// words at TROUBLE_LOW or more as the weakest phrases.
+export const PLACE = 0.6;
+export const HIT = 1;
+export const STUMBLE = 0.5;
+export const KEEP = 0.6;
+export const TROUBLE_LOW = 0.3;
+export const TROUBLE_HIGH = 1;
+
 // Metrics: an attempt after a gap of more than GAP counts toward retention.
 export const GAP = 30 * MIN;

@@ -116,3 +116,10 @@ table.grid td.n { text-align: right; white-space: nowrap; }
 .cue .gap { color: transparent; border-bottom: 2px solid #2b2f3b; user-select: none; }
 .cue .sent sup { font-size: 0.55em; color: #005eb8; margin-right: 0.2em; }
 .position { font-size: 0.95rem; font-weight: bold; color: #005eb8; margin: 0.3rem 0 0; }
+
+/* The new trainer's heat map after a verdict: words that have given trouble, pale amber then deep red, with this
+   attempt's misses also underlined in bold, so colour is never the only sign */
+.cue .t-low { background: #fbe3c0; border-radius: 0.2rem; }
+.cue .t-high { background: #b00020; color: #fff; border-radius: 0.2rem; }
+.cue .miss.t-high { color: #fff; }
+.cue .legend { display: block; font-size: 0.85rem; letter-spacing: normal; word-spacing: normal; margin-top: 0.4rem; }

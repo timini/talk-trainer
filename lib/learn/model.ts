@@ -4,22 +4,25 @@
 // least one interval after the last pass, so three passes in ten minutes count as one.
 //
 // An attempt at a node also scores every part under it, from where the judge's problems fall on its leaves
-// (lib/score.ts perSentence, run over the clauses), with the smaller weight UNDER. A node is known at least as well
+// (lib/learn/align.ts), with the smaller weight UNDER. A node is known at least as well
 // as its parts, less a penalty for joining them.
 
-import { perSentence } from "../score";
+import { placed } from "./align";
 import type { Problem } from "../judge";
-import { ALPHA, type Aim, BARS, CUE, FADE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KNOWN, NEARLY,
+import { ALPHA, type Aim, BARS, CUE, FADE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
   PACE_HIGH, PACE_LOW, SHIFT, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
 import type { Node, Tree } from "./tree";
 
 // s: the score; at: the last attempt; interval (ms); n: attempts; passes: attempts of NEARLY or more; lastPass: when
 // the last of them was (0: never); run: misses running; hid: the share of words hidden on the last attempt.
-export type State = { s: number; at: number; interval: number; n: number; passes: number; lastPass: number; run: number; hid: number };
+// trouble (a leaf's only): how much trouble each of its words has given, from the problems placed on it.
+export type State = { s: number; at: number; interval: number; n: number; passes: number; lastPass: number; run: number; hid: number;
+  trouble?: number[] };
 export type States = (id: string) => State | null;
 
 // The score now: trusted for the interval, then fading as a power of the time past it, in intervals.
-export const fade = (st: State, now: number) => st.s * (1 + Math.max(0, now - st.at - st.interval) / st.interval) ** -FADE;
+export const fading = (st: State, now: number) => (1 + Math.max(0, now - st.at - st.interval) / st.interval) ** -FADE;
+export const fade = (st: State, now: number) => st.s * fading(st, now);
 
 // Every node's estimate now: its own faded score, or the mean of its parts' estimates times JOIN if that is higher (a
 // leaf never attempted: 0).
@@ -92,23 +95,37 @@ export const scores = (tree: Tree, node: Node, leafScores: Map<string, number>, 
   return out;
 };
 
-// Each leaf's score from the judge's problems, placed on the leaves' texts.
+// The judge's problems placed on the node's leaves (lib/learn/align.ts): each leaf's score and the trouble each of its
+// words takes on, and the words missed and the wrong terms, by their place in the node's text.
 export const place = (tree: Tree, node: Node, problems: Problem[]) => {
-  const texts = node.leaves.map((l) => (tree.nodes.get(l) as Node).text);
-  const got = perSentence(problems, texts);
-  return new Map(node.leaves.map((l, k) => [l, got[k]]));
+  const got = placed(problems, node.leaves.map((l) => (tree.nodes.get(l) as Node).text));
+  return { leaves: new Map(node.leaves.map((l, k) => [l, got.scores[k]])), trouble: new Map(node.leaves.map((l, k) => [l, got.trouble[k]])),
+    missed: got.missed, crit: got.crit };
+};
+
+// A leaf's trouble now, a number a word: its stored trouble faded as its score fades (null: none yet).
+export const troubleOf = (st: State | null, now: number) => (st?.trouble ? st.trouble.map((x) => x * fading(st, now)) : null);
+// A leaf's trouble after an attempt: each word hit goes up by what it was hit with, every other word is kept KEEP.
+const troubled = (st: State | null, now: number, add: number[]) => {
+  const old = troubleOf(st, now);
+  return add.map((a, w) => Math.round(((old?.[w] ?? 0) * (a > 0 ? 1 : KEEP) + a) * 100) / 100);
 };
 
 // The new states an attempt writes: the attempted node and every part under it, each with its own score. hide: each
 // leaf's share hidden on this attempt.
+// trouble: what each leaf's words took on in this attempt; without it, the trouble stays as it was.
 export const record = (tree: Tree, get: States, node: Node, leafScores: Map<string, number>, points: number, now: number,
-  hide: Map<string, number>, est: Map<string, number>): Map<string, State> => {
+  hide: Map<string, number>, est: Map<string, number>, trouble?: Map<string, number[]>): Map<string, State> => {
   const out = new Map<string, State>();
   for (const [id, p] of scores(tree, node, leafScores, points)) {
     const x = tree.nodes.get(id) as Node, leaves = x.leaves.length ? x.leaves : [id];
     const ws = leaves.map((l) => (tree.nodes.get(l) as Node).words), all = ws.reduce((a, b) => a + b, 0);
     const hid = leaves.reduce((a, l, k) => a + (hide.get(l) ?? 1) * ws[k], 0) / all;
-    out.set(id, update(get(id), est.get(id) as number, p, now, Math.round(hid * 100) / 100, id === node.id ? ALPHA : UNDER));
+    const st = get(id), next = update(st, est.get(id) as number, p, now, Math.round(hid * 100) / 100, id === node.id ? ALPHA : UNDER);
+    const add = trouble?.get(id);
+    if (add) next.trouble = troubled(st, now, add);
+    else if (st?.trouble) next.trouble = st.trouble;
+    out.set(id, next);
   }
   return out;
 };

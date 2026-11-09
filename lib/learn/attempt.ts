@@ -18,7 +18,8 @@ import { RECOUNT } from "./rules";
 import type { Node, Tree } from "./tree";
 
 export type Result = ReturnType<typeof judged>;
-export type Outcome = { counted: false; why: string } | { counted: true; points: number; leaves: Map<string, number>; result: Result };
+export type Outcome = { counted: false; why: string }
+  | { counted: true; points: number; leaves: Map<string, number>; trouble: Map<string, number[]>; result: Result };
 
 // The leaves of the slides a node is on, in order, and where the node starts among them.
 const where = (tree: Tree, node: Node) => {
@@ -36,7 +37,15 @@ export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[]): Out
   }
   if (empty(v, node.text)) return { counted: false, why: "I didn't catch that." };
   const result = judged(grade(sentences(node.text), "", must), v);
-  return { counted: true, points: result.score, leaves: place(tree, node, result.problems), result };
+  // the words missed, as placed by alignment, not only where the judge's quote matched exactly
+  const at = place(tree, node, result.problems);
+  let w = 0;
+  const parts = result.parts.map((p) => ({ ...p, words: p.words.map((x) => {
+    const k = w;
+    w += 1;
+    return { ...x, ok: !at.missed.has(k), crit: at.crit.has(k) };
+  }) }));
+  return { counted: true, points: result.score, leaves: at.leaves, trouble: at.trouble, result: { ...result, parts } };
 };
 
 // Every leaf scored alike: a recount, or marking yourself.
@@ -46,14 +55,15 @@ export const byHand = (node: Node, got: boolean) => {
 };
 
 // The states a run-through writes. said: each slide said, with its points and leaf scores.
-export const run = (tree: Tree, get: States, node: Node, said: Map<number, { points: number; leaves: Map<string, number> }>,
+export const run = (tree: Tree, get: States, node: Node,
+  said: Map<number, { points: number; leaves: Map<string, number>; trouble?: Map<string, number[]> }>,
   now: number, est: Map<string, number>): Map<string, State> => {
   const out = new Map<string, State>(), done = new Map<string, number>();
   const all = new Map([...said.values()].flatMap((x) => [...x.leaves]));
   const full = (n: Node) => new Map(n.leaves.map((l) => [l, 1]));
   for (const [n, x] of said) {
     const root = tree.nodes.get(tree.roots.get(n) as string) as Node;
-    record(tree, get, root, x.leaves, x.points, now, full(root), est).forEach((v, k) => out.set(k, v));
+    record(tree, get, root, x.leaves, x.points, now, full(root), est, x.trouble).forEach((v, k) => out.set(k, v));
     done.set(root.id, x.points);
   }
   // the bridges, then the sections, then the run-through itself, each from the parts said

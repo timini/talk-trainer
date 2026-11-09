@@ -8,8 +8,8 @@
 
 import { byHand, outcome, run as runRecord, type Result } from "@/lib/learn/attempt";
 import { crumbs, instruction, position } from "@/lib/learn/label";
-import { metrics, slidesAt } from "@/lib/learn/metrics";
-import { cues, estimates, hiding, known, record, type State, terms } from "@/lib/learn/model";
+import { metrics, slidesAt, weakest } from "@/lib/learn/metrics";
+import { cues, estimates, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
 import type { Aim } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, type Log, logged, logKey, migrate, nodeKey, type Setting, SETTINGS } from "@/lib/learn/store";
@@ -41,7 +41,7 @@ type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
 const LONGEST = 180000;
 
 // One slide of a run-through: its outcome once judged.
-type Said = { points: number; leaves: Map<string, number>; result: Result | null; why: string };
+type Said = { points: number; leaves: Map<string, number>; trouble?: Map<string, number[]>; result: Result | null; why: string };
 
 export class Engine {
   readonly tree: Tree;
@@ -57,6 +57,8 @@ export class Engine {
   counted: boolean | null = null;
   private entry: Entry | null = null;
   private before = new Map<string, State | null>();
+  // the trouble the judged attempt on screen put on each leaf's words
+  private trouble: Map<string, number[]> | null = null;
   // a run-through: the slide being said (from 0) and each slide's outcome
   at = 0;
   said = new Map<number, Promise<Said>>();
@@ -142,7 +144,7 @@ export class Engine {
     return Object.entries(this.items()).filter(([k]) => k.startsWith("learn:log:")).sort(([a], [b]) => (a < b ? -1 : 1))
       .flatMap(([, v]) => (v as Log).list);
   }
-  progress() { return metrics(this.log(), this.since); }
+  progress() { return { ...metrics(this.log(), this.since), weakest: weakest(this.tree, this.state, this.deps.now()) }; }
   get days() {
     return streak(Object.entries(this.items()).filter(([k, v]) => k.startsWith("learn:log:") && (v as Log).list.length)
       .map(([k]) => k.slice("learn:log:".length)), this.deps.now());
@@ -169,6 +171,7 @@ export class Engine {
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
       at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();
+    this.trouble = null;
     this.said = new Map();
     this.saidDone = new Map();
     if (!this.item && this.screen === "session") this.screen = "done";
@@ -202,6 +205,11 @@ export class Engine {
         keep: [...(mode === "full" ? must : []), ...keep], initial: mode === "initial" ? must : [],
         seed: Number.parseInt(hash(`${id}:${this.state(id)?.n ?? 0}`), 36) >>> 0 };
     });
+  }
+  // Each word's trouble on the card, in the order of the node's words (0 for a word with none).
+  troubles(): number[] {
+    const n = this.node, now = this.deps.now();
+    return n ? n.leaves.flatMap((id) => troubleOf(this.state(id), now) ?? new Array<number>((this.tree.nodes.get(id) as Node).words).fill(0)) : [];
   }
   // The must-say items of a node's text, and its voice clips.
   private mustOf(n: Node) {
@@ -309,7 +317,7 @@ export class Engine {
     const zero = (why: string): Said => ({ points: 0, leaves: new Map(root.leaves.map((l) => [l, 0])), result: null, why });
     const v = await this.judge(root, blob, { run: this.node?.id });
     const o = outcome(this.tree, root, v, this.mustOf(root));
-    const out = o.counted ? { points: o.points, leaves: o.leaves, result: o.result, why: "" } : zero(o.why);
+    const out = o.counted ? { points: o.points, leaves: o.leaves, trouble: o.trouble, result: o.result, why: "" } : zero(o.why);
     this.saidDone.set(n, out);
     this.emit();
     return out;
@@ -368,7 +376,8 @@ export class Engine {
         throw new Error(o.why);
       }
       this.result = o.result;
-      this.count(item, o.points, o.leaves);
+      this.trouble = o.trouble;
+      this.count(item, o.points, o.leaves, o.trouble);
       this.phase = "judged";
     } catch (err) {
       if (this.item !== item) return;
@@ -379,12 +388,12 @@ export class Engine {
 
   // Count the attempt on screen: the states move and the attempt is logged. Counting again (a recount) first puts
   // back what the last count replaced.
-  private count(item: Pick, points: number, leaves: Map<string, number>) {
+  private count(item: Pick, points: number, leaves: Map<string, number>, trouble?: Map<string, number[]>) {
     const now = this.deps.now();
     this.before.forEach((v, k) => (v === null ? this.remove(nodeKey(k)) : this.set(nodeKey(k), v)));
     const est = estimates(this.tree, this.state, now), gap = this.gap(item.node, now);
     const hide = this.shown ? new Map(item.node.leaves.map((l) => [l, 0])) : this.hide;
-    const states = record(this.tree, this.state, item.node, leaves, points, now, hide, est);
+    const states = record(this.tree, this.state, item.node, leaves, points, now, hide, est, trouble);
     this.before = new Map([...states.keys()].map((k) => [k, this.state(k)]));
     this.write(states);
     this.points = points;
@@ -421,8 +430,9 @@ export class Engine {
       }));
       this.countRun(this.item, all);
     } else {
-      const h = byHand(this.item.node, pass);
-      this.count(this.item, h.points, h.leaves);
+      // counted as got: the words the judge marked take on no trouble; as missed: what they took on at first
+      const h = byHand(this.item.node, pass), t = this.trouble;
+      this.count(this.item, h.points, h.leaves, t ? (pass ? new Map([...t].map(([k, v]) => [k, v.map(() => 0)])) : t) : undefined);
     }
     this.emit();
   }

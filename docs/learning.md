@@ -51,8 +51,11 @@ The talk is a tree, learned from the leaves up.
 - **The slide** is the top of its own tree.
 - **Bridges.** Between each pair of spoken slides there is a bridge: the last sentence of one and the first sentence
   of the next, so the change of slide is practised directly.
-- **Sections** of about `SECTION` (5) slides (a remainder of fewer than 3 joins the section before), and **the talk**
-  over them. With 7 slides or fewer there is just the talk. These are practised as run-throughs, slide by slide.
+- **Sections** are the deck's own PowerPoint sections (`lib/pptx.ts` reads the section list in `presentation.xml`, and
+  the build keeps each slide's section in D1). A slide in no section stays with the section before, and a section of
+  one spoken slide is just that slide. A deck with no sections gets groups of about `SECTION` (5) slides, a remainder
+  of fewer than 3 joining the section before. With one section there is just the talk. **The talk** is over the
+  sections. These are practised as run-throughs, slide by slide.
 
 A slide of 9 short sentences has 17 nodes: 9 sentences, 7 groups and the slide. The old trainer had 45 windows.
 
@@ -77,8 +80,8 @@ Each node keeps `{ s, at, interval, n, passes, lastPass, run, hid }`.
 **The score `s`** is an exponentially weighted moving average of the node's attempt scores. Each attempt moves it
 `ALPHA` (0.5) of the way to that attempt's score, so the last 3 attempts carry about 88% of the weight.
 
-**Scores flow down.** The judge's problems are placed on the leaves (`perSentence` from `lib/score.ts`, run over the
-clauses), and every node under the attempted one is scored by its own leaves. These move only `UNDER` (0.25) of the
+**Scores flow down.** The judge's problems are placed on the leaves (below), and every node under the attempted one is
+scored by its own leaves. These move only `UNDER` (0.25) of the
 way: where a problem falls is a guess, so it is weaker evidence than an attempt at that part.
 
 **A node is known at least as well as its parts, joined:** its estimate is the higher of its own faded score and the
@@ -94,6 +97,31 @@ the memory gets stronger, which is what builds retention after a gap (finding 4)
 the time past the interval and `FADE` 0.3. Forgetting curves follow a power law more closely than an exponential
 (Wixted and Ebbesen, 1991). A node is due once it has faded below its bar. What is shown fades with it, so a node comes
 back after a break with more of its text.
+
+## Where a problem falls (`align.ts`)
+
+The judge quotes the words each problem affected, but not always exactly: "foundation-model" for "foundation model",
+"nine" for 9, a word changed or one added. An exact match then marks nothing, and in real use missed words often were
+not shown. So each quoted phrase is placed by alignment: the span of the text, starting and ending at a matching word,
+that matches the most of the phrase's words in order, after the grader's normalising (case, punctuation, number
+words) and allowing close word forms (learned and learn). It needs at least `PLACE` (60%) of the phrase's words. On a
+tie the earliest span wins, then the shortest, and a span already taken by an earlier problem is not used again.
+
+The same placement marks the missed words on the card, charges each problem to the leaves it falls in (the costs of
+`lib/score.ts`), and adds to each word's trouble.
+
+## What Tim does not know, word by word
+
+Each leaf keeps a trouble value for each of its words, in its state. On an attempt, each word inside a placed problem
+gets `HIT` (1) more for a phrase left out, changed or a wrong term, or `STUMBLE` (0.5) for a stumble, and every other
+word of the leaves attempted keeps `KEEP` (0.6) of its trouble. Trouble fades with time as the score does.
+
+After each verdict the card shows the text with each word shaded by its trouble: none plain, from `TROUBLE_LOW` (0.3)
+pale amber, from `TROUBLE_HIGH` (1) deep red. This attempt's misses are also underlined in bold, so colour is never
+the only sign. The Progress screen lists the weakest phrases: runs of words with trouble of 0.3 or more, the most
+trouble first.
+
+"Count it as got" takes back the trouble the attempt added; "Count it as missed" puts it back.
 
 ## Hiding
 
@@ -161,7 +189,7 @@ the pass rate of the last 10 counted attempts of the session between 70% and 85%
 
 Kept in the browser's localStorage under `talk-trainer:<talk id>:` and online in D1, per talk:
 
-- `learn:n:<node id>`: a node's state.
+- `learn:n:<node id>`: a node's state, with a leaf's trouble.
 - `learn:set:aim`, `learn:set:goal`, `learn:set:mic`: the settings, each `{ v, at }`.
 - `learn:log:<day>`: the day's attempts, for the metrics, `{ at, list }`.
 
@@ -184,6 +212,7 @@ KV gets the same fields. The Progress screen shows:
 - the pass rate this session, against the 70 to 85% target;
 - attempts to reach the bar, by kind of node;
 - retention: the pass rate after a gap of more than 30 minutes;
+- the weakest phrases;
 - the parts that have taken the most attempts.
 
 ## Verification

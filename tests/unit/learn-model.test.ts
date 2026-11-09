@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { barOf, cues, estimates, fade, hidden, hiding, known, opening, place, record, scores, type State, terms, update }
+import { barOf, cues, troubleOf, estimates, fade, hidden, hiding, known, opening, place, record, scores, type State, terms, update }
   from "@/lib/learn/model";
 import { ALPHA, FIRST, GROW, JOIN, UNDER } from "@/lib/learn/rules";
 import { build, type Input, type Node } from "@/lib/learn/tree";
@@ -89,7 +89,7 @@ describe("hiding", () => {
 
 describe("an attempt", () => {
   test("the judge's problems placed on the leaves, and each part scored by its leaves' words", () => {
-    const leaves = place(tree, node(root), [{ kind: "left_out", script: "Today we bake bread." }]);
+    const { leaves } = place(tree, node(root), [{ kind: "left_out", script: "Today we bake bread." }]);
     expect([...leaves.values()]).toEqual([100, 0]);
     const s = scores(tree, node(root), leaves, 55);
     expect(Object.fromEntries(s)).toEqual({ [root]: 55, [a]: 100, [b]: 0 });
@@ -106,6 +106,26 @@ describe("an attempt", () => {
     // the node's share hidden is its leaves', by their words (7 and 4)
     expect(out.get(root)?.hid).toBe(0.32);
     expect(out.get(a)?.hid).toBe(0.5);
+  });
+
+  test("trouble: words hit go up, the rest keep 0.6 of theirs, it fades as the score does; kept when not given", () => {
+    const get0 = () => null, est = estimates(tree, get0, 0);
+    const first = record(tree, get0, node(root), new Map([[a, 50], [b, 100]]), 70, 0, new Map([[a, 1], [b, 1]]), est,
+      new Map([[a, [0, 1, 1, 0, 0, 0, 0]], [b, [0, 0, 0, 0.5]]]));
+    expect(first.get(a)?.trouble).toEqual([0, 1, 1, 0, 0, 0, 0]);
+    expect(first.get(root)?.trouble).toBeUndefined();
+    const states = Object.fromEntries(first);
+    const get1 = (id: string) => states[id] ?? null;
+    const again = record(tree, get1, node(a), new Map([[a, 100]]), 100, 1000, new Map([[a, 1]]), estimates(tree, get1, 1000),
+      new Map([[a, [0, 1, 0, 0, 0, 0, 0]]]));
+    expect(again.get(a)?.trouble).toEqual([0, 2, 0.6, 0, 0, 0, 0]);
+    // no trouble given: kept as it was
+    expect(record(tree, get1, node(b), new Map([[b, 100]]), 100, 1000, new Map([[b, 1]]), estimates(tree, get1, 1000)).get(b)?.trouble)
+      .toEqual([0, 0, 0, 0.5]);
+    // fading with time, as the score does
+    expect(troubleOf(states[a], 2 * FIRST)?.[1]).toBeCloseTo(2 ** -0.3);
+    expect(troubleOf(null, 0)).toBeNull();
+    expect(troubleOf(states[root], 0)).toBeNull();
   });
 
   test("a run-through has no leaves of its own: only it is written, all hidden", () => {

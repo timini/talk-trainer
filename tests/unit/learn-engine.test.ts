@@ -196,9 +196,14 @@ describe("recount, Show me and I know this one", () => {
     expect(e.log()).toHaveLength(1);
     expect(e.log()[0]).toMatchObject({ points: 85, pass: true });
     expect(e.session.recent).toEqual([true]);
+    // counted as got, the words marked took on no trouble; as missed again, they did
+    expect(state(e, id)!.trouble).toEqual([0, 0, 0, 0, 0, 0, 0]);
     e.recount(true);
     e.recount(false);
     expect([e.counted, state(e, id)!.s]).toEqual([false, 0.25]);
+    expect(state(e, id)!.trouble).toEqual([0, 0, 0, 1, 1, 1, 1]);
+    expect(e.troubles()).toEqual([0, 0, 0, 1, 1, 1, 1]);
+    expect(e.progress().weakest).toEqual([{ slide: 1, phrase: "thank you for coming.", trouble: 4 }]);
   });
 
   test("Show me shows every word for this attempt; I know this one moves on", async () => {
@@ -218,6 +223,13 @@ describe("recount, Show me and I know this one", () => {
     e.knowIt();
     expect(state(e, b)).toMatchObject({ s: 0.9, hid: 1 });
     expect(e.node?.id).not.toBe(b);
+  });
+
+  test("no trouble yet: every word 0; nothing on screen: none", () => {
+    const e = make();
+    expect(e.troubles()).toEqual([]);
+    e.start();
+    expect(e.troubles()).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
 
   test("Hear it plays the clips of what is to be said", () => {

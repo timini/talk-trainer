@@ -2,11 +2,29 @@
 // slides at their aim, the pass rate this session against the 70 to 85% target, the attempts each kind of node took
 // to reach its bar, retention after a gap, and the parts that have taken the most attempts.
 
-import type { States } from "./model";
-import { type Aim, GAP, PACE_HIGH, PACE_LOW } from "./rules";
+import { type States, troubleOf } from "./model";
+import { type Aim, GAP, PACE_HIGH, PACE_LOW, TROUBLE_LOW } from "./rules";
 import { standing } from "./scheduler";
 import type { Entry } from "./store";
-import type { Tree } from "./tree";
+import type { Node, Tree } from "./tree";
+
+// The weakest phrases: runs of words whose trouble is TROUBLE_LOW or more, the most trouble first, at most n.
+export const weakest = (tree: Tree, get: States, now: number, n = 5) => {
+  const out: { slide: number; phrase: string; trouble: number }[] = [];
+  for (const id of tree.order) {
+    const leaf = tree.nodes.get(id) as Node, t = leaf.kids.length ? null : troubleOf(get(id), now);
+    if (!t) continue;
+    const words = leaf.text.split(/\s+/);
+    let run: number[] = [];
+    const flush = () => {
+      if (run.length) out.push({ slide: leaf.slides[0], phrase: run.map((w) => words[w]).join(" "), trouble: run.reduce((a, w) => a + t[w], 0) });
+      run = [];
+    };
+    t.forEach((x, w) => { if (x >= TROUBLE_LOW) run.push(w); else flush(); });
+    flush();
+  }
+  return out.sort((a, b) => b.trouble - a.trouble).slice(0, n).map((x) => ({ ...x, trouble: Math.round(x.trouble * 100) / 100 }));
+};
 
 const rate = (xs: Entry[]) => {
   const counted = xs.filter((x) => x.pass !== null);
