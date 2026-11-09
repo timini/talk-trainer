@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { grade } from "@/lib/grade";
-import { judged } from "@/lib/judge";
+import { judged, type Problem } from "@/lib/judge";
 import { chainStart } from "@/lib/text";
 import {
-  cardsOf, checkingLine, deliveryLine, heardAll, lastLine, reason, doneLines, exportFile, importFile, kind, LEVELS, plural, savedLine, type Slide, startInfo,
+  cardsOf, checkingLine, deliveryLine, heardAll, lastLine, problemLine, reason, doneLines, exportFile, importFile, kind, LEVELS, plural, savedLine, type Slide, startInfo,
   todayLine, verdict, view, weakLine, when,
 } from "@/lib/train";
 
@@ -68,21 +68,34 @@ describe("the words on each screen", () => {
         "Saved in this browser; the online copy could not be reached and will be tried again.", "Saved in this browser."]);
   });
 
-  test("the verdict and the delivery line", () => {
-    const line = ["Mix 500 grams of flour with water."];
+  test("the verdict: the meaning came through, or up to 2 problems; the page's own grade without the judge", () => {
+    const line = ["Mix 500 grams of flour with 350 grams of water."];
     const local = grade(line, "", ["500"]);
-    expect(verdict(judged(local, { verbatim: true, missed: [] }))).toEqual({ head: "Got it", detail: "Word for word.", good: true });
-    expect(verdict(judged(local, { verbatim: true, missed: [], stumbles: ["mix 5 mix 500"] }))).toEqual({ head: "Missed",
-      detail: 'You restarted: "mix 5 mix 500". Say it in one smooth line.', good: false });
-    expect(verdict(judged(local, { verbatim: false, missed: ["500"] })).detail).toBe("A number or must-say item was wrong.");
-    expect(verdict(judged(local, { verbatim: false, missed: ["flour", "water"] })).detail).toBe("2 words missed: flour, water.");
-    expect(verdict(judged(local, { verbatim: false, missed: ["flour"] })).detail).toBe("1 word missed: flour.");
-    const long = grade(["a b c d e f g h"], "", []);
-    expect(verdict(judged(long, { verbatim: false, missed: ["a", "b", "c", "d", "e", "f", "g"] })).detail)
-      .toBe("7 words missed: a, b, c, d, e, f...");
-    expect(verdict(judged(local, { verbatim: false, missed: [] }))).toEqual({ head: "Missed", detail: "Not quite word for word.", good: false });
-    // the browser's own grade, with no judge: no stumbles to report
-    expect(verdict(grade(["Add water."], "add water", []))).toEqual({ head: "Got it", detail: "Word for word.", good: true });
+    expect(verdict(judged(local, { heard: "mix 500 grams of flour with 350 grams of water", meaning_ok: true, problems: [] })))
+      .toEqual({ head: "Got it", detail: "The meaning came through.", note: "", good: true });
+    expect(verdict(judged(local, { heard: "so I mix 500 grams of flour with 350 grams of water", meaning_ok: true, problems: [] })))
+      .toEqual({ head: "Got it", detail: "The meaning came through.", note: "Small wording differences are fine.", good: true });
+    expect(verdict(judged(local, { meaning_ok: true })).note).toBe("");
+    const miss = (problems: Problem[]) => verdict(judged(local, { meaning_ok: false, problems }));
+    expect(miss([{ kind: "left_out", script: "with 350 grams of water." }]))
+      .toEqual({ head: "Missed", detail: "Left out 'with 350 grams of water'.", note: "", good: false });
+    expect(miss([{ kind: "changed", script: "Mix", said: "Stir" }]).detail).toBe("Changed 'Mix' (you said 'Stir').");
+    expect(miss([{ kind: "changed", script: "Mix" }]).detail).toBe("Changed 'Mix'.");
+    expect(miss([{ kind: "wrong_term", script: "500", said: "400" }]).detail).toBe("'500' wrong (you said '400').");
+    expect(miss([{ kind: "order", script: "x" }]).detail).toBe("Order changed.");
+    expect(miss([{ kind: "stumble", script: "Mix 500", said: "mix 5 mix 500" }]).detail)
+      .toBe("You restarted: 'mix 5 mix 500'. Say it in one smooth line.");
+    expect(miss([{ kind: "stumble", script: "Mix 500" }]).detail).toBe("You restarted: 'Mix 500'. Say it in one smooth line.");
+    expect(miss([{ kind: "left_out", script: "of water" }, { kind: "wrong_term", script: "500" }, { kind: "order", script: "" },
+      { kind: "changed", script: "Mix" }]).detail).toBe("Left out 'of water'; '500' wrong and 2 more.");
+    expect(miss([]).detail).toBe("The meaning did not come through.");
+    expect(problemLine({ kind: "other" as Problem["kind"], script: "Mix" })).toBe("'Mix' not right");
+    // the page's own grade, when the judge could not answer
+    expect(verdict(grade(["Add water."], "add water", []))).toEqual({ head: "Got it", detail: "Every word came through.", note: "", good: true });
+    expect(verdict(grade(line, "mix 400 grams of flour with 350 grams of water", ["500"])).detail).toBe("A number or must-say item was wrong.");
+    expect(verdict(grade(["Add the cold water slowly."], "add the slowly", [])).detail).toBe("2 words missed: cold, water.");
+    expect(verdict(grade(["Add the water."], "add the", [])).detail).toBe("1 word missed: water.");
+    expect(verdict(grade(["b c d e f g h j"], "", [])).detail).toBe("8 words missed: b, c, d, e, f, g...");
     expect(deliveryLine({ clarity: 4, fluency: 3, pace: "good" })).toBe("clarity 4 of 5, flow 3 of 5, pace good.");
     expect(deliveryLine({})).toBe("clarity ? of 5, flow ? of 5, pace ?.");
   });
@@ -119,17 +132,24 @@ describe("judging in the background", () => {
   });
 
   test("why a card was missed, in a few words", () => {
-    expect(reason(judged(local, { verbatim: true, stumbles: ["mix mix"] }))).toBe("a restart");
-    expect(reason(judged(local, { verbatim: false, missed: ["500"] }))).toBe("a number or must-say item");
-    expect(reason(judged(local, { verbatim: false, missed: ["flour", "water"] }))).toBe("missed flour, water");
-    expect(reason(judged(local, { verbatim: false, missed: ["mix", "grams", "of", "flour"] }))).toBe("missed Mix, grams, of...");
-    expect(reason(judged(local, { verbatim: false, missed: [] }))).toBe("not word for word");
-    expect(reason(grade(line, "mix 500 grams of flour with water", ["500"]))).toBe("not word for word");
+    const why = (problems: Problem[], meaning_ok = false) => reason(judged(local, { meaning_ok, problems }));
+    expect(why([{ kind: "left_out", script: "with water" }])).toBe("left out a point");
+    expect(why([{ kind: "changed", script: "Mix" }])).toBe("changed the meaning");
+    expect(why([{ kind: "wrong_term", script: "500" }])).toBe("a number, name or term wrong");
+    expect(why([{ kind: "order", script: "" }])).toBe("order changed");
+    expect(why([{ kind: "stumble", script: "Mix", said: "mix mix" }], true)).toBe("a restart");
+    expect(why([{ kind: "other" as Problem["kind"], script: "Mix" }])).toBe("something not right");
+    expect(why([])).toBe("the meaning did not come through");
+    // the page's own grade
+    expect(reason(grade(line, "mix 400 grams of flour with water", ["500"]))).toBe("a number or must-say item");
+    expect(reason(grade(["Add the cold water slowly now."], "add the", []))).toBe("missed cold, water, slowly...");
+    expect(reason(grade(["Add the cold water."], "add the water", []))).toBe("missed cold");
+    expect(reason(grade(["Add water."], "add water", []))).toBe("not enough of the words");
   });
 
   test("the strip about the last card", () => {
-    const missed = judged(local, { verbatim: true, stumbles: ["mix mix"] });
-    const got = judged(local, { verbatim: true });
+    const missed = judged(local, { meaning_ok: true, problems: [{ kind: "stumble", script: "Mix", said: "mix mix" }] });
+    const got = judged(local, { meaning_ok: true, problems: [] });
     expect(lastLine({ checking: true, result: null, marked: null, error: "" })).toEqual({ text: "Last: checking...", tone: "" });
     expect(lastLine({ checking: false, result: got, marked: true, error: "" })).toEqual({ text: "Last: Got it", tone: "good" });
     expect(lastLine({ checking: false, result: missed, marked: false, error: "" }))

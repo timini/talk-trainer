@@ -1,8 +1,8 @@
 // The trainer's plain logic, apart from React: the cards of a talk, what a card shows (its chain, levels and clips),
 // and the words on each screen.
 
-import { best, type Result } from "./grade";
-import type { Verdict } from "./judge";
+import { best, normalise, type Result } from "./grade";
+import type { Kind, Problem, Verdict } from "./judge";
 import { ago, type Card, days } from "./schedule";
 
 export type Sentence = { i: number; text: string; hash: string; clip: string | null; must_say: string[] };
@@ -67,19 +67,47 @@ export const savedLine = (state: Sync, at: number, now: number) => (state === "o
   : state === "error" ? "Saved in this browser; the online copy could not be reached and will be tried again."
   : "Saved in this browser.");
 
-export type Judged = Result & { stumbles?: string[]; judge?: Verdict };
+export type Judged = Result & { problems?: Problem[]; judge?: Verdict };
 
-// The verdict banner over a judged card.
+const quote = (text: string) => `'${text.trim().replace(/[.,;:!?]+$/, "")}'`;
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+const bare = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+
+// One problem the judge found, in words.
+export const problemLine = (x: Problem) => {
+  const said = x.said ? ` (you said ${quote(x.said)})` : "";
+  return {
+    left_out: `left out ${quote(x.script)}`,
+    changed: `changed ${quote(x.script)}${said}`,
+    wrong_term: `${quote(x.script)} wrong${said}`,
+    order: "order changed",
+    stumble: `you restarted: ${quote(x.said || x.script)}`,
+  }[x.kind] ?? `${quote(x.script)} not right`;
+};
+
+// The verdict banner over a judged card. With the judge: the meaning came through, or up to 2 of its problems; a
+// pass that was not word for word says small wording differences are fine. Without it (the page's own grade): how
+// many words came through.
 export const verdict = (r: Judged) => {
+  if (r.judge) {
+    if (r.pass) {
+      const target = normalise(r.parts.flatMap((p) => p.words.map((w) => w.w)).join(" ")).join(" ");
+      const differs = !!r.judge.heard && normalise(r.judge.heard).join(" ") !== target;
+      return { head: "Got it", detail: "The meaning came through.", note: differs ? "Small wording differences are fine." : "", good: true };
+    }
+    const problems = r.problems as Problem[]; // judged() always sets them
+    const more = problems.length - 2;
+    const detail = problems.length ? `${capital(problems.slice(0, 2).map(problemLine).join("; "))}${more > 0 ? ` and ${more} more` : ""}.`
+      + (problems.some((x) => x.kind === "stumble") ? " Say it in one smooth line." : "")
+      : "The meaning did not come through.";
+    return { head: "Missed", detail, note: "", good: false };
+  }
   const crit = r.parts.some((x) => x.critWrong);
-  const missed = r.parts.flatMap((x) => x.words.filter((w) => !w.ok)
-    .map((w) => w.w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")));
-  const stumbles = r.stumbles ?? [];
-  const detail = stumbles.length ? `You restarted: ${stumbles.map((x) => `"${x}"`).join(", ")}. Say it in one smooth line.`
-    : crit ? "A number or must-say item was wrong."
+  const missed = r.parts.flatMap((x) => x.words.filter((w) => !w.ok).map((w) => bare(w.w)));
+  const detail = crit ? "A number or must-say item was wrong."
     : missed.length ? `${missed.length === 1 ? "1 word" : `${missed.length} words`} missed: ${missed.slice(0, 6).join(", ")}${missed.length > 6 ? "..." : "."}`
-    : r.pass ? "Word for word." : "Not quite word for word.";
-  return { head: r.pass ? "Got it" : "Missed", detail, good: r.pass };
+    : "Every word came through.";
+  return { head: r.pass ? "Got it" : "Missed", detail, note: "", good: r.pass };
 };
 
 // The delivery line from the judge.
@@ -116,12 +144,17 @@ export const importFile = (text: string): Record<string, unknown> => {
 export const heardAll = (parts: string[], alts: string[][], must: string[]) =>
   alts.length > 0 && best(parts, alts, must).result.left <= 0;
 
-// Why a judged card was missed, in a few words.
+// Why a card was missed, in a few words, for the strip.
+const REASONS: Record<Kind, string> = { left_out: "left out a point", changed: "changed the meaning",
+  wrong_term: "a number, name or term wrong", order: "order changed", stumble: "a restart" };
 export const reason = (r: Judged) => {
-  const missed = r.parts.flatMap((x) => x.words.filter((w) => !w.ok)
-    .map((w) => w.w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")));
-  return r.stumbles?.length ? "a restart" : r.parts.some((x) => x.critWrong) ? "a number or must-say item"
-    : missed.length ? `missed ${missed.slice(0, 3).join(", ")}${missed.length > 3 ? "..." : ""}` : "not word for word";
+  if (r.judge) {
+    const first = r.problems?.[0];
+    return first ? REASONS[first.kind] ?? "something not right" : "the meaning did not come through";
+  }
+  const missed = r.parts.flatMap((x) => x.words.filter((w) => !w.ok).map((w) => bare(w.w)));
+  return r.parts.some((x) => x.critWrong) ? "a number or must-say item"
+    : missed.length ? `missed ${missed.slice(0, 3).join(", ")}${missed.length > 3 ? "..." : ""}` : "not enough of the words";
 };
 
 // The strip over the card about the attempt before it, judged in the background. marked: how the card was counted
