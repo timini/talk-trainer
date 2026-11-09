@@ -56,8 +56,10 @@ export const prompt = ({ mode, target, glossary }: { mode?: string; target: stri
   return [
     "You are checking a speaker who is learning one sentence of a conference talk by heart.",
     `The target sentence: ${target}`, names,
-    "Judge word for word, but ignore spelling, punctuation and how names are written. A changed number or a changed "
-      + "meaning is a miss; a filler such as um is not.",
+    "Judge whether the sentence came out as written, but ignore spelling, punctuation and how names are written. A "
+      + "changed number, a wrong name or term, a left out phrase or a changed meaning is a miss; a filler such as um is not.",
+    "Small words added or dropped (I, and, the, a, so, that, have, it), contractions (I'm for I am) and a greeting "
+      + "before the sentence are not misses: count the sentence as word for word and do not list them in missed.",
     "Be strict about restarts: if the speaker starts a phrase, stops and says it again, repeats words, or corrects "
       + "themselves, the sentence was not said word for word, even if the final version is right. Quote each one in "
       + "stumbles. A sentence said as one smooth line has none.",
