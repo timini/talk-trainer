@@ -167,7 +167,7 @@ export class Engine {
     const now = this.deps.now();
     this.item = pick(this.tree, this.state, now, this.aim, this.goal, this.session);
     const est = estimates(this.tree, this.state, now);
-    this.hide = this.item ? hiding(this.item.node, est, this.aim, pace(this.session)) : new Map();
+    this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session)) : new Map();
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
       at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();

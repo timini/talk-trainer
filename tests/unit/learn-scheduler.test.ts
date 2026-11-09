@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { State } from "@/lib/learn/model";
+import { hiding, type State } from "@/lib/learn/model";
 import { FIRST, PACE_OF, REVIEWS } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Session, standing } from "@/lib/learn/scheduler";
 import { build, type Input, type Node } from "@/lib/learn/tree";
@@ -124,6 +124,25 @@ describe("pick", () => {
     expect(pick(t10, from(all), NOW, "verbatim", Infinity, begin())?.node.id).toBe("sec:1");
     expect(pick(t10, from({ ...all, "sec:1": st(0.9) }), NOW, "verbatim", Infinity, begin())?.node.id).toBe("sec:2");
     expect(pick(t10, from({ ...all, "sec:1": st(0.9), "sec:2": st(0.9) }), NOW, "verbatim", Infinity, begin())?.node.id).toBe("t");
+  });
+});
+
+describe("the gist passes over clauses", () => {
+  test("a long sentence is the first part; a miss on it stays on it; its clauses hide by its score", () => {
+    const t2 = build([said(1, ["We looked at the data closely, and we found that most variants were rare; so we asked families.",
+      "Then we wrote."])]);
+    const [c1, c2, c12, c3, s1, s2] = t2.order;
+    expect(pick(t2, () => null, NOW, "gist", Infinity, begin())?.node.id).toBe(s1);
+    expect(pick(t2, () => null, NOW, "verbatim", Infinity, begin())?.node.id).toBe(c1);
+    const missed = session({ last: { id: s1, pass: false }, same: 1 });
+    expect(pick(t2, from({ [s1]: st(0.3) }), NOW, "gist", Infinity, missed)?.node.id).toBe(s1);
+    // known at the gist without its clauses: on to the next sentence, then the slide
+    expect(pick(t2, from({ [s1]: st(0.6) }), NOW, "gist", Infinity, begin())?.node.id).toBe(s2);
+    expect(standing(t2, from({ [s1]: st(0.6), [s2]: st(0.6) }), NOW, "gist").ready(t2.roots.get(1) as string)).toBe(true);
+    expect(standing(t2, from({}), NOW, "gist").ready(c12)).toBe(false);
+    const est = new Map([[c1, 0.2], [c2, 0.9], [c12, 0], [c3, 0.2], [s1, 0.7]]);
+    expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "gist", null).values()]).toEqual([0.5, 0.5, 0.5]);
+    expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "verbatim", null).values()]).toEqual([0, 1, 0]);
   });
 });
 

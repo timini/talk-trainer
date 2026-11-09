@@ -153,7 +153,13 @@ One rule, in order:
 | Aim | Clauses, sentences, groups, bridges | Slides, sections, the talk |
 |---|---|---|
 | Word for word | 0.75 | 0.85, and every word hidden |
-| Gist | 0.6 | 0.8, at most half hidden |
+| Gist | 0.5 | 0.8, at most half hidden |
+
+**The gist passes over the clauses.** At the gist a sentence is the smallest part practised: its clauses are not
+tried on their own, and each clause hides by its sentence's score. The gist asks for the meaning, which a sentence
+carries whole, and every join between sentences is still practised. With the lower bar for its parts (0.5), this
+roughly halves the gist's attempts (below). `GIST_GROUP` can also pass over the groups of 2 sentences, for a little
+more; it is off, as the step from one sentence to two is the hardest in the data.
 
 **Pacing for desirable difficulty.** Practice teaches best when most attempts succeed with effort (Bjork's desirable
 difficulties; Wilson and others, 2019, put the best rate near 85%). The data's 53% was too hard. The scheduler keeps
@@ -238,15 +244,20 @@ Attempts to reach the slide's bar (median and 95th percentile) and the pass rate
 
 | Sentences | Word for word | Gist |
 |---|---|---|
-| 1 | 11 / 19, 86% | 8 / 17, 83% |
-| 2 | 23 / 41, 86% | 16 / 23, 87% |
-| 4 | 52 / 72, 82% | 35 / 50, 82% |
-| 6 | 78 / 155, 85% | 53 / 78, 81% |
-| 9 | 168 / 265, 86% | 82 / 139, 84% |
-| 12 | 332 / 426, 89% | 146 / 159, 85% |
+| 1 | 11 / 19, 86% | 5 / 7, 86% |
+| 2 | 23 / 41, 86% | 7 / 10, 93% |
+| 4 | 52 / 72, 82% | 14 / 16, 87% |
+| 6 | 78 / 155, 85% | 19 / 23, 87% |
+| 9 | 168 / 265, 86% | 30 / 34, 84% |
+| 12 | 332 / 426, 89% | 38 / 43, 84% |
 
 A talk of 7 slides (17 sentences) to its run-through: 492 to 872 attempts word for word (6 to 10 sessions of 30 minutes),
-243 to 340 for the gist (3 to 4 sessions).
+104 to 121 for the gist.
+
+The gist before it passed over clauses, with its node bar at 0.6: 8, 16, 35, 53, 82 and 146 attempts (medians, for 1
+to 12 sentences), and 243 to 340 for the talk of 7 slides. Each step on its own: passing over clauses gave 19 for 4
+sentences and 38 for 9; the bar 0.5 then 14 and 30. The gist now runs a little above the 70 to 85% band (up to 93% for
+2 sentences), where the pacing hides more.
 
 What the simulation changed from the first design:
 
@@ -258,6 +269,8 @@ What the simulation changed from the first design:
   its bar, and the slide could not be tried again until it was relearned.
 - **A node must be tried once** to count as at its bar; otherwise bridges were skipped, as their two slides already
   made them look known.
+- **The gist** passes over clauses, and its node bar is 0.5 (from 0.6), to fit Tim's timeline (about 100 attempts an
+  hour, the talk on Saturday).
 - **`SAME` 3** (from 4): with 4, one node was picked 7 times in a row in a talk of 7 slides.
 
 The learner is a model, so these numbers are a guide to the shape, not a promise of minutes. The real numbers come

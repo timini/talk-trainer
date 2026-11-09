@@ -113,7 +113,7 @@ export const practise = (slides: Input[], aim: Aim, seed: number, join0 = 0.5): 
         run(tree, get, node, said, now, est).forEach((v, k) => states.set(k, v));
         points = [...said.values()].reduce((a, x) => a + x.points, 0) / said.size;
       } else {
-        const hide = hiding(node, est, aim, rate);
+        const hide = hiding(tree, node, est, aim, rate);
         const leaves = learner.say(tree, node.leaves, hide, now);
         points = mean(node, tree, leaves);
         log.push({ sentences: node.last - node.first + 1 + (node.kind === "bridge" ? 1 : 0), words: node.words,

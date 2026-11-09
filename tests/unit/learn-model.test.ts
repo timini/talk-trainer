@@ -50,7 +50,7 @@ describe("the score and its fading", () => {
 
   test("the bars", () => {
     expect([barOf(node(a), "verbatim"), barOf(node(root), "verbatim"), barOf(node(a), "gist"), barOf(node(root), "gist")])
-      .toEqual([0.75, 0.85, 0.6, 0.8]);
+      .toEqual([0.75, 0.85, 0.5, 0.8]);
   });
 });
 
@@ -63,15 +63,15 @@ describe("hiding", () => {
 
   test("each leaf by its own estimate, moved by the pace; a whole slide word for word all hidden", () => {
     const est = new Map([[a, 0.55], [b, 0.3], [root, 0.4]]);
-    expect([...hiding(node(root), est, "gist", null).values()]).toEqual([0.5, 0.1]);
-    expect([...hiding(node(root), est, "verbatim", null).values()]).toEqual([1, 1]);
-    expect([...hiding(node(a), est, "verbatim", null).values()]).toEqual([0.5]);
-    expect([...hiding(node(a), est, "verbatim", 0.5).values()]).toEqual([0.25]);
-    expect([...hiding(node(a), est, "verbatim", 0.9).values()]).toEqual([0.7]);
-    expect([...hiding(node(a), est, "verbatim", 0.8).values()]).toEqual([0.5]);
+    expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.5, 0.1]);
+    expect([...hiding(tree, node(root), est, "verbatim", null).values()]).toEqual([1, 1]);
+    expect([...hiding(tree, node(a), est, "verbatim", null).values()]).toEqual([0.5]);
+    expect([...hiding(tree, node(a), est, "verbatim", 0.5).values()]).toEqual([0.25]);
+    expect([...hiding(tree, node(a), est, "verbatim", 0.9).values()]).toEqual([0.7]);
+    expect([...hiding(tree, node(a), est, "verbatim", 0.8).values()]).toEqual([0.5]);
     // a slide of one leaf is hidden by its score
     const one = build([said(2, ["Hello there."])]), only = one.nodes.get(one.order[0]) as Node;
-    expect([...hiding(only, new Map([[only.id, 0.3]]), "verbatim", null).values()]).toEqual([0.1]);
+    expect([...hiding(one, only, new Map([[only.id, 0.3]]), "verbatim", null).values()]).toEqual([0.1]);
   });
 
   test("terms in full, then their first letter, then hidden", () => {

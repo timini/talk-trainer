@@ -56,12 +56,23 @@ export const CUE = 3;
 // The bars: the score at which a node counts as known, by aim. top: a slide, a section or the whole talk; node:
 // everything else. Word for word, a slide is said with every word hidden, and is at its bar only after such an
 // attempt. Simulation: the word for word node bar 0.75 took 52 attempts for 4 sentences and 166 for 9; 0.8, 64 and
-// 317, with the same pass rate.
+// 317, with the same pass rate. The gist node bar 0.5 (from 0.6) took 14 attempts for 4 sentences and 30 for 9,
+// against 19 and 38, with the slide still at 0.8; see GIST_CLAUSES.
 export type Aim = "gist" | "verbatim";
 export const BARS: Record<Aim, { node: number; top: number }> = {
   verbatim: { node: 0.75, top: 0.85 },
-  gist: { node: 0.6, top: 0.8 },
+  gist: { node: 0.5, top: 0.8 },
 };
+
+// The gist, to save attempts (Tim, 10 November: about 100 attempts an hour, the talk on Saturday): it does not
+// practise the clauses of a sentence on their own (GIST_CLAUSES false; a clause hides by its sentence's score), nor
+// groups of GIST_GROUP sentences or fewer that are not a whole slide (0: every group is practised). The gist asks for
+// the meaning, which a sentence carries whole; the joins between sentences, where the data shows the misses, are all
+// still practised. Simulation, median attempts to a slide at the gist bar with clauses practised (and the node bar
+// 0.6): 4 sentences 35, 9 sentences 82; without them, 19 and 38; with the bar 0.5 as well, 14 and 30. Skipping pairs
+// too (GIST_GROUP 2) gave 14 and 26, but skips the step from one sentence to two, the hardest in the data.
+export const GIST_CLAUSES = false;
+export const GIST_GROUP = 0;
 
 // Pacing for desirable difficulty: the pass rate of the last PACE_OF counted attempts of the session (once there are
 // PACE_MIN) is kept between PACE_LOW and PACE_HIGH. Above it, a node is ready to try once its parts are within EASE

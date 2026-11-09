@@ -75,6 +75,7 @@ const say = async (e: Engine) => {
 describe("an attempt from start to verdict", () => {
   test("the first leaf, read aloud, judged: its score moves and it is logged", async () => {
     const e = make();
+    e.setAim("verbatim");
     e.start();
     expect(e.screen).toBe("session");
     expect(e.node?.text).toBe("Good morning, and thank you for coming.");
@@ -89,7 +90,7 @@ describe("an attempt from start to verdict", () => {
     expect([e.points, e.counted]).toEqual([100, true]);
     const id = e.node!.id;
     expect(state(e, id)).toMatchObject({ s: 0.5, n: 1, passes: 1, hid: 0 });
-    expect(e.known).toEqual({ before: 0, after: 0.5, bar: 0.6 });
+    expect(e.known).toEqual({ before: 0, after: 0.5, bar: 0.75 });
     const grade = sent.find((x) => x.url === "/api/grade")!.body as Record<string, unknown>;
     expect(grade).toMatchObject({ mode: "card", mime: "audio/webm", target: "Good morning, and thank you for coming.", audio: base64Of("sound") });
     expect(grade.at).toMatchObject({ engine: "learn", node: id, kind: "sentence", why: "new", gap: null });
@@ -208,6 +209,7 @@ describe("recount, Show me and I know this one", () => {
 
   test("Show me shows every word for this attempt; I know this one moves on", async () => {
     const e = make();
+    e.setAim("verbatim");
     e.start();
     const [a] = e.tree.order;
     e.set(nodeKey(a), { s: 0.5, at: clock, interval: 600000, n: 2, passes: 2, lastPass: clock, run: 0, hid: 0.4 });

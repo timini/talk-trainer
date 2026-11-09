@@ -10,7 +10,7 @@
 import { placed } from "./align";
 import type { Problem } from "../judge";
 import { ALPHA, type Aim, BARS, CUE, FADE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
-  PACE_HIGH, PACE_LOW, SHIFT, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
+  GIST_CLAUSES, GIST_GROUP, PACE_HIGH, PACE_LOW, SHIFT, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
 import type { Node, Tree } from "./tree";
 
 // s: the score; at: the last attempt; interval (ms); n: attempts; passes: attempts of NEARLY or more; lastPass: when
@@ -67,10 +67,21 @@ export const hidden = (s: number, aim: Aim) => {
 // Each leaf's share hidden on an attempt at a node, from its estimate. rate: the session's pass rate (null: too few
 // attempts yet); below PACE_LOW, SHIFT is taken off each estimate first, so more shows, and above PACE_HIGH it is
 // added. Word for word, a whole slide is said with every word hidden: that is the aim.
-export const hiding = (node: Node, est: Map<string, number>, aim: Aim, rate: number | null) => {
+// A leaf passed over at this aim takes the estimate of the nearest node over it that is not, when that is higher.
+export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Aim, rate: number | null) => {
   const shift = rate === null ? 0 : rate < PACE_LOW ? -SHIFT : rate > PACE_HIGH ? SHIFT : 0;
-  return new Map(node.leaves.map((l) => [l, aim === "verbatim" && node.kind === "slide" && node.kids.length ? 1 : hidden((est.get(l) as number) + shift, aim)]));
+  const of = (l: string) => {
+    let x = tree.nodes.get(l) as Node;
+    while (skipped(x, aim) && x.parent) x = tree.nodes.get(x.parent) as Node;
+    return Math.max(est.get(l) as number, est.get(x.id) as number);
+  };
+  return new Map(node.leaves.map((l) => [l, aim === "verbatim" && node.kind === "slide" && node.kids.length ? 1 : hidden(of(l) + shift, aim)]));
 };
+
+// The nodes not practised on their own at an aim: for the gist, the clauses of a sentence (GIST_CLAUSES) and the
+// groups of GIST_GROUP sentences or fewer that are not a whole slide.
+export const skipped = (n: Node, aim: Aim) => aim === "gist"
+  && ((!GIST_CLAUSES && (n.kind === "clause" || n.kind === "clauses")) || (n.kind === "group" && n.last - n.first + 1 <= GIST_GROUP));
 
 // How a leaf's terms show at its score: in full, by their first letter, or hidden like any word.
 export const terms = (s: number): "full" | "initial" | "hide" => (s < TERM_HINT ? "full" : s < TERM_HIDE ? "initial" : "hide");

@@ -11,7 +11,7 @@
 // LIFT above their bars before it is tried again, and they are practised until they are. A node picked SAME times in
 // a row is passed over once.
 
-import { barOf, estimates, type States } from "./model";
+import { barOf, estimates, skipped, type States } from "./model";
 import { type Aim, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK } from "./rules";
 import type { Node, Tree } from "./tree";
 
@@ -45,16 +45,21 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   };
   const stuck = (id: string) => (get(id)?.run ?? 0) >= STUCK;
   const margin = rate !== null && rate > PACE_HIGH ? -EASE : 0;
-  const ready = (id: string) => !at(id) && node(id).kids.every((k) => at(k, stuck(id) ? LIFT : margin));
-  return { est, rate, bar, at, due, stuck, ready };
+  // a node's parts and where a miss goes down to, through the parts passed over at this aim
+  const skip = (id: string) => skipped(node(id), aim);
+  const through = (ids: string[]): string[] => ids.flatMap((k) => (skip(k) ? through(node(k).kids) : [k]));
+  const parts = (id: string) => through(node(id).kids);
+  const down = (id: string) => through(node(id).down);
+  const ready = (id: string) => !skip(id) && !at(id) && parts(id).every((k) => at(k, stuck(id) ? LIFT : margin));
+  return { est, rate, bar, at, due, stuck, ready, skip, parts, down };
 };
 
 export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number, session: Session): Pick | null => {
-  const { est, rate, bar, at, due, stuck, ready } = standing(tree, get, now, aim, session);
+  const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const started = new Set<number>();
   for (const id of tree.order) if (get(id)) node(id).slides.forEach((n) => started.add(n));
-  const live = tree.order.filter((id) => node(id).slides.every((n) => n <= goal && started.has(n)));
+  const live = tree.order.filter((id) => !passed(id) && node(id).slides.every((n) => n <= goal && started.has(n)));
   const last = session.last, skip = last && session.same >= SAME ? last.id : null;
   const make = (id: string, why: Why): Pick => ({ node: node(id), why, est: est.get(id) as number, bar: bar(id) });
   const lowest = (ids: string[]) => ids.slice().sort((a, b) => (est.get(a) as number) - (est.get(b) as number))[0];
@@ -70,12 +75,12 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
     // 2. down after a miss
     if (last && last.pass === false) {
       const missed = node(last.id);
-      let down = missed.down.length ? lowest(missed.down) : missed.id;
-      if (rate !== null && rate < PACE_LOW && node(down).down.length) down = lowest(node(down).down);
+      let down = under(missed.id).length ? lowest(under(missed.id)) : missed.id;
+      if (rate !== null && rate < PACE_LOW && under(down).length) down = lowest(under(down));
       if (ok(down)) return make(down, "down");
     }
     // 3. up: ready (a due node is a review, rule 1), and the parts of a stuck node that are below its lifted bar
-    const lifted = new Set(live.filter(stuck).flatMap((id) => node(id).kids.filter((k) => !at(k, LIFT))));
+    const lifted = new Set(live.filter(stuck).flatMap((id) => parts(id).filter((k) => !at(k, LIFT))));
     const order = (id: string) => {
       const n = node(id);
       return [Math.max(...n.slides), n.kind === "bridge" ? 1 : n.kind === "section" ? 2 : n.kind === "talk" ? 3 : 0, n.to, n.height];
@@ -88,7 +93,7 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
     if (up) return make(up, "up");
     // 4. the next new slide
     const fresh = [...tree.roots.keys()].find((n) => n <= goal && !started.has(n));
-    if (fresh !== undefined) return make(tree.order.find((id) => node(id).slides[0] === fresh) as string, "new");
+    if (fresh !== undefined) return make(tree.order.find((id) => node(id).slides[0] === fresh && !passed(id)) as string, "new");
     return review ? make(review, "due") : null;
   };
   return choose(skip) ?? choose(null);
