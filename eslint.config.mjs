@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     ".wrangler/**",
     "playwright-report/**",
     "test-results/**",
+    "cloudflare-env.d.ts",
   ]),
 ]);
 
