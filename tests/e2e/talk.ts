@@ -12,7 +12,7 @@ export async function newTalk(page: Page, title: string): Promise<Script> {
   // next dev may answer a first request while it is still compiling the route: such a reply counts as not ready yet
   await expect.poll(async () => {
     const res = await page.request.get(`/api/talks/${id}`);
-    return res.ok() ? ((await res.json()) as { status: string }).status : `HTTP ${res.status()}`;
+    try { return ((await res.json()) as { status: string }).status; } catch { return `HTTP ${res.status()}, not JSON`; }
   }, { timeout: 30000 }).toBe("ready");
   await page.request.patch(`/api/talks/${id}`, { data: { talkAt: Date.now() + 3 * 24 * 3600 * 1000 + 3600 * 1000 } });
   return await (await page.request.get(`/api/talks/${id}/script`)).json() as Script;
