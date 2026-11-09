@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  clipsOf, firstStep, header, INSTRUCTIONS, type Item, learned, migrate, MOST, move, mustOf, next, record, summary, textOf,
+  clipsOf, firstStep, header, INSTRUCTIONS, nextLabel, type Item, learned, migrate, MOST, move, mustOf, next, record, summary, textOf,
   unitsOf, units, warmUp,
 } from "@/lib/flow";
 import { merge } from "@/lib/schedule";
@@ -51,6 +51,10 @@ describe("steps", () => {
     expect([move(3, true), move(3, false)]).toEqual([{ step: 3, learned: true }, { step: 2, learned: false }]);
     const [part, , whole] = unitsOf(slide(1, 4));
     expect([firstStep(part), firstStep(whole), firstStep(unitsOf(slide(1, 2))[0])]).toEqual([1, 3, 1]);
+    const item = (step: 1 | 2 | 3, warm = false, u = part): Item => ({ unit: u, step, warm });
+    expect([nextLabel(item(1), false), nextLabel(item(2), false), nextLabel(item(2), true), nextLabel(item(3), true),
+      nextLabel(item(3, false, whole), true), nextLabel(item(3, true, whole), true), nextLabel(item(3), false)])
+      .toEqual(["Next step", "Try again", "Next step", "Next part", "Next slide", "Next", "Try again"]);
     expect(INSTRUCTIONS).toEqual({ 1: "Read it aloud.", 2: "Say it from the first letters.", 3: "Say it from the slide." });
   });
 

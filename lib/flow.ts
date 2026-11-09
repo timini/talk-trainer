@@ -128,3 +128,12 @@ export const migrate = (slides: Slide[], items: Record<string, unknown>): Record
   }
   return out;
 };
+
+// The big button after a verdict: step 1 always goes on; a miss tries again (at step 2); a pass goes to the next
+// step, or on to the next part, slide or warm-up slide.
+export const nextLabel = (item: Item, pass: boolean) => {
+  if (item.step === 1) return "Next step";
+  if (!pass) return "Try again";
+  if (item.step === 2) return "Next step";
+  return item.warm ? "Next" : item.unit.whole ? "Next slide" : "Next part";
+};
