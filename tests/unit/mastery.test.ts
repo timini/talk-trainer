@@ -89,7 +89,7 @@ describe("what comes next", () => {
     expect(after.lines.map((l) => Math.round(l.eff * 100) / 100)).toEqual([0.94, 0.44]);
     expect(after.lines.map((l) => l.share)).toEqual([1, 0.5]);
     expect(after.eff).toBeCloseTo(0.435);
-    expect(after.state).toEqual({ n: 4, done: false });
+    expect(after.state).toEqual({ n: 4, done: false, at: NOW });
     // the missed phrase is kept on its sentence, to be cued
     expect(after.lines[1].state?.focus).toEqual([say(1, 1)]);
   });
@@ -102,11 +102,11 @@ describe("what comes next", () => {
     s.apply(record(view(u, s.get, NOW), [], 100, NOW, false));
     expect(view(u, s.get, NOW).lines[0].state?.m).toBe(0.25);
     s.apply(adjust(view(u, s.get, NOW), knowIt, NOW));
-    expect([view(u, s.get, NOW).share, view(u, s.get, NOW).state]).toEqual([1, { n: 2, done: false }]);
+    expect([view(u, s.get, NOW).share, view(u, s.get, NOW).state]).toEqual([1, { n: 2, done: false, at: NOW }]);
     s.apply(adjust(view(u, s.get, NOW), showAll, NOW));
     expect(view(u, s.get, NOW).share).toBe(0);
     s.apply(adjust({ ...view(u, s.get, NOW), state: null }, showAll, NOW));
-    expect(view(u, s.get, NOW).state).toEqual({ n: 0, done: false });
+    expect(view(u, s.get, NOW).state).toEqual({ n: 0, done: false, at: NOW });
   });
 
   test("a faded unit comes back first, the lowest first; nothing to do when all are done and fresh", () => {
@@ -146,9 +146,9 @@ describe("earlier progress", () => {
     expect(out[k(1, 0)]).toEqual({ m: 0.9, at: 6, passes: 2, n: 2, focus: [], full: 0 });
     expect(out[k(1, 2)]).toEqual({ m: 0.9, at: 6, passes: 2, n: 2, focus: [], full: 0 });
     // part 1 was not done; the whole slide was, so every window of slide 1 is done
-    expect(windowsOf(slides[0]).map((w) => out[w.key])).toEqual(windowsOf(slides[0]).map(() => ({ n: 0, done: true, aim: 0.9 })));
+    expect(windowsOf(slides[0]).map((w) => out[w.key])).toEqual(windowsOf(slides[0]).map(() => ({ n: 0, done: true, aim: 0.9, at: NOW })));
     expect(out[k(2, 0)]).toEqual({ m: 0.9, at: 7, passes: 2, n: 0, focus: [], full: 0 });
-    expect(out["flow:w:2:0:1"]).toEqual({ n: 0, done: true, aim: 0.9 });
+    expect(out["flow:w:2:0:1"]).toEqual({ n: 0, done: true, aim: 0.9, at: NOW });
     expect(out[k(3, 0)]).toBeUndefined();
     // a part done but not the whole slide: only the windows inside the part are done
     const partOnly = migrate([slides[0]], store({ "flow:m:1:1": { m: 0.9, at: 5, passes: 2, n: 3, done: true } }).get, NOW);
@@ -209,15 +209,15 @@ describe("the aims and today's goal", () => {
     const slides = [slide(1, 1)], [u] = units(slides);
     const s = store({ [unitKey(u)]: { n: 4, done: true, aim: 0.9 }, [sentenceKey(slides[0], slides[0].sentences[0])]: st(0.95, NOW, 3) });
     s.apply(record(view(u, s.get, NOW, AIMS.gist), [], 30, NOW, undefined, AIMS.gist));
-    expect(s.items[unitKey(u)]).toEqual({ n: 5, done: true, aim: 0.9 });
+    expect(s.items[unitKey(u)]).toEqual({ n: 5, done: true, aim: 0.9, at: NOW });
     // done before there were aims counts as word for word
     s.apply({ [unitKey(u)]: { n: 2, done: true } });
     s.apply(record(view(u, s.get, NOW, AIMS.gist), [], 30, NOW, undefined, AIMS.gist));
-    expect(s.items[unitKey(u)]).toEqual({ n: 3, done: true, aim: 0.9 });
+    expect(s.items[unitKey(u)]).toEqual({ n: 3, done: true, aim: 0.9, at: NOW });
     // a whole slide whose sentences were learned in its parts can be done on its first attempt
     const w = store({ [sentenceKey(slides[0], slides[0].sentences[0])]: st(0.95, NOW, 3) });
     w.apply(record(view(u, w.get, NOW), [], 100, NOW));
-    expect(w.items[unitKey(u)]).toEqual({ n: 1, done: true, aim: 0.9 });
+    expect(w.items[unitKey(u)]).toEqual({ n: 1, done: true, aim: 0.9, at: NOW });
   });
 });
 

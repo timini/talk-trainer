@@ -61,7 +61,8 @@ export const parse = async (deps: Deps, talk: string) => {
   const slides = parseDeck(new Uint8Array(await (await deck(deps, row)).arrayBuffer()));
   if (!slides.length) throw new Error("The deck has no slides.");
   const rows = await Promise.all(slides.map(async (s) => ({
-    ...s, sentences: await Promise.all(sentences(s.notes).map(async (text) =>
+    // the paragraph breaks are spaces here, as they were before the notes kept them, so the sentences are the same
+    ...s, sentences: await Promise.all(sentences(s.notes.replace(/\n/g, " ")).map(async (text) =>
       ({ text, hash: (await sha256(text)).slice(0, 12), must: mustSay(text) }))),
   })));
   const db = deps.db;

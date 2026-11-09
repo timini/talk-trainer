@@ -45,6 +45,8 @@ describe("the script", () => {
     expect(s.slides[0].sentences[0]).toMatchObject({ i: 1, text: "Mix 500 grams of flour.", must_say: ["500"] });
     expect(s.slides[0].sentences[1].clip).toMatch(/^\/api\/files\/clips\/[0-9a-f]{64}\.wav$/);
     expect(s.slides[1].sentences).toEqual([]);
+    // the notes' two paragraphs: the second sentence starts one
+    expect([s.slides[0].paras, s.slides[1].paras]).toEqual([[0, 1], [0]]);
     await cf.db.prepare("UPDATE sentences SET clip_key = NULL WHERE talk = ? AND i = 2").bind(id).run();
     await cf.db.prepare("UPDATE slides SET image_key = NULL WHERE talk = ? AND n = 2").bind(id).run();
     const again = (await (await script(env, id)).json()) as { slides: { image: string | null; sentences: { clip: string | null }[] }[] };
@@ -65,6 +67,9 @@ describe("progress", () => {
     const want = { "train:1:1:aaa": { level: 2, last: 10 }, "train:1:2:bbb": { level: 0, last: 20 },
       "train:days": ["2026-11-08", "2026-11-09"], "train:log:2026-11-08": { n: 2, got: 1 } };
     expect([code, merged]).toEqual([200, { items: want, saved: 200 }]);
+    expect(await answer(await getProgress(env, id))).toEqual([200, { items: want, saved: 200 }]);
+    // the same again writes nothing
+    await putProgress(put({ items: want }), env, id, 300);
     expect(await answer(await getProgress(env, id))).toEqual([200, { items: want, saved: 200 }]);
     // the clock defaults to now
     expect(((await (await putProgress(put({ items: {} }), env, id)).json()) as { saved: number }).saved).toBeGreaterThan(1e12);

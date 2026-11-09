@@ -19,8 +19,9 @@ import { perSentence } from "./score";
 import type { Sentence, Slide } from "./train";
 
 export type State = { m: number; at: number; passes: number; n: number; focus: string[]; full: number };
-// done: got at the aim held in aim (0.9 when missing, from before there were aims).
-export type UnitState = { n: number; done: boolean; aim?: number };
+// done: got at the aim held in aim (0.9 when missing, from before there were aims). at: when it last changed, so the
+// newer copy wins when two devices sync (missing before 10 November).
+export type UnitState = { n: number; done: boolean; aim?: number; at?: number };
 
 // The aims: the running score at which a part counts as done. Get the gist moves on once the meaning is right with
 // about half the words hidden (2 attempts a part); word for word drills each part until it is fully hidden.
@@ -146,14 +147,14 @@ export const record = (p: Pick, problems: Problem[], unitScore: number, now: num
   const done = got && p.lines.every((l) => l.share >= hidden(1, target(p.unit.to - p.unit.from, aim, p.unit.whole)));
   // got at a lower aim than one already reached keeps the higher one
   const best = Math.max(done ? aim : 0, p.state?.done ? p.state.aim ?? 0.9 : 0);
-  out[unitKey(p.unit)] = best ? { n: (p.state?.n ?? 0) + 1, done: true, aim: best } : { n: (p.state?.n ?? 0) + 1, done: false };
+  out[unitKey(p.unit)] = best ? { n: (p.state?.n ?? 0) + 1, done: true, aim: best, at: now } : { n: (p.state?.n ?? 0) + 1, done: false, at: now };
   return out;
 };
 
 // "Show me" and "I know this one" for every sentence of a unit; the unit counts as started.
 export const adjust = (p: Pick, to: typeof showAll, now: number): Record<string, unknown> => ({
   ...Object.fromEntries(p.lines.map((l) => [sentenceKey(p.unit.slide, l.sentence), to(l.state, now)])),
-  [unitKey(p.unit)]: { n: p.state?.n ?? 0, done: false },
+  [unitKey(p.unit)]: { n: p.state?.n ?? 0, done: false, at: now },
 });
 
 // The home screen: slides known (their longest windows done and not faded), the next new slide, and how many
@@ -189,7 +190,7 @@ export const migrate = (slides: Slide[], get: Get, now: number): Record<string, 
       }
       // the windows inside a part that was done are done too, word for word
       if (old ? old.done : true) {
-        for (const w of windowsOf(s)) if (w.from >= u.from && w.to <= u.to) out[w.key] = { n: 0, done: true, aim: 0.9 };
+        for (const w of windowsOf(s)) if (w.from >= u.from && w.to <= u.to) out[w.key] = { n: 0, done: true, aim: 0.9, at: now };
       }
     }
   }

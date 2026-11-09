@@ -38,13 +38,14 @@ const paragraphs = (shape: string) => [...shape.matchAll(/<a:p\b[^>]*?(?:\/>|>([
     .replace(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>|<[^>]+>|[^<]+/g, (_, t: string | undefined) => t ?? "")))
   .map((p) => p.replace(/\s+/g, " ").trim()).filter(Boolean);
 
-// The shapes of a part that are placeholders of one of these types, as text: paragraphs joined with spaces.
-const placeholders = (xml: string, types: string[]) => [...xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)]
+// The shapes of a part that are placeholders of one of these types, as text: paragraphs joined with join (a space
+// for a title; a new line for the notes, so the learning engine can group the sentences by paragraph).
+const placeholders = (xml: string, types: string[], join = " ") => [...xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)]
   .filter(([shape]) => {
     const ph = /<p:ph\b[^>]*>/.exec(shape)?.[0];
     return ph !== undefined && types.includes(attr(ph, "type") ?? "obj");
   })
-  .map(([shape]) => paragraphs(shape).join(" ")).filter(Boolean).join(" ");
+  .map(([shape]) => paragraphs(shape).join(join)).filter(Boolean).join(join);
 
 export const parseDeck = (data: Uint8Array): DeckSlide[] => {
   let zip: Record<string, Uint8Array>;
@@ -66,7 +67,7 @@ export const parseDeck = (data: Uint8Array): DeckSlide[] => {
     out.push({
       n: out.length + 1,
       title: placeholders(xml, ["title", "ctrTitle"]),
-      notes: notes && files[notes.target] ? placeholders(files[notes.target], ["body"]) : "",
+      notes: notes && files[notes.target] ? placeholders(files[notes.target], ["body"], "\n") : "",
     });
   }
   return out;

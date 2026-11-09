@@ -1,5 +1,7 @@
 // The scheduler, planned to the talk, and the progress figures. Times are milliseconds; days are local days.
 
+import { pick, SYNCED } from "./learn/store";
+
 export type Card = { level: number; due: number; streak: number; lapses: number; intro: number; acc: number | null; last: number };
 
 export const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
@@ -91,12 +93,14 @@ export const tally = (cards: { section: string; words: number; level: number | n
 };
 
 // Imported progress: for each card (a sentence card, or a slide part of the flow) the newer review wins, practice
-// days are joined, and other settings stay.
+// days are joined, and other settings stay. The learning engine's keys and the running scores of the flow (learn:,
+// flow:s:, flow:w:) go by lib/learn/store.ts pick: the newer at wins, so two devices no longer overwrite each other.
 const CARD = /^(train:[^:]+:\d+:[0-9a-f]+|flow:\d+:\d+)$/;
 export const merge = (mine: Record<string, unknown>, theirs: Record<string, unknown>): Record<string, unknown> => {
   const out: Record<string, unknown> = { ...mine };
   Object.entries(theirs).forEach(([k, v]) => {
-    if (CARD.test(k)) {
+    if (SYNCED.test(k)) out[k] = pick(k, out[k], v);
+    else if (CARD.test(k)) {
       const have = out[k] as { last: number } | undefined, got = v as { last: number } | null;
       if (!have || (got && got.last > have.last)) out[k] = v;
     } else if (k === "train:days") out[k] = [...new Set([...((out[k] as string[]) || []), ...(v as string[])])].sort();

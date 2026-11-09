@@ -2,6 +2,7 @@
 // build, and serve stored files (slide images, voice clips) from R2.
 
 import { build, type Deps, inline, type Talk } from "./build";
+import { paragraphs } from "./learn/tree";
 import { merge } from "./schedule";
 import * as standins from "./standins";
 import { speak } from "./tts";
@@ -132,20 +133,24 @@ export const change = async (request: Request, env: ApiEnv, id: string, now = Da
 };
 
 // GET /api/talks/:id/script: what the trainer needs: the talk, and each slide with its image and its sentences,
-// each with its voice clip and must-say items. File addresses are under /api/files/.
+// each with its voice clip and must-say items, and the sentences (from 0) that start a paragraph of its notes. File
+// addresses are under /api/files/.
 export const script = async (env: ApiEnv, id: string) => {
   const talk = await talkOf(env, id);
   if (!talk) return json(404, { error: "No such talk." });
   const [slides, sentences] = await env.DB.batch<Record<string, unknown>>([
-    env.DB.prepare("SELECT n, title, image_key FROM slides WHERE talk = ? ORDER BY n").bind(id),
+    env.DB.prepare("SELECT n, title, notes, image_key FROM slides WHERE talk = ? ORDER BY n").bind(id),
     env.DB.prepare("SELECT slide, i, text, hash, clip_key, must_say FROM sentences WHERE talk = ? ORDER BY slide, i").bind(id),
   ]);
   const file = (key: unknown) => (key ? `/api/files/${key}` : null);
   return json(200, {
     talk: { id: talk.id, title: talk.title, status: talk.status, talkAt: talk.talk_at, glossary: JSON.parse(talk.glossary) },
-    slides: slides.results.map((s) => ({ n: s.n, title: s.title, image: file(s.image_key),
-      sentences: sentences.results.filter((x) => x.slide === s.n).map((x) => ({ i: x.i, text: x.text, hash: x.hash,
-        clip: file(x.clip_key), must_say: JSON.parse(x.must_say as string) })) })),
+    slides: slides.results.map((s) => {
+      const mine = sentences.results.filter((x) => x.slide === s.n);
+      return { n: s.n, title: s.title, image: file(s.image_key),
+        sentences: mine.map((x) => ({ i: x.i, text: x.text, hash: x.hash, clip: file(x.clip_key), must_say: JSON.parse(x.must_say as string) })),
+        paras: paragraphs(s.notes as string, mine.map((x) => x.text as string)) };
+    }),
   });
 };
 
@@ -165,8 +170,9 @@ export const getProgress = async (env: ApiEnv, id: string) => {
   return json(200, await saved(env, id));
 };
 
-// PUT /api/talks/:id/progress {items}: merged into the saved copy (the newer review of each card wins, practice
-// days are joined, and for anything else the sender's value wins), and the merge answered, {items, saved}.
+// PUT /api/talks/:id/progress {items}: merged into the saved copy (lib/schedule.ts merge: the newer review of each
+// card wins, the newer at for the learning engine and the flow's running scores, practice days are joined, and for
+// anything else the sender's value wins), and the merge answered, {items, saved}.
 export const putProgress = async (request: Request, env: ApiEnv, id: string, now = Date.now()) => {
   if (!(await talkOf(env, id))) return json(404, { error: "No such talk." });
   const text = await request.text();
@@ -176,8 +182,10 @@ export const putProgress = async (request: Request, env: ApiEnv, id: string, now
   if (!body || !body.items || typeof body.items !== "object" || Array.isArray(body.items)) {
     return json(400, { error: "items are needed." });
   }
-  const items = merge(body.items as Record<string, unknown>, (await saved(env, id)).items);
-  const rows = Object.entries(items);
+  const before = (await saved(env, id)).items;
+  const items = merge(body.items as Record<string, unknown>, before);
+  // only what changed is written
+  const rows = Object.entries(items).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(before[k]));
   if (rows.length) {
     await env.DB.batch(rows.map(([k, v]) => env.DB.prepare("INSERT INTO progress (talk, card, state, updated) VALUES (?, ?, ?, ?) "
       + "ON CONFLICT (talk, card) DO UPDATE SET state = excluded.state, updated = excluded.updated").bind(id, k, JSON.stringify(v), now)));

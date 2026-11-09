@@ -122,6 +122,8 @@ test("progress survives a reload and comes back from the site; after a long gap 
   await page.reload();
   await expect(page.getByTestId("learned")).toHaveText("1 of 2 slides learned");
   await expect(page.getByTestId("from")).toHaveText("Start at slide 2: Flour and water.");
+  // the save after opening is done, so its answer cannot undo the change below
+  await expect(page.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
 
   // six hours later, got once: slide 1 has faded, so it comes back first, with some of its text showing
   await page.evaluate((id) => {
@@ -130,6 +132,8 @@ test("progress survives a reload and comes back from the site; after a long gap 
       localStorage.setItem(key, JSON.stringify({ ...st, passes: 1, at: Date.now() - 6 * 3600 * 1000 }));
     });
   }, s.talk.id);
+  // offline, so the online copy (newer, so it would win) does not undo the change
+  await page.route("**/progress", (route) => route.abort());
   await page.reload();
   await expect(page.getByTestId("due")).toHaveText("1 part to go over again first: it has faded since you last said it.");
   await page.getByRole("button", { name: "Start" }).click();

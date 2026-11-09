@@ -127,6 +127,15 @@ describe("progress", () => {
       .toEqual({ "train:a:1:ff": { last: 1 }, "train:days": ["2026-11-09"] });
   });
 
+  test("the running scores of the flow and the learning engine: the newer at wins, whichever side it is on", () => {
+    const mine = { "flow:s:1:1:aa": { m: 0.9, at: 20 }, "flow:s:1:2:bb": { m: 0.2, at: 10 }, "learn:n:x": { s: 0.5, at: 5 },
+      "flow:w:1:0:1": { n: 3, done: true, at: 7 } };
+    const theirs = { "flow:s:1:1:aa": { m: 0.1, at: 15 }, "flow:s:1:2:bb": { m: 0.8, at: 30 }, "learn:n:x": { s: 0.9, at: 6 },
+      "learn:n:y": { s: 0.4, at: 1 }, "flow:w:1:0:1": { n: 1, done: false, at: 8 } };
+    expect(merge(mine, theirs)).toEqual({ "flow:s:1:1:aa": { m: 0.9, at: 20 }, "flow:s:1:2:bb": { m: 0.8, at: 30 },
+      "learn:n:x": { s: 0.9, at: 6 }, "learn:n:y": { s: 0.4, at: 1 }, "flow:w:1:0:1": { n: 1, done: false, at: 8 } });
+  });
+
   test("progress on the home screen", () => {
     const s1 = { n: 3, title: "Three" }, s2 = { n: 7, title: "Seven" };
     const cards = [{ s: s1, state: null }, { s: s1, state: { level: 0, lapses: 2 } }, { s: s1, state: { level: 2, lapses: 1 } },

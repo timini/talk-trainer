@@ -4,14 +4,14 @@ import { parseDeck } from "@/lib/pptx";
 import { deck } from "../support/deck.mjs";
 
 describe("parseDeck", () => {
-  test("slides in presentation order, with titles and notes, paragraphs joined with spaces", () => {
+  test("slides in presentation order, with titles and notes, the notes' paragraphs on lines of their own", () => {
     const slides = parseDeck(deck([
       { title: "Welcome", notes: ["Good morning.", "Today we bake bread & cake."] },
       { title: "No notes here", body: ["Some body text."] },
       { notes: ["A slide without a title says 3 < 4."] },
     ]));
     expect(slides).toEqual([
-      { n: 1, title: "Welcome", notes: "Good morning. Today we bake bread & cake." },
+      { n: 1, title: "Welcome", notes: "Good morning.\nToday we bake bread & cake." },
       { n: 2, title: "No notes here", notes: "" },
       { n: 3, title: "", notes: "A slide without a title says 3 < 4." },
     ]);

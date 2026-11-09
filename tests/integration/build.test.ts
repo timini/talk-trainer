@@ -50,6 +50,8 @@ describe("the build", () => {
     expect(sentences[0].hash).toMatch(/^[0-9a-f]{12}$/);
     expect(sentences[0].clip_key).toBe(await clipKey("Good morning, and thank you for coming."));
     const slides = (await env.db.prepare("SELECT n, title, notes, image_key FROM slides WHERE talk = ? ORDER BY n").bind(id).all()).results;
+    // the notes keep their paragraphs; the sentences are split as if they were spaces
+    expect(slides[0].notes).toBe("Good morning, and thank you for coming.\nToday we bake bread at example.io.");
     expect(slides.map((s) => [s.n, s.title, s.image_key])).toEqual([[1, "Welcome", `talks/${id}/slides/1.png`],
       [2, "Flour and water", `talks/${id}/slides/2.png`], [3, "Questions", `talks/${id}/slides/3.png`]]);
     expect(new Uint8Array(await (await env.files.get(`talks/${id}/slides/2.png`))!.arrayBuffer())).toEqual(standins.PNG);
