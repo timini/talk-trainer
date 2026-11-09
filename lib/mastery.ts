@@ -9,9 +9,11 @@
 //
 // A unit is as well known as its weakest sentence. Kept as flow:s:<slide>:<i>:<hash> = {m, at (the last attempt),
 // passes (85 or more), n (attempts), focus (phrases missed last time), full (attempts left with the terms in full,
-// after a wrong term)}, and flow:u:<slide>:<part> = {n (attempts), done (got with every sentence hidden)}.
+// after a wrong term)}, and flow:v:<slide>:<part> = {n (attempts), done (got with every sentence hidden)}. Unit records
+// were flow:u: until parts were led in by the sentence before (10 November): a new name, so every part of a split
+// slide is checked once again from its sentences' scores.
 
-import { learned, type Unit, units } from "./flow";
+import { joins, learned, type Unit, units } from "./flow";
 import type { Problem } from "./judge";
 import { perSentence } from "./score";
 import type { Sentence, Slide } from "./train";
@@ -39,7 +41,7 @@ export const HINT = 0.5;
 export const TERMS = 0.8;
 
 export const sentenceKey = (slide: Slide, s: Sentence) => `flow:s:${slide.n}:${s.i}:${s.hash}`;
-export const unitKey = (u: Unit) => `flow:u:${u.slide.n}:${u.part}`;
+export const unitKey = (u: Unit) => `flow:v:${u.slide.n}:${u.part}`;
 const said = (u: Unit) => u.slide.sentences.slice(u.from, u.to);
 
 // The running score now, after the fading since the last attempt.
@@ -98,7 +100,9 @@ export const doneAt = (st: UnitState | null, aim: number) => !!st?.done && (st.a
 export const pick = (slides: Slide[], get: Get, now: number, aim = 0.9, goal = Infinity): Pick | null => {
   const all = units(slides.filter((s) => s.n <= goal)).map((u) => view(u, get, now, aim));
   const started = all.filter((x) => x.state);
-  const low = (xs: Pick[]) => xs.slice().sort((a, b) => a.eff - b.eff)[0];
+  // the lowest first; on a tie a part before the whole slide, and the later part, which starts at the join
+  const low = (xs: Pick[]) => xs.slice().sort((a, b) => a.eff - b.eff || Number(a.unit.whole) - Number(b.unit.whole)
+    || b.unit.part - a.unit.part)[0];
   return low(started.filter((x) => x.due)) ?? low(started.filter((x) => !doneAt(x.state, aim)))
     ?? all.find((x) => !x.state) ?? null;
 };
@@ -179,10 +183,16 @@ export const header = (p: Pick, total: number, aim = 0.9) => {
 export const position = (u: Unit) => {
   const n = u.slide.sentences.length;
   if (u.whole) return n === 1 ? "The whole slide: 1 sentence" : `The whole slide: all ${n} sentences`;
-  return `${u.to - u.from === 1 ? `Sentence ${u.from + 1}` : `Sentences ${u.from + 1} to ${u.to}`} of ${n} (part ${u.part} of ${u.parts - 1})`;
+  const span = u.to - u.from === 1 ? `Sentence ${u.from + 1}` : `Sentences ${u.from + 1} to ${u.to}`;
+  return `${span} of ${n} (part ${u.part} of ${u.parts - 1}${u.lead ? `, from the end of part ${u.part - 1}` : ""})`;
 };
-// The opening words of a unit, always shown: its first sentence's first 3 words.
-export const opening = (u: Unit) => u.slide.sentences[u.from].text.split(/\s+/).slice(0, 3).join(" ");
+// The opening words of a sentence (3), and of a unit, always shown.
+export const openingOf = (text: string) => text.split(/\s+/).slice(0, 3).join(" ");
+export const opening = (u: Unit) => openingOf(u.slide.sentences[u.from].text);
+// On the whole slide, the sentences where its parts join (as indexes in the slide) also show their opening words
+// until the whole slide has been got once. Not by score: the sentences are already well known from the parts, which
+// is when the joins were missed (9 November).
+export const joinCues = (p: Pick) => (p.unit.whole && !p.state?.done ? joins(p.unit.slide) : []);
 
 // What the card asks for.
 export const instruction = (share: number) => (share === 0 ? "Read it aloud."

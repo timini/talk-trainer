@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { units } from "@/lib/flow";
 import {
   adjust, AIMS, doneAt, effective, HALF, header, hidden, instruction, knowIt, migrate, pick, record, seedOf, sentenceKey, showAll, type State,
-  summary, termMode, unitKey, update, view, opening, position,
+  summary, termMode, unitKey, update, view, opening, position, joinCues,
 } from "@/lib/mastery";
 import { perSentence, start } from "@/lib/score";
 import { redact, redactBits } from "@/lib/text";
@@ -146,9 +146,9 @@ describe("earlier progress", () => {
     // sentences 1 and 2 are in part 1 (0.7) and the whole slide (0.9): the higher wins
     expect(out[k(1, 0)]).toEqual({ m: 0.9, at: 6, passes: 2, n: 2, focus: [], full: 0 });
     expect(out[k(1, 2)]).toEqual({ m: 0.9, at: 6, passes: 2, n: 2, focus: [], full: 0 });
-    expect([out["flow:u:1:1"], out["flow:u:1:3"], out["flow:u:1:2"]]).toEqual([{ n: 4, done: false }, { n: 2, done: true }, undefined]);
+    expect([out["flow:v:1:1"], out["flow:v:1:3"], out["flow:v:1:2"]]).toEqual([{ n: 4, done: false }, { n: 2, done: true }, undefined]);
     expect(out[k(2, 0)]).toEqual({ m: 0.9, at: 7, passes: 2, n: 0, focus: [], full: 0 });
-    expect(out["flow:u:2:1"]).toEqual({ n: 0, done: true });
+    expect(out["flow:v:2:1"]).toEqual({ n: 0, done: true });
     expect(out[k(3, 0)]).toBeUndefined();
     // a slide with no script is skipped
     expect(migrate([{ n: 9, title: "Empty", image: null, sentences: [] }], s.get, NOW)).toEqual({});
@@ -249,9 +249,12 @@ describe("where to start", () => {
   test("the position line and the opening words", () => {
     const [p1, p2, whole] = units([slide(2, 3)]);
     expect([position(p1), position(p2), position(whole)]).toEqual([
-      "Sentences 1 to 2 of 3 (part 1 of 2)", "Sentence 3 of 3 (part 2 of 2)", "The whole slide: all 3 sentences"]);
+      "Sentences 1 to 2 of 3 (part 1 of 2)", "Sentences 2 to 3 of 3 (part 2 of 2, from the end of part 1)", "The whole slide: all 3 sentences"]);
     expect(position(units([slide(5, 1)])[0])).toBe("The whole slide: 1 sentence");
-    expect(opening(p2)).toBe("Sentence 2.3 word");
+    const odd: Slide = { ...slide(6, 2), sentences: ["x".repeat(250) + ".", "y".repeat(250) + "."].map((text, i) =>
+      ({ i: i + 1, text, hash: `y${i}`, clip: null, must_say: [] })) };
+    expect(position(units([odd])[0])).toBe("Sentence 1 of 2 (part 1 of 2)");
+    expect(opening(p2)).toBe("Sentence 2.2 word");
   });
 
   test("redaction pieces: hidden words keep their own text, so each gap is as long as the word", () => {
@@ -260,5 +263,26 @@ describe("where to start", () => {
       { kind: "hidden", t: "bread" }, { kind: "text", t: ", " }, { kind: "hidden", t: "slowly" }, { kind: "text", t: "." }]);
     expect(redactBits("Bake it", 1, [], ["bake"], 1, ["it"]).map((b) => b.kind)).toEqual(["cue", "text", "cue"]);
     expect(redactBits("Go", 0, [], [], 1)).toEqual([{ kind: "word", t: "Go" }]);
+  });
+});
+
+describe("joining the parts of a slide", () => {
+  test("a miss at the join on the whole slide goes to the later part, which starts at the join", () => {
+    // 6 sentences of 99 characters: part 1 is 1 and 2, part 2 is 2 to 4, part 3 is 4 to 6, then the whole slide
+    const sl = slide(2, 6), [p1, p2, p3, whole] = units([sl]);
+    expect([p2.from, p2.to, p3.from, p3.to]).toEqual([1, 4, 3, 6]);
+    const s = store();
+    for (const u of [p1, p2, p3]) s.apply({ [unitKey(u)]: { n: 4, done: true, aim: 0.9 } });
+    sl.sentences.forEach((x) => s.apply({ [sentenceKey(sl, x)]: st(0.95, NOW, 3) }));
+    const w = view(whole, s.get, NOW);
+    // before the whole slide is got, the joins (sentences 3 and 5) show their opening words
+    expect(joinCues(w)).toEqual([2, 4]);
+    // Tim at 19:33:18: said the first part, then left out the first sentence of the next
+    s.apply(record(w, [{ kind: "left_out", script: say(2, 2) }], 70, NOW));
+    const next = pick([sl], s.get, NOW)!;
+    expect([next.unit.part, next.unit.from, next.unit.whole]).toEqual([2, 1, false]);
+    // once the whole slide is got the joins are no longer cued; never on a part
+    expect(joinCues({ ...w, state: { n: 2, done: true } })).toEqual([]);
+    expect(joinCues(view(p2, s.get, NOW))).toEqual([]);
   });
 });

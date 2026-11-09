@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  clipsOf, firstStep, focusOf, header, INSTRUCTIONS, nextLabel, type Item, learned, migrate, MOST, move, mustOf, next, record, showFirst,
+  clipsOf, joins, firstStep, focusOf, header, INSTRUCTIONS, nextLabel, type Item, learned, migrate, MOST, move, mustOf, next, record, showFirst,
   summary, textOf, unitsOf, units, warmUp,
 } from "@/lib/flow";
 import { merge } from "@/lib/schedule";
@@ -25,11 +25,15 @@ describe("parts", () => {
     expect(shape(0)).toEqual([]);
     expect(shape(1)).toEqual([[0, 1, true]]);
     expect(shape(2)).toEqual([[0, 2, true]]);
-    expect(shape(3)).toEqual([[0, 2, false], [2, 3, false], [0, 3, true]]);
-    expect(shape(5)).toEqual([[0, 2, false], [2, 4, false], [4, 5, false], [0, 5, true]]);
+    // each part after the first is led in by the sentence before it
+    expect(shape(3)).toEqual([[0, 2, false], [1, 3, false], [0, 3, true]]);
+    expect(shape(5)).toEqual([[0, 2, false], [1, 4, false], [3, 5, false], [0, 5, true]]);
+    expect(unitsOf(slide(1, 5)).map((u) => u.lead)).toEqual([false, true, true, false]);
+    expect(joins(slide(1, 5))).toEqual([2, 4]);
+    expect(joins(slide(1, 2))).toEqual([]);
     const odd: Slide = { ...slide(9, 3), sentences: ["Short one.", "x".repeat(250) + ".", "Short two."].map((text, i) =>
       ({ i: i + 1, text, hash: `o${i}`, clip: null, must_say: [] })) };
-    expect(unitsOf(odd).map((u) => [u.from, u.to])).toEqual([[0, 1], [1, 2], [2, 3], [0, 3]]);
+    expect(unitsOf(odd).map((u) => [u.from, u.to])).toEqual([[0, 1], [0, 2], [1, 3], [0, 3]]);
     expect(MOST).toBe(200);
     const u = unitsOf(slide(4, 4));
     expect(u.map((x) => [x.key, x.part, x.parts])).toEqual([["flow:4:1", 1, 3], ["flow:4:2", 2, 3], ["flow:4:3", 3, 3]]);

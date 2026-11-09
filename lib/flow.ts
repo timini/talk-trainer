@@ -24,7 +24,8 @@ export type Step = 1 | 2 | 3;
 export type PartState = { step: Step; learned: boolean; last: number; at?: number; focus?: string[] };
 export type Warm = { done: number[]; step: Step; focus?: string[] };
 // One thing to learn: a part of a slide (sentences from to to, end not included), or the whole slide.
-export type Unit = { slide: Slide; part: number; parts: number; from: number; to: number; whole: boolean; key: string };
+// lead: the unit starts with the previous part's last sentence, said again to link the two.
+export type Unit = { slide: Slide; part: number; parts: number; from: number; to: number; whole: boolean; key: string; lead: boolean };
 export type Item = { unit: Unit; step: Step; warm: boolean };
 type Get = <T>(key: string, fallback: T) => T;
 
@@ -32,8 +33,9 @@ type Get = <T>(key: string, fallback: T) => T;
 // characters, and most under 150. A longer sentence stands alone.
 export const MOST = 200;
 
-// A slide's parts: sentences grouped, in order, into parts of at most MOST characters (a longer sentence on its
-// own), then the whole slide. A slide that fits in one part is just the whole slide. None for a slide with no script.
+// A slide's parts: sentences grouped, in order, into parts of at most MOST characters of new sentences (a longer
+// sentence on its own), each after the first led in by the sentence before it, then the whole slide. A slide that
+// fits in one part is just the whole slide. None for a slide with no script.
 export const unitsOf = (slide: Slide): Unit[] => {
   const n = slide.sentences.length;
   if (!n) return [];
@@ -45,10 +47,16 @@ export const unitsOf = (slide: Slide): Unit[] => {
   });
   if (spans.length) spans.push([from, n]);
   spans.push([0, n]);
-  return spans.map(([from, to], k) => ({ slide, part: k + 1, parts: spans.length, from, to, whole: k === spans.length - 1,
-    key: `flow:${slide.n}:${k + 1}` }));
+  // each part after the first starts with the last sentence of the part before, so the join is said every time (on
+  // 9 November Tim knew both parts of a slide but missed the join in every one of 4 attempts at the whole slide)
+  return spans.map(([from, to], k) => {
+    const whole = k === spans.length - 1, lead = k > 0 && !whole;
+    return { slide, part: k + 1, parts: spans.length, from: lead ? from - 1 : from, to, whole, key: `flow:${slide.n}:${k + 1}`, lead };
+  });
 };
 export const units = (slides: Slide[]) => slides.flatMap(unitsOf);
+// Where a slide's parts join: the first new sentence of each part after the first.
+export const joins = (slide: Slide) => unitsOf(slide).filter((u) => u.lead).map((u) => u.from + 1);
 
 // The text and clips of a unit.
 export const textOf = (u: Unit) => u.slide.sentences.slice(u.from, u.to).map((x) => x.text).join(" ");
