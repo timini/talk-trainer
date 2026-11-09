@@ -175,6 +175,15 @@ export const header = (p: Pick, total: number, aim = 0.9) => {
   return `${p.due ? "Again: slide" : "Slide"} ${u.slide.n} of ${total}${part}${aim < 0.9 ? " (gist)" : ""}`;
 };
 
+// Where the unit is in its slide, always shown, so a fully hidden card still says what to say.
+export const position = (u: Unit) => {
+  const n = u.slide.sentences.length;
+  if (u.whole) return n === 1 ? "The whole slide: 1 sentence" : `The whole slide: all ${n} sentences`;
+  return `${u.to - u.from === 1 ? `Sentence ${u.from + 1}` : `Sentences ${u.from + 1} to ${u.to}`} of ${n} (part ${u.part} of ${u.parts - 1})`;
+};
+// The opening words of a unit, always shown: its first sentence's first 3 words.
+export const opening = (u: Unit) => u.slide.sentences[u.from].text.split(/\s+/).slice(0, 3).join(" ");
+
 // What the card asks for.
 export const instruction = (share: number) => (share === 0 ? "Read it aloud."
   : share >= 1 ? "From memory: say it from the slide."

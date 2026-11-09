@@ -109,3 +109,8 @@ table.grid td.n { text-align: right; white-space: nowrap; }
 .aim { display: grid; gap: 0.4rem; text-align: left; margin: 1rem auto; max-width: 28rem; font-size: 0.95rem; }
 .goal { display: block; margin: 0.5rem 0; font-size: 0.95rem; }
 .goal input { width: 4rem; font: inherit; padding: 0.2rem 0.3rem; }
+
+/* A hidden word: the word itself, invisible, over a line, so the gap is as long as the word */
+.cue .gap { color: transparent; border-bottom: 2px solid #2b2f3b; user-select: none; }
+.cue .sent sup { font-size: 0.55em; color: #005eb8; margin-right: 0.2em; }
+.position { font-size: 0.95rem; font-weight: bold; color: #005eb8; margin: 0.3rem 0 0; }

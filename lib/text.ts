@@ -24,12 +24,13 @@ export const hide = (text: string, phrases: string[]): string => {
   return out + text.slice(last);
 };
 
-// A share of the words hidden, chosen afresh for each seed. keep: words always shown (names, numbers, acronyms,
-// while they are not yet known). initial: words always shown by their first letter and a blank for the rest (terms
-// on their way to being hidden). cued: phrases missed last time, whose words, when hidden, show their first letter
-// instead of a blank. A hidden word is a blank as long as the word. share 1 hides the whole text ("").
-export const redact = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = []): string => {
-  if (share >= 1) return "";
+// A share of the words hidden, chosen afresh for each seed, as pieces to draw: text between words, a word shown, a
+// word hidden (drawn as the word itself, invisible, over a line, so a gap is as long as the word it hides), or a word
+// cued by its first letter. keep: words always shown (names, numbers, acronyms not yet known, the opening words).
+// initial: words always cued (terms on their way to being hidden). cued: phrases missed last time, whose words, when
+// hidden, are cued instead. share 1 hides every other word.
+export type Bit = { kind: "text" | "word" | "hidden" | "cue"; t: string };
+export const redactBits = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = []): Bit[] => {
   const found = [...text.matchAll(WORD)].map((m) => ({ at: m.index as number, w: m[0], b: bare(m[0]) }));
   const bares = (xs: string[]) => new Set(xs.flatMap((k) => [...k.matchAll(WORD)].map((m) => bare(m[0]))));
   const kept = bares(keep), firsts = bares(initial);
@@ -51,16 +52,22 @@ export const redact = (text: string, share: number, keep: string[], cued: string
   };
   const open = found.map((_, i) => i).filter((i) => !kept.has(found[i].b) && !firsts.has(found[i].b));
   for (let i = open.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [open[i], open[j]] = [open[j], open[i]]; }
-  const hide = new Set(open.slice(0, Math.min(open.length, Math.round(share * found.length))));
-  let out = "", last = 0;
+  const hide = new Set(open.slice(0, Math.min(open.length, Math.round(Math.min(1, share) * found.length))));
+  const out: Bit[] = [];
+  let last = 0;
   found.forEach((f, i) => {
-    const first = f.w[0] + "_".repeat(f.w.length - 1);
-    const shown = firsts.has(f.b) ? first : !hide.has(i) ? f.w : cue.has(i) ? first : "_".repeat(f.w.length);
-    out += text.slice(last, f.at) + shown;
+    if (f.at > last) out.push({ kind: "text", t: text.slice(last, f.at) });
+    out.push({ kind: firsts.has(f.b) || (hide.has(i) && cue.has(i)) ? "cue" : hide.has(i) ? "hidden" : "word", t: f.w });
     last = f.at + f.w.length;
   });
-  return out + text.slice(last);
+  if (last < text.length) out.push({ kind: "text", t: text.slice(last) });
+  return out;
 };
+
+// The same as text, with underscores for the hidden letters. share 1 hides the whole text ("").
+export const redact = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = []): string =>
+  (share >= 1 ? "" : redactBits(text, share, keep, cued, seed, initial).map((x) => (x.kind === "hidden" ? "_".repeat(x.t.length)
+    : x.kind === "cue" ? x.t[0] + "_".repeat(x.t.length - 1) : x.t)).join(""));
 
 // Sentences: split after . ! or ? (and a closing quote or bracket) and a space, so 0.95 stays whole.
 export const sentences = (text: string): string[] =>

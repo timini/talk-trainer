@@ -2,10 +2,10 @@ import { describe, expect, test } from "vitest";
 import { units } from "@/lib/flow";
 import {
   adjust, AIMS, doneAt, effective, HALF, header, hidden, instruction, knowIt, migrate, pick, record, seedOf, sentenceKey, showAll, type State,
-  summary, termMode, unitKey, update, view,
+  summary, termMode, unitKey, update, view, opening, position,
 } from "@/lib/mastery";
-import { perSentence } from "@/lib/score";
-import { redact } from "@/lib/text";
+import { perSentence, start } from "@/lib/score";
+import { redact, redactBits } from "@/lib/text";
 import type { Slide } from "@/lib/train";
 
 const NOW = Date.parse("2026-11-10T12:00:00Z"), HOUR = 3600 * 1000;
@@ -215,5 +215,50 @@ describe("the aims and today's goal", () => {
     const w = store({ [sentenceKey(slides[0], slides[0].sentences[0])]: st(0.95, NOW, 3) });
     w.apply(record(view(u, w.get, NOW), [], 100, NOW));
     expect(w.items[unitKey(u)]).toEqual({ n: 1, done: true, aim: 0.9 });
+  });
+});
+
+describe("where to start", () => {
+  // invented sentences shaped like Tim's slide 2: two parts of three, then the whole slide
+  const S = ["I am Sam Jones, a baker at Hill Farm.", "I am not a chef and have no catering training.",
+    "This talk is what I have learned baking at home.", "I write up what I learn on my blog.",
+    "It is not advice, and it is not Hill Farm's view.", "The views are my own."];
+  test("the sentence an attempt started at; another part or a later sentence is the wrong place", () => {
+    // part 2 asked for, part 1 said (as at 19:14:06), with a greeting and a contraction
+    expect(start("Hi, I'm Sam Jones, a baker at Hill Farm. I am not a chef", S, 3)).toBe(0);
+    // part 2 asked for, started at its second sentence (19:15:43)
+    expect(start("It is not advice, and it is not Hill Farm's view.", S, 3)).toBe(4);
+    // the whole slide asked for, only part 2 said (19:20:15)
+    expect(start("I write up what I learn on my blog. It is not advice", S, 0)).toBe(3);
+    // right starts
+    expect(start("I write up what I learn on my blog.", S, 3)).toBe(3);
+    expect(start("So, um, I am Sam Jones, a baker", S, 0)).toBe(0);
+    expect(start("I'm not a chef, and I have no catering training", S, 1)).toBe(1);
+    // nothing recognisable: not known
+    expect(start("Something else entirely here today", S, 0)).toBeNull();
+    expect(start("", S, 0)).toBeNull();
+    // a tie goes to the expected sentence; a very short sentence needs all its words
+    expect(start("The views are my own", ["The views are mine.", "The views are my own."], 1)).toBe(1);
+    expect(start("Yes indeed", ["Yes.", "Yes indeed."], 1)).toBe(1);
+    expect(start("x", [""], 0)).toBeNull();
+    // a later sentence with fewer words matched, or tied but not expected, does not take over
+    expect(start("We bake bread daily now", ["We bake bread daily.", "We bake bread weekly."], 1)).toBe(0);
+    expect(start("We bake bread here", ["We bake bread here.", "We bake bread here too."], 0)).toBe(0);
+  });
+
+  test("the position line and the opening words", () => {
+    const [p1, p2, whole] = units([slide(2, 3)]);
+    expect([position(p1), position(p2), position(whole)]).toEqual([
+      "Sentences 1 to 2 of 3 (part 1 of 2)", "Sentence 3 of 3 (part 2 of 2)", "The whole slide: all 3 sentences"]);
+    expect(position(units([slide(5, 1)])[0])).toBe("The whole slide: 1 sentence");
+    expect(opening(p2)).toBe("Sentence 2.3 word");
+  });
+
+  test("redaction pieces: hidden words keep their own text, so each gap is as long as the word", () => {
+    const bits = redactBits("We bake bread, slowly.", 1, ["We"], [], 7, []);
+    expect(bits).toEqual([{ kind: "word", t: "We" }, { kind: "text", t: " " }, { kind: "hidden", t: "bake" }, { kind: "text", t: " " },
+      { kind: "hidden", t: "bread" }, { kind: "text", t: ", " }, { kind: "hidden", t: "slowly" }, { kind: "text", t: "." }]);
+    expect(redactBits("Bake it", 1, [], ["bake"], 1, ["it"]).map((b) => b.kind)).toEqual(["cue", "text", "cue"]);
+    expect(redactBits("Go", 0, [], [], 1)).toEqual([{ kind: "word", t: "Go" }]);
   });
 });

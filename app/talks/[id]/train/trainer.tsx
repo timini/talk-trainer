@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { clipsOf, textOf } from "@/lib/flow";
-import { header, instruction, seedOf, termMode } from "@/lib/mastery";
+import { header, instruction, opening, position, seedOf, termMode } from "@/lib/mastery";
 import { countdown, streak } from "@/lib/schedule";
-import { redact } from "@/lib/text";
+import { redactBits } from "@/lib/text";
 import { deliveryLine, plural, savedLine, type Script, verdict } from "@/lib/train";
 import { Engine } from "./engine";
 
@@ -140,14 +140,21 @@ function Card({ e }: { e: Engine }) {
     words = r.parts.flatMap((part, pi) => part.words.map((w, wi) => (
       <span key={`${pi}.${wi}`}>{pi || wi ? " " : ""}<span className={!w.ok ? (w.crit ? "miss crit" : "miss") : ""}>{w.w}</span></span>)));
   } else if (phase === "shown" || phase === "failed" || share === 0) words = text;
-  else if (share < 1) {
-    // each sentence hidden by its own score; its terms in full, by their first letter, or hidden
-    words = item.lines.map((l) => {
-      if (l.share >= 1) return "________";
+  else {
+    // each sentence hidden by its own score, numbered; its terms in full, by their first letter, or hidden; the
+    // unit's opening words always shown. A hidden word is drawn as itself, invisible, over a line, so each gap is as
+    // long as the word.
+    words = item.lines.map((l, k) => {
       const mode = termMode(l.eff, l.state), terms = l.sentence.must_say;
-      return redact(l.sentence.text, l.share, mode === "full" ? terms : [], l.state?.focus ?? [], seedOf(u.slide, l),
-        mode === "initial" ? terms : []);
-    }).join(" ");
+      const keep = [...(mode === "full" ? terms : []), ...(k === 0 ? [opening(u)] : [])];
+      const bits = redactBits(l.sentence.text, l.share, keep, l.state?.focus ?? [], seedOf(u.slide, l), mode === "initial" ? terms : []);
+      return (
+        <span key={l.sentence.i} className="sent">{k ? " " : ""}<sup>{l.sentence.i}</sup>
+          {bits.map((b, bi) => (b.kind === "text" ? b.t : b.kind === "word" ? <span key={bi}>{b.t}</span>
+            : b.kind === "hidden" ? <span key={bi} className="gap">{b.t}</span>
+            : <span key={bi}>{b.t[0]}<span className="gap">{b.t.slice(1)}</span></span>))}
+        </span>);
+    });
   }
   const label = (name: string, value: string | undefined) => (value ? <p className={name.toLowerCase()}><b>{`${name}: `}</b>{value}</p> : null);
   return (
@@ -164,6 +171,7 @@ function Card({ e }: { e: Engine }) {
             {item.lines.map((l) => <span key={l.sentence.i}><i style={{ width: `${Math.round(l.eff * 100)}%` }} /></span>)}
           </div>
           <p className="stitle">{`${u.slide.n}. ${u.slide.title}`}</p>
+          <p className="position" data-testid="position">{position(u)}</p>
           {words !== null && <p className={`cue${share > 0 && phase !== "judged" && phase !== "shown" && phase !== "failed" ? " letters" : ""}`} data-testid="cue">{words}</p>}
           {phase === "listening" && <p className="heard">Listening. Tap when you have finished.</p>}
           {phase === "checking" && <p className="heard" data-testid="checking">Checking...</p>}

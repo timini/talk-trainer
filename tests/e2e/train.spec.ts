@@ -27,7 +27,7 @@ async function pass(page: Page) {
   await expect(page.getByTestId("verdict")).toContainText("Got it");
   await big(page, "Next").click();
 }
-const blanks = async (page: Page) => ((await page.getByTestId("cue").textContent()) ?? "").split(/\s+/).filter((w) => /^_+[.,]?$/.test(w)).length;
+const blanks = async (page: Page) => page.locator(".cue .gap").count();
 
 test("a new slide is read in full, then more of it is hidden with each pass, until the slide alone; then the next", async ({ page }) => {
   const s = await open(page, "Flow test");
@@ -60,7 +60,10 @@ test("a new slide is read in full, then more of it is hidden with each pass, unt
   await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (95% hidden).");
   await pass(page);
   await expect(page.getByTestId("instruction")).toHaveText("From memory: say it from the slide.");
-  await expect(page.getByTestId("cue")).toHaveCount(0);
+  // every word hidden but the opening three, each gap the width of its word, and where to start shown
+  await expect(page.getByTestId("position")).toHaveText("The whole slide: all 2 sentences");
+  await expect(page.locator(".cue .gap")).toHaveCount(8);
+  await expect(page.getByTestId("cue")).toContainText("Good morning, and");
   await pass(page);
   await expect(status(page)).toHaveText("Slide 2 of 3");
   await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
@@ -154,4 +157,16 @@ test("get the gist: about half hidden, then the next slide; today's goal stops i
   await page.reload();
   await expect(page.getByLabel(/Get the gist/)).toBeChecked();
   await expect(page.getByLabel("Up to slide")).toHaveValue("3");
+});
+
+test("an attempt that starts at another sentence is not counted, and says where to start", async ({ page }) => {
+  await open(page, "Place test");
+  await page.getByRole("button", { name: "Start" }).click();
+  await verdict(page, { heard: "Today we bake bread.", meaning_ok: false, problems: [{ kind: "left_out", script: "Good morning, and thank you for coming." }] });
+  await attempt(page);
+  await expect(page.getByRole("status")).toContainText("That started at sentence 2 ('Today we bake bread'). This one starts at sentence 1: 'Good morning, and thank...'.");
+  await expect(page.getByTestId("verdict")).toHaveCount(0);
+  await page.unroute("**/api/grade");
+  await page.locator(".actions").getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud."); // the score did not move
 });

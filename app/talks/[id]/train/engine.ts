@@ -10,7 +10,7 @@ import { clipsOf, migrate, mustOf, textOf } from "@/lib/flow";
 import { adjust, type Aim, AIMS, knowIt, migrate as toMastery, type Pick, pick, record, showAll, summary, unitKey } from "@/lib/mastery";
 import { grade } from "@/lib/grade";
 import { judged, type Verdict } from "@/lib/judge";
-import { empty } from "@/lib/score";
+import { empty, start } from "@/lib/score";
 import { merge, ymd } from "@/lib/schedule";
 import { sentences } from "@/lib/text";
 import { type Judged, type Script, type Sync } from "@/lib/train";
@@ -257,6 +257,14 @@ export class Engine {
       if (this.item !== item) return;
       // almost nothing heard: a tap too soon or the microphone, not forgetting, so it does not count
       if (empty(body, parts.join(" "))) throw new Error("I didn't catch that.");
+      // started at another sentence of the slide: a wrong place, not forgetting, so it does not count
+      const all = item.unit.slide.sentences.map((x) => x.text), from = item.unit.from;
+      const begun = start(body.heard ?? "", all, from);
+      if (begun !== null && begun !== from) {
+        const opening = (i: number) => all[i].split(/\s+/).slice(0, 4).join(" ").replace(/[.,;:]+$/, "");
+        throw new Error(`That started at sentence ${begun + 1} ('${opening(begun)}'). This one starts at sentence ${from + 1}: `
+          + `'${opening(from)}...'.`);
+      }
       this.result = judged(grade(parts, "", must), body);
       this.count(this.result.pass);
       this.phase = "judged";

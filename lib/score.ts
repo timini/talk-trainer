@@ -71,3 +71,31 @@ export const perSentence = (problems: Problem[], texts: string[]): number[] => {
   }
   return cost.map((c) => Math.max(0, Math.round(100 - c)));
 };
+
+// Which sentence of a slide an attempt started at: the sentence whose first 4 words begin what was heard, after any
+// opening filler (hi, so, um...) and with contractions spelled out (I'm is I am). Matched in order, stopping at the
+// first word that is missing, and kept when at least 3 match (or all, for a shorter sentence); the best wins, the
+// expected start on a tie. null: no sentence starts it, so nothing is known. On 9 November 4 of Tim's 14 attempts at
+// one slide started at another part of it when every word was hidden, and were scored as forgotten.
+const FILLERS = new Set(["hi", "hello", "so", "um", "uh", "er", "okay", "ok", "right", "well"]);
+const spelled = (text: string) => text.replace(/[’']m\b/gi, " am").replace(/[’']re\b/gi, " are").replace(/n[’']t\b/gi, " not")
+  .replace(/[’']ve\b/gi, " have").replace(/[’']ll\b/gi, " will");
+export const start = (heard: string, sentences: string[], expected: number): number | null => {
+  const said = normalise(spelled(heard));
+  while (said.length && FILLERS.has(said[0])) said.shift();
+  const window = said.slice(0, 8);
+  let best: number | null = null, top = 0;
+  sentences.forEach((text, j) => {
+    const first = normalise(spelled(text)).slice(0, 4);
+    let at = 0, n = 0;
+    for (const w of first) {
+      const i = window.indexOf(w, at);
+      if (i < 0) break;
+      n += 1;
+      at = i + 1;
+    }
+    if (n < Math.min(3, first.length) || !first.length) return;
+    if (n > top || (n === top && j === expected)) { best = j; top = n; }
+  });
+  return best;
+};
