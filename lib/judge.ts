@@ -1,28 +1,47 @@
-// The judge: Gemini listens to one recorded attempt and says whether the sentence was said word for word, and how
-// it was delivered; or, for a run-through, reports on the delivery of a stretch of the talk. Its verdict replaces
-// the page's own grade.
+// The judge: Gemini listens to one recorded attempt and says whether the sentence came across with the same meaning
+// as the script, what went wrong if not, and how it was delivered; or, for a run-through, reports on the delivery of
+// a stretch of the talk. Its verdict replaces the page's own grade.
+//
+// The speaker learns the script so that it carries the same meaning, not word for word. A card fails for a point
+// left out, a changed meaning, a wrong number, name or key term, points in a different order, or a stumble (a false
+// start, a repeat or a self-correction). Small words added or dropped, contractions, synonyms and light rewording
+// within a point are fine.
 
-import { normalise, PASS, type Part, type Result } from "./grade";
+import { normalise, type Part, type Result } from "./grade";
 
 // The newest stable Flash model that takes audio.
 export const MODEL = "gemini-3.8-flash";
+
+export const KINDS = ["left_out", "changed", "wrong_term", "order", "stumble"] as const;
+export type Kind = (typeof KINDS)[number];
+export type Problem = { kind: Kind; script: string; said?: string };
 
 // The reply for one card.
 export const CARD = {
   type: "OBJECT",
   properties: {
     heard: { type: "STRING", description: "What was said, word for word, with the names spelled as in the glossary." },
-    verbatim: { type: "BOOLEAN", description: "True only if the target sentence was said word for word, in order, "
-      + "with no false start, repeated phrase or self-correction." },
-    missed: { type: "ARRAY", items: { type: "STRING" }, description: "Target words left out or changed." },
-    stumbles: { type: "ARRAY", items: { type: "STRING" },
-      description: "Each false start, repeated phrase or self-correction, quoted as it was said." },
+    meaning_ok: { type: "BOOLEAN", description: "True only if none of the fail rules apply: no point left out, no "
+      + "meaning changed, no number, name or key term wrong, the points in the script's order, and no stumble." },
+    problems: {
+      type: "ARRAY",
+      description: "One item for each fail rule that applies; empty when meaning_ok is true.",
+      items: {
+        type: "OBJECT",
+        properties: {
+          kind: { type: "STRING", enum: [...KINDS] },
+          script: { type: "STRING", description: "The exact words of the target that were affected, quoted from it." },
+          said: { type: "STRING", description: "What was said instead, if anything; for a stumble, the stumble as said." },
+        },
+        required: ["kind", "script"],
+      },
+    },
     fluency: { type: "INTEGER", description: "How smoothly it flowed, 1 (stop and start) to 5 (one smooth line)." },
     clarity: { type: "INTEGER", description: "How clearly it was spoken, 1 (hard to follow) to 5 (very clear)." },
     pace: { type: "STRING", enum: ["too slow", "good", "too fast"] },
     tip: { type: "STRING", description: "One short, specific delivery tip in plain English." },
   },
-  required: ["heard", "verbatim", "missed", "stumbles", "clarity", "fluency", "pace", "tip"],
+  required: ["heard", "meaning_ok", "problems", "clarity", "fluency", "pace", "tip"],
 } as const;
 
 // The reply for a piece of a run-through.
@@ -37,12 +56,13 @@ export const RUN = {
 } as const;
 
 export type Verdict = {
-  heard?: string; verbatim?: boolean; missed?: string[]; stumbles?: string[]; clarity?: number; fluency?: number;
-  pace?: string; tip?: string;
+  heard?: string; meaning_ok?: boolean; problems?: Problem[]; clarity?: number; fluency?: number; pace?: string;
+  tip?: string;
 };
 export type RunReply = { pace: string; unclear: string[]; work_on: string[] };
 
-export const prompt = ({ mode, target, glossary }: { mode?: string; target: string; glossary?: string[] }): string => {
+export const prompt = ({ mode, target, glossary, must }:
+  { mode?: string; target: string; glossary?: string[]; must?: string[] }): string => {
   const names = `Names in this talk, spelled as they should be written: ${(glossary || []).join(", ")}.`;
   const style = "Write in plain English, with no dashes.";
   if (mode === "run") {
@@ -54,15 +74,23 @@ export const prompt = ({ mode, target, glossary }: { mode?: string; target: stri
     ].join("\n\n");
   }
   return [
-    "You are checking a speaker who is learning one sentence of a conference talk by heart.",
-    `The target sentence: ${target}`, names,
-    "Judge whether the sentence came out as written, but ignore spelling, punctuation and how names are written. A "
-      + "changed number, a wrong name or term, a left out phrase or a changed meaning is a miss; a filler such as um is not.",
-    "Small words added or dropped (I, and, the, a, so, that, have, it), contractions (I'm for I am) and a greeting "
-      + "before the sentence are not misses: count the sentence as word for word and do not list them in missed.",
-    "Be strict about restarts: if the speaker starts a phrase, stops and says it again, repeats words, or corrects "
-      + "themselves, the sentence was not said word for word, even if the final version is right. Quote each one in "
-      + "stumbles. A sentence said as one smooth line has none.",
+    "You are checking a speaker who is learning a conference talk so that each sentence carries the same meaning as "
+      + "the script. It does not have to be word for word.",
+    `The target: ${target}`, names,
+    `Must be said exactly: ${must?.length ? must.join(", ") : "nothing beyond the names and numbers"}.`,
+    "List a problem for each of these, and only these:\n"
+      + "left_out: a point of the script, a clause or an idea, was not said.\n"
+      + "changed: the meaning changed, for example \"adds little\" said as \"helps\".\n"
+      + "wrong_term: a number, a name from the list above, a must-say item or a key term was wrong or missing. These "
+      + "must come out exactly: \"9 in 10\" said as \"8 in 10\" is wrong, \"nine in ten\" is right.\n"
+      + "order: the points were said in a different order from the script.\n"
+      + "stumble: a false start, a repeated phrase or a self-correction, even if the final version is right. Put the "
+      + "stumble as it was said in \"said\".",
+    "These are fine and are never a problem: a small word added or dropped (I, and, the, so, a, that), a contraction "
+      + "(I'm for I am), a greeting or a filler before or inside the sentence (hi, so, um), a synonym that keeps the "
+      + "meaning, light rewording within a point, and how names are spelled.",
+    "For each problem, copy into \"script\" the exact words of the target that were affected, and put in \"said\" what "
+      + "was said instead, if anything. Set meaning_ok to true only when there are no problems.",
     "Then judge the delivery as a speaking coach would, from the sound: how clearly each word comes across, how "
       + "smoothly it flows, the pace, whether the voice drops or trails off at the end, and whether the key words "
       + "and numbers are stressed. Give one short, specific tip on the biggest problem in this attempt.",
@@ -78,25 +106,46 @@ export const same = (a: string, b: string): boolean => {
   return diff === 0;
 };
 
-// The judge's verdict over the page's own grade: the words it lists as missed are marked (numbers and must-say
-// items stay marked as such), and the card passes by the page's own rule (PASS of the words, no number or must-say
-// item wrong), so one dropped small word is not a miss. Not word for word with no word listed is a miss, and so
-// is any false start, repeat or self-correction the judge lists in stumbles.
-export const judged = (local: Result, j: Verdict): Result & { stumbles: string[]; judge: Verdict } => {
-  const missed = new Set((j.missed || []).flatMap(normalise));
-  const parts: Part[] = local.parts.map((p) => {
-    const words = p.words.map((w) => {
-      const bad = !j.verbatim && normalise(w.w).some((t) => missed.has(t));
-      return { ...w, ok: !bad, close: false };
+// Where a quoted phrase of the target is: the tokens of the first run, in order, that matches it and does not overlap
+// a run already taken. Tokens are compared as normalise() makes them, so case and punctuation do not matter.
+type At = { t: string; p: number; w: number };
+const find = (tokens: At[], phrase: string, taken: Set<number>): number[] => {
+  const seq = normalise(phrase);
+  if (!seq.length) return [];
+  for (let i = 0; i + seq.length <= tokens.length; i += 1) {
+    if (seq.every((t, k) => tokens[i + k].t === t && !taken.has(i + k))) {
+      const run = seq.map((_, k) => i + k);
+      run.forEach((k) => taken.add(k));
+      return run;
+    }
+  }
+  return [];
+};
+
+// The judge's verdict over the page's own grade. The card passes when the meaning came through (meaning_ok) and
+// there are no problems; a stumble is a problem. Each problem's quoted phrase is marked as a run of words, so a word
+// said right elsewhere is never marked: left_out and changed as missed, wrong_term as a must-say miss (crit). A
+// stumble or an order problem marks nothing. A phrase that cannot be found marks nothing, and the problem still
+// counts.
+export const judged = (local: Result, j: Verdict): Result & { problems: Problem[]; judge: Verdict } => {
+  const problems = j.problems ?? [];
+  const parts: Part[] = local.parts.map((p) => ({ ...p, words: p.words.map((w) => ({ ...w, ok: true, close: false, crit: false })) }));
+  const tokens: At[] = parts.flatMap((p, pi) => p.words.flatMap((w, wi) => normalise(w.w).map((t) => ({ t, p: pi, w: wi }))));
+  const taken = new Set<number>();
+  problems.filter((x) => x.kind !== "stumble" && x.kind !== "order").forEach((x) => {
+    find(tokens, x.script, taken).forEach((i) => {
+      const w = parts[tokens[i].p].words[tokens[i].w];
+      w.ok = false;
+      w.crit = w.crit || x.kind === "wrong_term";
     });
-    const wrong = words.filter((w) => !w.ok);
-    const acc = words.length ? 1 - wrong.length / words.length : 1, critWrong = wrong.filter((w) => w.crit).length;
-    return { ...p, words, acc, critWrong, pass: !!j.verbatim || (wrong.length > 0 && acc >= PASS && !critWrong) };
   });
-  const all = parts.flatMap((p) => p.words);
-  const stumbles = j.stumbles || [];
-  return { ...local, parts, pass: parts.every((x) => x.pass) && !stumbles.length, stumbles,
-    acc: all.length ? all.filter((w) => w.ok).length / all.length : 1, judge: j };
+  const pass = j.meaning_ok === true && !problems.length;
+  const out = parts.map((p) => {
+    const wrong = p.words.filter((w) => !w.ok);
+    return { ...p, acc: p.words.length ? 1 - wrong.length / p.words.length : 1, critWrong: wrong.filter((w) => w.crit).length, pass };
+  });
+  const all = out.flatMap((p) => p.words);
+  return { ...local, parts: out, pass, problems, acc: all.length ? all.filter((w) => w.ok).length / all.length : 1, judge: j };
 };
 
 // The judge's run-through report, from its reply on each piece of the recording ({from, to, reply}: slide numbers

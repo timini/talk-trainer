@@ -1,8 +1,9 @@
 // POST /api/grade: the judge. Gemini listens to one recorded attempt (mode "card") or a piece of a run-through (mode
 // "run") and answers JSON in the CARD or RUN schema. The Gemini key stays on the server.
 //
-// Request: {mode, audio (base64), mime, target (the sentence, or the slides' script), glossary (the talk's names)}.
-// Reply: the model's JSON, or {error}. With STANDINS=1 a stand-in answers instead: word for word, for tests.
+// Request: {mode, audio (base64), mime, target (the sentence, or the slides' script), glossary (the talk's names),
+// must (the must-say items)}. Reply: the model's JSON, or {error}. With STANDINS=1 a stand-in answers instead: the
+// meaning came through, for tests.
 //
 // record, when given, gets each attempt Gemini judged (the request, the reply or the error, and how long Gemini
 // took), so real attempts can be replayed when the judge seems wrong (tools/debug-pull.mjs).
@@ -15,7 +16,7 @@ export const LIMIT = 1024 * 1024;
 export const RATE = 60;
 
 export type JudgeEnv = { GEMINI_KEY?: string; GEMINI_MODEL?: string; STANDINS?: string };
-type Body = { mode?: string; audio?: string; mime?: string; target?: string; glossary?: string[] };
+type Body = { mode?: string; audio?: string; mime?: string; target?: string; glossary?: string[]; must?: string[] };
 export type Attempt = { at: number; ms: number; model: string; mode?: string; target: string; glossary?: string[];
   mime: string; audio: string; status: number; reply?: unknown; error?: string };
 
@@ -31,11 +32,10 @@ export const allowed = (now: number) => {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-// The stand-in judge: everything said word for word.
+// The stand-in judge: every attempt carries the meaning.
 export const standin = (body: Body) => (body.mode === "run"
   ? { pace: "Steady.", unclear: [], work_on: [] }
-  : { heard: body.target, verbatim: true, missed: [], stumbles: [], clarity: 5, fluency: 5, pace: "good",
-    tip: "Keep it up." });
+  : { heard: body.target, meaning_ok: true, problems: [], clarity: 5, fluency: 5, pace: "good", tip: "Keep it up." });
 
 export async function judge(request: Request, env: JudgeEnv, now = Date.now(),
   record: (a: Attempt) => void = () => {}, clock: () => number = Date.now) {
@@ -57,7 +57,7 @@ export async function judge(request: Request, env: JudgeEnv, now = Date.now(),
     method: "POST",
     headers: { "x-goog-api-key": env.GEMINI_KEY as string, "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt({ mode: body.mode, target: body.target, glossary: body.glossary }) },
+      contents: [{ parts: [{ text: prompt({ mode: body.mode, target: body.target, glossary: body.glossary, must: body.must }) },
         { inline_data: { mime_type: body.mime, data: body.audio } }] }],
       generationConfig: { responseMimeType: "application/json", responseSchema: run ? RUN : CARD, temperature: 0,
         thinkingConfig: { thinkingLevel: "low" } },

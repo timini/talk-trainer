@@ -46,7 +46,7 @@ describe("the talk routes", () => {
     expect(await (await progressRoute.GET(new Request("https://x.test/"), params)).json()).toMatchObject({ items: { "train:days": ["2026-11-09"] } });
     const judged = await grade.POST(new Request("https://x.test/api/grade", { method: "POST",
       body: JSON.stringify({ mode: "card", audio: "QQ==", mime: "audio/webm", target: "Hello there." }) }));
-    expect(await judged.json()).toMatchObject({ verbatim: true, heard: "Hello there." });
+    expect(await judged.json()).toMatchObject({ meaning_ok: true, problems: [], heard: "Hello there." });
   });
 
   test("with a Workflow binding, the upload starts the Workflow", async () => {

@@ -3,16 +3,28 @@ import { grade } from "@/lib/grade";
 import { CARD, judged, MODEL, prompt, report, RUN, same } from "@/lib/judge";
 
 describe("the judge's prompt and schemas", () => {
-  test("a card: the sentence, the glossary, strict on restarts, and the delivery", () => {
-    const text = prompt({ mode: "card", target: "We tried four of them.", glossary: ["CADD"] });
-    expect(text).toMatch(/The target sentence: We tried four of them\./);
+  test("a card: the meaning, every fail rule and what never fails, the must-say items, and the delivery", () => {
+    const text = prompt({ mode: "card", target: "We tried four of them.", glossary: ["CADD"], must: ["four"] });
+    expect(text).toMatch(/so that each sentence carries the same meaning as the script\. It does not have to be word for word\./);
+    expect(text).toMatch(/The target: We tried four of them\./);
     expect(text).toMatch(/Names in this talk, spelled as they should be written: CADD\./);
-    expect(text).toMatch(/ignore spelling, punctuation and how names are written/);
-    expect(text).toMatch(/Be strict about restarts/);
+    expect(text).toMatch(/Must be said exactly: four\./);
+    for (const rule of ["left_out: a point of the script", "changed: the meaning changed", "wrong_term: a number, a name",
+      "order: the points were said in a different order", "stumble: a false start, a repeated phrase or a self-correction"]) {
+      expect(text).toContain(rule);
+    }
+    for (const fine of ["a small word added or dropped", "a contraction", "a greeting or a filler", "a synonym that keeps the meaning",
+      "light rewording within a point", "how names are spelled"]) {
+      expect(text).toContain(fine);
+    }
+    expect(text).toMatch(/Set meaning_ok to true only when there are no problems/);
     expect(text).toMatch(/whether the voice drops or trails off at the end/);
+    expect(prompt({ target: "x" })).toMatch(/Must be said exactly: nothing beyond the names and numbers\./);
     expect(text).not.toMatch(/[\u2013\u2014]/);
-    expect(CARD.required).toEqual(["heard", "verbatim", "missed", "stumbles", "clarity", "fluency", "pace", "tip"]);
+    expect(CARD.required).toEqual(["heard", "meaning_ok", "problems", "clarity", "fluency", "pace", "tip"]);
     expect(Object.keys(CARD.properties).sort()).toEqual([...CARD.required].sort());
+    expect(CARD.properties.problems.items.properties.kind.enum).toEqual(["left_out", "changed", "wrong_term", "order", "stumble"]);
+    expect(CARD.properties.problems.items.required).toEqual(["kind", "script"]);
     expect(CARD.properties.pace.enum).toEqual(["too slow", "good", "too fast"]);
     expect(MODEL).toMatch(/^gemini-/);
   });
@@ -38,47 +50,50 @@ describe("same", () => {
 });
 
 describe("judged", () => {
-  const line = ["Together, they put the right answer first in about 9 cases in 10."];
-  const must = ["9 cases in 10"];
+  const marked = (r: ReturnType<typeof judged>) => r.parts.flatMap((p) => p.words.filter((w) => !w.ok).map((w) => [w.w, w.crit]));
+  const line = ["I am not a scientist and have no clinical qualifications.", "What I have learned is mine."];
+  const local = grade(line, "", []);
 
-  test("the judge heard a wrong number: the card fails and the number is marked", () => {
-    const local = grade(line, "together they put the right answer first in about 9 cases in 10", must);
-    const g = judged(local, { heard: "...", verbatim: false, missed: ["9"], clarity: 5, pace: "good", tip: "Nine." });
-    expect(g.pass).toBe(false);
-    expect(g.parts[0].critWrong).toBe(1);
-    expect(Math.round(g.acc * 1000) / 1000).toBe(0.923);
-    expect(g.parts[0].words.filter((w) => !w.ok).map((w) => w.w)).toEqual(["9"]);
-    expect(g.judge.tip).toBe("Nine.");
+  test("the meaning came through: a pass, nothing marked, even where the page heard nothing", () => {
+    const r = judged(local, { heard: "I am not a scientist and I have no clinical qualifications. What I have learned is mine.",
+      meaning_ok: true, problems: [], tip: "Good." });
+    expect([r.pass, r.acc, marked(r), r.problems, r.judge.tip]).toEqual([true, 1, [], [], "Good."]);
+    expect(r.parts.every((p) => p.pass && p.critWrong === 0)).toBe(true);
   });
 
-  test("word for word: a pass, even where the page heard it wrong; no dotted words", () => {
-    const bad = grade(line, "together they put the right answer first in about", must);
-    const g = judged(bad, { heard: "...", verbatim: true, missed: [], clarity: 4, pace: "good", tip: "Good." });
-    expect(g.pass).toBe(true);
-    expect(g.acc).toBe(1);
-    expect(g.parts[0].words.every((w) => w.ok && !w.close)).toBe(true);
+  test("a left-out phrase marks only its run, not the same word elsewhere", () => {
+    const r = judged(local, { meaning_ok: false, problems: [{ kind: "left_out", script: "and have no clinical qualifications" }] });
+    expect(r.pass).toBe(false);
+    expect(marked(r)).toEqual([["and", false], ["have", false], ["no", false], ["clinical", false], ["qualifications.", false]]);
+    expect(r.parts[1].words.every((w) => w.ok)).toBe(true);
+    expect(r.acc).toBe(11 / 16);
   });
 
-  test("one small word dropped is a pass by the 85% rule; two of nine is a miss; a restart fails", () => {
-    const names = ["We tried four of them: CADD, SpliceAI, REVEL and AlphaMissense."];
-    const local = grade(names, "tried four of them cad splice ai rebel and alchemist sense", []);
-    const one = judged(local, { heard: "...", verbatim: false, missed: ["We"], clarity: 5, pace: "good", tip: "We." });
-    expect(one.pass).toBe(true);
-    expect(one.parts[0].words.filter((w) => !w.ok).map((w) => w.w)).toEqual(["We"]);
-    expect(judged(local, { heard: "...", verbatim: false, missed: ["We", "four"], clarity: 5, pace: "good", tip: "." })
-      .pass).toBe(false);
-    const restart = judged(local, { heard: "...", verbatim: true, missed: [], stumbles: ["a lab searches when a lab"],
-      clarity: 4, fluency: 2, pace: "good", tip: "." });
-    expect(restart.pass).toBe(false);
-    expect(restart.stumbles).toEqual(["a lab searches when a lab"]);
+  test("a repeated word: each quote takes the first run not already taken; case and punctuation do not matter", () => {
+    const r = judged(local, { meaning_ok: false, problems: [{ kind: "changed", script: "I", said: "we" }, { kind: "changed", script: "i" }] });
+    expect(marked(r)).toEqual([["I", false], ["I", false]]);
+    expect(r.parts.map((p) => p.words.filter((w) => !w.ok).length)).toEqual([1, 1]);
+    const r2 = judged(local, { meaning_ok: false, problems: [{ kind: "changed", script: "WHAT I HAVE LEARNED" }] });
+    expect(marked(r2)).toEqual([["What", false], ["I", false], ["have", false], ["learned", false]]);
   });
 
-  test("not word for word with nothing listed fails, with no words marked; an empty sentence counts in full", () => {
-    const g = judged(grade([""], "", []), { verbatim: false });
-    expect(g.pass).toBe(false);
-    expect(g.acc).toBe(1);
-    expect(g.parts[0].acc).toBe(1);
-    expect(judged(grade(["Hello there."], "hello", []), { verbatim: false }).pass).toBe(false);
+  test("a wrong term is marked as a must-say miss; an order problem or a stumble marks nothing; an unknown phrase marks nothing", () => {
+    const nums = grade(["Mix 500 grams of flour."], "", ["500"]);
+    const r = judged(nums, { meaning_ok: false, problems: [{ kind: "wrong_term", script: "500", said: "400" }] });
+    expect([r.pass, marked(r), r.parts[0].critWrong]).toEqual([false, [["500", true]], 1]);
+    for (const problem of [{ kind: "order" as const, script: "I am not a scientist" }, { kind: "stumble" as const, script: "I am", said: "I am I am" },
+      { kind: "left_out" as const, script: "something never in the target" }, { kind: "left_out" as const, script: "..." }]) {
+      const x = judged(local, { meaning_ok: false, problems: [problem] });
+      expect([x.pass, marked(x)], problem.kind).toEqual([false, []]);
+    }
+  });
+
+  test("the pass rule: meaning_ok and no problems; a restart fails even when the meaning came through", () => {
+    expect(judged(local, { meaning_ok: true, problems: [{ kind: "stumble", script: "I am", said: "I am I am" }] }).pass).toBe(false);
+    expect(judged(local, { meaning_ok: false, problems: [] }).pass).toBe(false);
+    expect(judged(local, {}).pass).toBe(false);
+    const empty = judged(grade([""], "", []), { meaning_ok: true });
+    expect([empty.pass, empty.acc, empty.parts[0].acc]).toEqual([true, 1, 1]);
   });
 });
 

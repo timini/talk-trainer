@@ -3,7 +3,7 @@ import { MODEL } from "@/lib/judge";
 import { allowed, judge, LIMIT, RATE, standin } from "@/lib/judgeApi";
 
 const ENV = { GEMINI_KEY: "k" };
-const BODY = { mode: "card", audio: "QUJD", mime: "audio/webm", target: "We tried four of them.", glossary: ["CADD"] };
+const BODY = { mode: "card", audio: "QUJD", mime: "audio/webm", target: "We tried four of them.", glossary: ["CADD"], must: ["four"] };
 const post = (body: unknown = BODY, headers: Record<string, string> = {}) => new Request("https://x.test/api/grade",
   { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) });
 const answer = async (res: Response) => [res.status, await res.json()];
@@ -26,7 +26,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("the judge route", () => {
   test("a card: the clip, the sentence and the glossary go to Gemini, and its JSON comes back", async () => {
-    const verdict = { heard: "We tried four of them.", verbatim: true, missed: [], stumbles: [], clarity: 5, fluency: 5,
+    const verdict = { heard: "We tried four of them.", meaning_ok: true, problems: [], clarity: 5, fluency: 5,
       pace: "good", tip: "Good." };
     replies.push(reply(verdict));
     expect(await answer(await call(post()))).toEqual([200, verdict]);
@@ -35,10 +35,11 @@ describe("the judge route", () => {
     expect(headers["x-goog-api-key"]).toBe("k");
     const [text, audio] = (body.contents as { parts: Record<string, unknown>[] }[])[0].parts;
     expect(audio).toEqual({ inline_data: { mime_type: "audio/webm", data: "QUJD" } });
-    expect(text.text).toMatch(/The target sentence: We tried four of them\./);
+    expect(text.text).toMatch(/The target: We tried four of them\./);
+    expect(text.text).toMatch(/Must be said exactly: four\./);
     expect(text.text).toMatch(/Names in this talk, spelled as they should be written: CADD\./);
     const config = body.generationConfig as { responseSchema: { required: string[] }; thinkingConfig: unknown };
-    expect(config.responseSchema.required).toContain("stumbles");
+    expect(config.responseSchema.required).toEqual(["heard", "meaning_ok", "problems", "clarity", "fluency", "pace", "tip"]);
     expect(config.thinkingConfig).toEqual({ thinkingLevel: "low" });
   });
 
@@ -49,10 +50,10 @@ describe("the judge route", () => {
       .toEqual(["pace", "unclear", "work_on"]);
   });
 
-  test("no key: 503; the stand-in answers word for word without one", async () => {
+  test("no key: 503; the stand-in says the meaning came through", async () => {
     expect(await answer(await call(post(), {}))).toEqual([503, { error: "The judge is not set up on this site." }]);
     expect(await answer(await call(post(), { STANDINS: "1" }))).toEqual([200, standin(BODY)]);
-    expect(standin(BODY)).toMatchObject({ heard: "We tried four of them.", verbatim: true, stumbles: [] });
+    expect(standin(BODY)).toMatchObject({ heard: "We tried four of them.", meaning_ok: true, problems: [] });
     expect(standin({ mode: "run" })).toEqual({ pace: "Steady.", unclear: [], work_on: [] });
     expect(calls.length).toBe(0);
   });
