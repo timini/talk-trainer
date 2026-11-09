@@ -171,7 +171,8 @@ function LastSheet({ a, close }: { a: Attempt; close: () => void }) {
         {r ? <p className="cue small-cue">{r.parts.flatMap((part, pi) => part.words.map((w, wi) => (
           <span key={`${pi}.${wi}`}>{pi || wi ? " " : ""}<span className={!w.ok ? (w.crit ? "miss crit" : "miss") : ""}>{w.w}</span></span>)))}</p>
           : <p className="cue small-cue">{a.card.text}</p>}
-        {v && <div className={`verdict ${v.good ? "good" : "bad"}`}>{v.head}<small>{v.detail}</small></div>}
+        {v && <div className={`verdict ${v.good ? "good" : "bad"}`}>{v.head}<small>{v.detail}</small>
+          {v.note && <small className="quiet">{v.note}</small>}</div>}
         {!r && <p className="note">{`The judge could not check it: ${a.error}`}</p>}
         {j && (
           <div className="feedback">
@@ -232,6 +233,7 @@ function Session({ e }: { e: Engine }) {
           {verdictBox && (
             <div className={`verdict ${verdictBox.good ? "good" : "bad"}`} data-testid="verdict">
               {verdictBox.head}<small>{verdictBox.detail}</small>
+              {verdictBox.note && <small className="quiet">{verdictBox.note}</small>}
             </div>
           )}
           {j && phase === "graded" && (

@@ -295,14 +295,14 @@ export class Engine {
     }
   }
 
-  // The judge: the recording, the sentences and the talk's names go to /api/grade, which asks Gemini. Its verdict
-  // decides the card by the 85% rule (lib/judge judged).
+  // The judge: the recording, the sentences, the talk's names and the must-say items go to /api/grade, which asks
+  // Gemini whether the meaning came through. Its verdict decides the card (lib/judge judged).
   private async verdict(v: View, blob: Blob): Promise<Judged> {
     if (!blob.size) throw new Error("Nothing was recorded.");
     const audio = await base64(blob);
     const res = await this.fetcher("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "card", audio, mime: blob.type.split(";")[0], target: v.parts.join(" "),
-        glossary: this.script.talk.glossary }) });
+        glossary: this.script.talk.glossary, must: v.must }) });
     const body = await res.json().catch(() => ({})) as Verdict & { error?: string };
     if (!res.ok) throw new Error(body.error ?? `The judge answered ${res.status}.`);
     return judged(grade(v.parts, "", v.must), body);
