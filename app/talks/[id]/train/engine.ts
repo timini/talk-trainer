@@ -7,7 +7,7 @@
 // while the judge works, then the verdict on the card just said. The progress moves when the verdict arrives.
 
 import { clipsOf, migrate, mustOf, textOf } from "@/lib/flow";
-import { keyOf, knowIt, migrate as toMastery, type Pick, pick, showAll, summary, update } from "@/lib/mastery";
+import { adjust, knowIt, migrate as toMastery, type Pick, pick, record, showAll, summary, unitKey } from "@/lib/mastery";
 import { grade } from "@/lib/grade";
 import { judged, type Verdict } from "@/lib/judge";
 import { empty } from "@/lib/score";
@@ -86,7 +86,7 @@ export class Engine {
     if (!Object.keys(items).some((k) => k.startsWith("flow:"))) {
       Object.entries(migrate(this.slides, items)).forEach(([k, v]) => this.set(k, v));
     }
-    if (!Object.keys(this.items()).some((k) => k.startsWith("flow:m:"))) {
+    if (!Object.keys(this.items()).some((k) => k.startsWith("flow:s:"))) {
       Object.entries(toMastery(this.slides, this.get, Date.now())).forEach(([k, v]) => this.set(k, v));
     }
   }
@@ -123,10 +123,9 @@ export class Engine {
   private count(pass: boolean, byHand = false) {
     const item = this.item as Pick, now = Date.now(), day = ymd(now);
     Object.entries(this.before).forEach(([k, v]) => (v === undefined ? this.remove(k) : this.set(k, v)));
-    const missed = (this.result?.problems ?? []).filter((x) => x.kind === "left_out" || x.kind === "changed"
-      || x.kind === "wrong_term").map((x) => x.script);
-    const points = byHand || this.result?.score === undefined ? (pass ? 100 : 0) : this.result.score;
-    const entries = { [keyOf(item.unit)]: update(item.state, points, item.share, now, byHand ? [] : missed) };
+    const judged = !byHand && this.result?.score !== undefined;
+    const entries = record(item, judged ? this.result?.problems ?? [] : [], judged ? this.result?.score ?? 0 : 0, now,
+      judged ? undefined : pass);
     this.before = Object.fromEntries(Object.keys(entries).map((k) => [k, this.get<unknown>(k, undefined)]));
     Object.entries(entries).forEach(([k, v]) => this.set(k, v));
     const dates = this.get<string[]>("train:days", []);
@@ -146,14 +145,12 @@ export class Engine {
     this.count(pass, true);
     this.go();
   }
-  // The phrases missed last time on the unit on screen: cued with their first letters.
-  get focus() { return this.item?.state?.focus ?? []; }
   // "Show me": the whole text again for this unit. "I know this one": nearly all of it hidden.
   showMe() { this.adjust(showAll); }
   knowIt() { this.adjust(knowIt); }
   private adjust(to: typeof showAll) {
     if (!this.item || this.phase !== "ready") return;
-    this.set(keyOf(this.item.unit), to(this.item.state, Date.now()));
+    Object.entries(adjust(this.item, to, Date.now())).forEach(([k, v]) => this.set(k, v));
     this.pushSoon();
     this.go();
   }
@@ -242,7 +239,8 @@ export class Engine {
       const audio = await base64(blob);
       const res = await this.fetcher("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "card", audio, mime: blob.type.split(";")[0], target: parts.join(" "),
-          glossary: this.script.talk.glossary, must, at: { unit: keyOf(item.unit), m: item.eff, hidden: item.share } }) });
+          glossary: this.script.talk.glossary, must, at: { unit: unitKey(item.unit), m: item.eff, hidden: item.share,
+            lines: item.lines.map((l) => [Math.round(l.eff * 100) / 100, l.share]) } }) });
       const body = await res.json().catch(() => ({})) as Verdict & { error?: string };
       if (!res.ok) throw new Error(body.error ?? `The judge answered ${res.status}.`);
       if (this.item !== item) return;

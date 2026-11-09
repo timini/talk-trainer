@@ -24,13 +24,15 @@ export const hide = (text: string, phrases: string[]): string => {
   return out + text.slice(last);
 };
 
-// A share of the words hidden, chosen afresh for each seed. keep: words never hidden (names, numbers, acronyms,
-// while they are not yet well known). cued: phrases missed last time, whose words, when hidden, show their first
-// letter instead of a blank. A hidden word is a blank as long as the word. share 1 hides the whole text ("").
-export const redact = (text: string, share: number, keep: string[], cued: string[], seed: number): string => {
+// A share of the words hidden, chosen afresh for each seed. keep: words always shown (names, numbers, acronyms,
+// while they are not yet known). initial: words always shown by their first letter and a blank for the rest (terms
+// on their way to being hidden). cued: phrases missed last time, whose words, when hidden, show their first letter
+// instead of a blank. A hidden word is a blank as long as the word. share 1 hides the whole text ("").
+export const redact = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = []): string => {
   if (share >= 1) return "";
   const found = [...text.matchAll(WORD)].map((m) => ({ at: m.index as number, w: m[0], b: bare(m[0]) }));
-  const kept = new Set(keep.flatMap((k) => [...k.matchAll(WORD)].map((m) => bare(m[0]))));
+  const bares = (xs: string[]) => new Set(xs.flatMap((k) => [...k.matchAll(WORD)].map((m) => bare(m[0]))));
+  const kept = bares(keep), firsts = bares(initial);
   const cue = new Set<number>();
   for (const phrase of cued) {
     const seq = [...phrase.matchAll(WORD)].map((m) => bare(m[0])).filter(Boolean);
@@ -47,12 +49,13 @@ export const redact = (text: string, share: number, keep: string[], cued: string
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  const open = found.map((_, i) => i).filter((i) => !kept.has(found[i].b));
+  const open = found.map((_, i) => i).filter((i) => !kept.has(found[i].b) && !firsts.has(found[i].b));
   for (let i = open.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [open[i], open[j]] = [open[j], open[i]]; }
   const hide = new Set(open.slice(0, Math.min(open.length, Math.round(share * found.length))));
   let out = "", last = 0;
   found.forEach((f, i) => {
-    const shown = !hide.has(i) ? f.w : cue.has(i) ? f.w[0] + "_".repeat(f.w.length - 1) : "_".repeat(f.w.length);
+    const first = f.w[0] + "_".repeat(f.w.length - 1);
+    const shown = firsts.has(f.b) ? first : !hide.has(i) ? f.w : cue.has(i) ? first : "_".repeat(f.w.length);
     out += text.slice(last, f.at) + shown;
     last = f.at + f.w.length;
   });

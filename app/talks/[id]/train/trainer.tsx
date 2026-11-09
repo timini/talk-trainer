@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { clipsOf, mustOf, textOf } from "@/lib/flow";
-import { header, instruction, seedOf, TERMS } from "@/lib/mastery";
+import { clipsOf, textOf } from "@/lib/flow";
+import { header, instruction, seedOf, termMode } from "@/lib/mastery";
 import { countdown, streak } from "@/lib/schedule";
 import { redact } from "@/lib/text";
 import { deliveryLine, plural, savedLine, type Script, verdict } from "@/lib/train";
@@ -126,7 +126,15 @@ function Card({ e }: { e: Engine }) {
     words = r.parts.flatMap((part, pi) => part.words.map((w, wi) => (
       <span key={`${pi}.${wi}`}>{pi || wi ? " " : ""}<span className={!w.ok ? (w.crit ? "miss crit" : "miss") : ""}>{w.w}</span></span>)));
   } else if (phase === "shown" || phase === "failed" || share === 0) words = text;
-  else if (share < 1) words = redact(text, share, item.eff < TERMS ? mustOf(u) : [], e.focus, seedOf(item));
+  else if (share < 1) {
+    // each sentence hidden by its own score; its terms in full, by their first letter, or hidden
+    words = item.lines.map((l) => {
+      if (l.share >= 1) return "________";
+      const mode = termMode(l.eff, l.state), terms = l.sentence.must_say;
+      return redact(l.sentence.text, l.share, mode === "full" ? terms : [], l.state?.focus ?? [], seedOf(u.slide, l),
+        mode === "initial" ? terms : []);
+    }).join(" ");
+  }
   const label = (name: string, value: string | undefined) => (value ? <p className={name.toLowerCase()}><b>{`${name}: `}</b>{value}</p> : null);
   return (
     <section className="session">
@@ -137,8 +145,9 @@ function Card({ e }: { e: Engine }) {
         </div>
         <div className="cardcol" data-testid="card">
           <p className="instruction" data-testid="instruction">{instruction(share)}</p>
-          <div className="mastery" role="img" aria-label={`Known ${Math.round(item.eff * 100)}%`} data-testid="mastery">
-            <span style={{ width: `${Math.round(item.eff * 100)}%` }} />
+          <div className="mastery" role="img" data-testid="mastery"
+            aria-label={`Known: ${item.lines.map((l) => `${Math.round(l.eff * 100)}%`).join(", ")}`}>
+            {item.lines.map((l) => <span key={l.sentence.i}><i style={{ width: `${Math.round(l.eff * 100)}%` }} /></span>)}
           </div>
           <p className="stitle">{`${u.slide.n}. ${u.slide.title}`}</p>
           {words !== null && <p className={`cue${share > 0 && phase !== "judged" && phase !== "shown" && phase !== "failed" ? " letters" : ""}`} data-testid="cue">{words}</p>}

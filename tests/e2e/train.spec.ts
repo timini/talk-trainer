@@ -78,8 +78,8 @@ test("a miss shows more of the text next time; Show me shows all of it; I know t
   await expect(page.locator(".cue .miss")).toHaveText(["Today", "we", "bake", "bread."]);
   await page.unroute("**/api/grade");
   await big(page, "Next").click();
-  // 0.75 after two passes, then a score of about 45: down to 0.6, 65% hidden; the missed words come back cued
-  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (65% hidden).");
+  // only the missed sentence drops: the first stays at 85% hidden, the second comes back to 15%
+  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (75% hidden).");
   await page.getByRole("button", { name: "Show me" }).click();
   await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
   await page.getByRole("button", { name: "I know this one" }).click();
@@ -113,8 +113,10 @@ test("progress survives a reload and comes back from the site; after a long gap 
 
   // six hours later, got once: slide 1 has faded, so it comes back first, with some of its text showing
   await page.evaluate((id) => {
-    const key = `talk-trainer:${id}:flow:m:1:1`, st = JSON.parse(localStorage.getItem(key) as string);
-    localStorage.setItem(key, JSON.stringify({ ...st, passes: 1, at: Date.now() - 6 * 3600 * 1000 }));
+    Object.keys(localStorage).filter((k) => k.startsWith(`talk-trainer:${id}:flow:s:1:`)).forEach((key) => {
+      const st = JSON.parse(localStorage.getItem(key) as string);
+      localStorage.setItem(key, JSON.stringify({ ...st, passes: 1, at: Date.now() - 6 * 3600 * 1000 }));
+    });
   }, s.talk.id);
   await page.reload();
   await expect(page.getByTestId("due")).toHaveText("1 part to go over again first: it has faded since you last said it.");

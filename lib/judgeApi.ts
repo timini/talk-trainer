@@ -21,7 +21,7 @@ export const HEDGE_LIMIT = 12000;
 
 export type JudgeEnv = { GEMINI_KEY?: string; GEMINI_MODEL?: string; STANDINS?: string };
 // at: where in the talk the attempt was (the unit, the flow step, warm-up or not), kept with it for learning metrics.
-type At = { unit?: string; step?: number; warm?: boolean };
+type At = Record<string, unknown>;
 type Body = { mode?: string; audio?: string; mime?: string; target?: string; glossary?: string[]; must?: string[]; at?: At };
 export type Attempt = { at: number; ms: number; model: string; mode?: string; target: string; glossary?: string[];
   mime: string; audio: string; status: number; reply?: unknown; error?: string; where?: At };
