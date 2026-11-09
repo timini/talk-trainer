@@ -25,9 +25,12 @@ files, a Workflow for the background build and a container for rendering slides.
 ## Training
 
 Each talk is trained at `/talks/<id>/train`, planned to the talk's date (set on the talks page or on the trainer's
-first screen). Each sentence is a card. You tap to speak; the attempt is recorded and sent to `POST /api/grade`,
-where Gemini judges it word for word and is strict about restarts. The browser's speech recognition, where there is
-one, only stops the recording after 2.5 seconds of quiet. A card passes with at least 85% of its words and no number
+first screen). Each sentence is a card. You tap to speak; the attempt is recorded (Opus, 16 kbps) and sent to
+`POST /api/grade`, where Gemini judges it word for word and is strict about restarts. The browser's speech
+recognition, where there is one, only decides when to stop: as soon as it has heard the sentence's last words, or
+after 1.2 seconds of quiet. The next card comes up at once and the judge works in the background: a strip over the
+card says how the last one went, and tapping it shows the full feedback. A card is marked when its verdict arrives;
+a missed one comes back in the session. "Wait for each verdict" in the menu makes each card wait instead. A card passes with at least 85% of its words and no number
 or must-say item wrong (`judged()` in `lib/judge.ts`). Hear it plays the sentence's clip, or a chain card's clips one
 after another. Progress is kept in localStorage and in D1 (`/api/talks/<id>/progress`), merged so the newer review
 of each card wins, and saved a few seconds after each card and when the page is closed.
