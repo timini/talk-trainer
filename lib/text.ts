@@ -1,0 +1,52 @@
+// Splitting a script into sentences, and the cues that fade a sentence out level by level.
+
+// The first letter of each word, punctuation and capitals kept: "Good morning, and welcome." is "G m, a w."
+export const cue = (text: string): string => text.replace(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu, (w) => w[0]);
+
+// Sentences: split after . ! or ? (and a closing quote or bracket) and a space, so 0.95 stays whole.
+export const sentences = (text: string): string[] =>
+  text.split(/(?<=[.!?]["”’)]?)\s+/).map((s) => s.trim()).filter(Boolean);
+
+// Vanishing text. Round 0: every word. 1: every 4th word blanked. 2: every other word. 3: first letters only.
+// 4: nothing, one blank line for each sentence.
+export const blank = (text: string, round: number): string => {
+  if (round >= 4) return sentences(text).map(() => "________").join("\n");
+  if (round === 3) return cue(text);
+  const every = round === 2 ? 2 : round === 1 ? 4 : 0;
+  let i = 0;
+  // A number such as 0.95 or 13,000 is one word here.
+  return text.replace(/[\p{L}\p{N}]+(?:['’.,][\p{L}\p{N}]+)*/gu,
+    (w) => (every && ++i % every === 0 ? "_".repeat(w.length) : w));
+};
+
+// The cue for each level. 0: the full sentence. 1: every 4th word blanked. 2: every other word. 3: first letters.
+// 4: nothing. A chain shows each sentence at its own level.
+export const cues = (parts: string[], levels: number[]): string => parts.map((t, k) => blank(t, levels[k])).join(" ");
+
+// Levels 0 to 2 also show the slide, its key point and the sentence before; level 3 the first letters alone; level
+// 4 the slide alone.
+export const shows = (level: number) => ({ image: level !== 3, point: level <= 2, before: level <= 2 });
+
+// A new sentence is practised as the chain from the slide's start once every sentence before it is at level 2.
+export const chainStart = (levels: (number | null)[], k: number): number =>
+  (k > 0 && levels.slice(0, k).every((l) => l !== null && l >= 2) ? 0 : k);
+
+// The talk's names, for the judge: every word of the script with a capital after its first letter (CADD,
+// SpliceAI), a digit beside letters (BRCA1, H100) or a dot inside it (example.io), without the punctuation around it
+// or a possessive, and the must-say items that are terms (no digit, at most 3 words); sorted, each once.
+export const glossary = (slides: { must_say: string[]; sentences: string[] }[]): string[] => {
+  const names = new Set<string>();
+  for (const d of slides) {
+    d.must_say.filter((m) => !/\d/.test(m) && m.split(/\s+/).filter(Boolean).length <= 3).forEach((m) => names.add(m));
+    for (const text of d.sentences) {
+      for (const word of text.split(/\s+/).filter(Boolean)) {
+        const w = word.replace(/^[.,;:!?()"'“”‘’]+|[.,;:!?()"'“”‘’]+$/g, "").replace(/[’']s$/, "");
+        const rest = [...w.slice(1)];
+        if (rest.some((c) => c !== c.toLowerCase() && c === c.toUpperCase())
+          || (/\d/.test(w) && /\p{L}/u.test(w)) || /[a-z]\.[a-z]/.test(w)) names.add(w);
+      }
+    }
+  }
+  const key = (n: string) => n.toLowerCase();
+  return [...names].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : a < b ? -1 : 1));
+};
