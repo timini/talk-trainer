@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "talk-trainer",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-09",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+  // Talks, slides, sentences and progress.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "talk-trainer",
+      "database_id": "a40dbfb9-45dc-44b4-8561-4689ffb52126"
+    }
+  ],
+  // Uploaded decks, slide images and voice clips. Create the bucket first: npx wrangler r2 bucket create talk-trainer-files
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "talk-trainer-files"
+    }
+  ]
+  // Secrets, set with `npx wrangler secret put <NAME>` (the value on stdin): GEMINI_KEY, BETA_PASSWORD.
+}
