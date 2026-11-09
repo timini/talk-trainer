@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { units } from "@/lib/flow";
 import {
   adjust, AIMS, doneAt, effective, HALF, header, hidden, instruction, knowIt, migrate, pick, record, seedOf, sentenceKey, showAll, type State,
-  summary, termMode, unitKey, update, view, opening, position, joinCues,
+  summary, termMode, unitKey, update, view, opening, position, target, windows, windowsOf,
 } from "@/lib/mastery";
 import { perSentence, start } from "@/lib/score";
 import { redact, redactBits } from "@/lib/text";
@@ -95,7 +95,7 @@ describe("what comes next", () => {
   });
 
   test("marked by hand, Show me and I know this one", () => {
-    const slides = [slide(1, 1)], [u] = units(slides), s = store();
+    const slides = [slide(1, 1)], [u] = windows(slides), s = store();
     const p = pick(slides, s.get, NOW)!;
     s.apply(record(p, [], 0, NOW, true));
     expect(view(u, s.get, NOW).lines[0].state?.m).toBe(0.5);
@@ -110,7 +110,7 @@ describe("what comes next", () => {
   });
 
   test("a faded unit comes back first, the lowest first; nothing to do when all are done and fresh", () => {
-    const slides = [slide(1, 1), slide(2, 1), slide(3, 1)], [a, b, c] = units(slides);
+    const slides = [slide(1, 1), slide(2, 1), slide(3, 1)], [a, b, c] = windows(slides);
     const s = store({
       [unitKey(a)]: { n: 5, done: true }, [sentenceKey(slides[0], slides[0].sentences[0])]: st(0.9, NOW - 3 * HOUR, 0),
       [unitKey(b)]: { n: 5, done: true }, [sentenceKey(slides[1], slides[1].sentences[0])]: st(0.9, NOW - 10 * HOUR, 1),
@@ -123,12 +123,11 @@ describe("what comes next", () => {
     expect(pick([slides[0]], done.get, NOW)).toBeNull();
   });
 
-  test("the header for parts and the whole slide; each attempt has its own seed", () => {
-    const [part, , whole] = units([slide(4, 3)]);
+  test("the header; each attempt has its own seed", () => {
+    const [part] = units([slide(4, 3)]);
     const p = view(part, store().get, NOW);
-    expect(header(p, 86)).toBe("Slide 4 of 86, part 1 of 2");
-    expect(header({ ...p, unit: whole }, 86)).toBe("Slide 4 of 86, whole slide");
-    expect(header(view(units([slide(5, 1)])[0], store().get, NOW), 86)).toBe("Slide 5 of 86");
+    expect([header(p, 86), header({ ...p, due: true }, 86), header(p, 86, 0.5)]).toEqual(["Slide 4 of 86", "Again: slide 4 of 86",
+      "Slide 4 of 86 (gist)"]);
     expect(seedOf(part.slide, p.lines[0])).not.toBe(seedOf(part.slide, { ...p.lines[0], state: st(0.5) }));
     expect(seedOf(part.slide, p.lines[0])).not.toBe(seedOf(part.slide, p.lines[1]));
   });
@@ -146,10 +145,14 @@ describe("earlier progress", () => {
     // sentences 1 and 2 are in part 1 (0.7) and the whole slide (0.9): the higher wins
     expect(out[k(1, 0)]).toEqual({ m: 0.9, at: 6, passes: 2, n: 2, focus: [], full: 0 });
     expect(out[k(1, 2)]).toEqual({ m: 0.9, at: 6, passes: 2, n: 2, focus: [], full: 0 });
-    expect([out["flow:v:1:1"], out["flow:v:1:3"], out["flow:v:1:2"]]).toEqual([{ n: 4, done: false }, { n: 2, done: true }, undefined]);
+    // part 1 was not done; the whole slide was, so every window of slide 1 is done
+    expect(windowsOf(slides[0]).map((w) => out[w.key])).toEqual(windowsOf(slides[0]).map(() => ({ n: 0, done: true, aim: 0.9 })));
     expect(out[k(2, 0)]).toEqual({ m: 0.9, at: 7, passes: 2, n: 0, focus: [], full: 0 });
-    expect(out["flow:v:2:1"]).toEqual({ n: 0, done: true });
+    expect(out["flow:w:2:0:1"]).toEqual({ n: 0, done: true, aim: 0.9 });
     expect(out[k(3, 0)]).toBeUndefined();
+    // a part done but not the whole slide: only the windows inside the part are done
+    const partOnly = migrate([slides[0]], store({ "flow:m:1:1": { m: 0.9, at: 5, passes: 2, n: 3, done: true } }).get, NOW);
+    expect(windowsOf(slides[0]).filter((w) => partOnly[w.key]).map((w) => [w.from, w.to])).toEqual([[0, 1], [1, 2], [0, 2]]);
     // a slide with no script is skipped
     expect(migrate([{ n: 9, title: "Empty", image: null, sentences: [] }], s.get, NOW)).toEqual({});
     // a part higher than the whole slide keeps the higher score
@@ -247,14 +250,15 @@ describe("where to start", () => {
   });
 
   test("the position line and the opening words", () => {
-    const [p1, p2, whole] = units([slide(2, 3)]);
-    expect([position(p1), position(p2), position(whole)]).toEqual([
-      "Sentences 1 to 2 of 3 (part 1 of 2)", "Sentences 2 to 3 of 3 (part 2 of 2, from the end of part 1)", "The whole slide: all 3 sentences"]);
-    expect(position(units([slide(5, 1)])[0])).toBe("The whole slide: 1 sentence");
-    const odd: Slide = { ...slide(6, 2), sentences: ["x".repeat(250) + ".", "y".repeat(250) + "."].map((text, i) =>
-      ({ i: i + 1, text, hash: `y${i}`, clip: null, must_say: [] })) };
-    expect(position(units([odd])[0])).toBe("Sentence 1 of 2 (part 1 of 2)");
-    expect(opening(p2)).toBe("Sentence 2.2 word");
+    const w = windowsOf(slide(2, 3));
+    expect(w.map(position)).toEqual(["Sentence 1 of 3 (on its own: 1 of 3)", "Sentence 2 of 3 (on its own: 2 of 3)",
+      "Sentence 3 of 3 (on its own: 3 of 3)", "Sentences 1 and 2 of 3 (pairs: 1 of 2)", "Sentences 2 and 3 of 3 (pairs: 2 of 2)",
+      "The whole slide: all 3 sentences"]);
+    expect(position(windowsOf(slide(5, 1))[0])).toBe("The whole slide: 1 sentence");
+    expect(position(windowsOf(slide(6, 4))[7])).toBe("Sentences 1 to 3 of 4 (threes: 1 of 2)");
+    const big = windowsOf(slide(7, 11));
+    expect(position(big.find((u) => u.to - u.from === 10)!)).toBe("Sentences 1 to 10 of 11 (10 at a time: 1 of 2)");
+    expect(opening(w[4])).toBe("Sentence 2.2 word");
   });
 
   test("redaction pieces: hidden words keep their own text, so each gap is as long as the word", () => {
@@ -266,23 +270,43 @@ describe("where to start", () => {
   });
 });
 
-describe("joining the parts of a slide", () => {
-  test("a miss at the join on the whole slide goes to the later part, which starts at the join", () => {
-    // 6 sentences of 99 characters: part 1 is 1 and 2, part 2 is 2 to 4, part 3 is 4 to 6, then the whole slide
-    const sl = slide(2, 6), [p1, p2, p3, whole] = units([sl]);
-    expect([p2.from, p2.to, p3.from, p3.to]).toEqual([1, 4, 3, 6]);
-    const s = store();
-    for (const u of [p1, p2, p3]) s.apply({ [unitKey(u)]: { n: 4, done: true, aim: 0.9 } });
-    sl.sentences.forEach((x) => s.apply({ [sentenceKey(sl, x)]: st(0.95, NOW, 3) }));
-    const w = view(whole, s.get, NOW);
-    // before the whole slide is got, the joins (sentences 3 and 5) show their opening words
-    expect(joinCues(w)).toEqual([2, 4]);
-    // Tim at 19:33:18: said the first part, then left out the first sentence of the next
-    s.apply(record(w, [{ kind: "left_out", script: say(2, 2) }], 70, NOW));
-    const next = pick([sl], s.get, NOW)!;
-    expect([next.unit.part, next.unit.from, next.unit.whole]).toEqual([2, 1, false]);
-    // once the whole slide is got the joins are no longer cued; never on a part
-    expect(joinCues({ ...w, state: { n: 2, done: true } })).toEqual([]);
-    expect(joinCues(view(p2, s.get, NOW))).toEqual([]);
+describe("windows of sentences", () => {
+  test("every sentence on its own, then every pair, every three...; to the whole slide word for word, to threes for the gist", () => {
+    const nine = slide(4, 9);
+    expect([windowsOf(nine).length, windowsOf(nine, 0.5).length, windowsOf(slide(1, 1)).length, windowsOf(slide(1, 0)).length])
+      .toEqual([45, 24, 1, 0]);
+    expect(windowsOf(slide(3, 3)).map((u) => [u.from, u.to])).toEqual([[0, 1], [1, 2], [2, 3], [0, 2], [1, 3], [0, 3]]);
+    expect(windowsOf(slide(3, 3)).map((u) => u.key)[3]).toBe("flow:w:3:0:2");
+    expect(windowsOf(nine).at(-1)!.whole).toBe(true);
+    expect(windowsOf(nine, 0.5).some((u) => u.to - u.from > 3)).toBe(false);
+  });
+
+  test("the bar rises with the size; the whole slide has the aim's bar", () => {
+    expect([1, 2, 3, 4, 9].map((n) => target(n))).toEqual([0.5, 0.7, 0.8, 0.9, 0.9]);
+    expect([1, 2, 3].map((n) => target(n, 0.5))).toEqual([0.4, 0.5, 0.5]);
+    expect([target(1, 0.9, true), target(1, 0.5, true), target(3, 0.5, true)]).toEqual([0.9, 0.5, 0.5]);
+    // a pair hides at most 80%, a three 90%, a four everything
+    const nine = slide(4, 9), s = store();
+    nine.sentences.forEach((x) => s.apply({ [sentenceKey(nine, x)]: st(0.99, NOW, 3) }));
+    const w = windowsOf(nine);
+    expect([w[0], w[9], w[17], w[24]].map((u) => view(u, s.get, NOW).share)).toEqual([0.55, 0.8, 0.9, 1]);
+  });
+
+  test("slide 4: the singles first, then the pairs from the start; done at the bar; known when the longest are done", () => {
+    const nine = slide(4, 9), s = store();
+    const said: string[] = [];
+    for (let k = 0; k < 12; k += 1) {
+      const p = pick([nine], s.get, NOW, 0.5)!;
+      said.push(`${p.unit.from + 1}:${p.unit.to - p.unit.from}@${p.share}`);
+      s.apply(record(p, [], 100, NOW, undefined, 0.5));
+    }
+    // each single read in full, then at its bar (45% hidden); then pair 1 and 2 at its bar (55%)
+    expect(said.slice(0, 4)).toEqual(["1:1@0", "1:1@0.45", "2:1@0", "2:1@0.45"]);
+    for (let k = 0; k < 40; k += 1) { const p = pick([nine], s.get, NOW, 0.5); if (!p) break; s.apply(record(p, [], 100, NOW, undefined, 0.5)); }
+    expect(pick([nine], s.get, NOW, 0.5)).toBeNull();
+    expect(summary([nine], s.get, NOW, 0.5)).toEqual({ learned: 1, total: 1, from: null, due: 0, left: 0 });
+    // word for word the fours and up are still to do
+    expect(summary([nine], s.get, NOW).learned).toBe(0);
+    expect(pick([nine], s.get, NOW)!.unit.to - pick([nine], s.get, NOW)!.unit.from).toBe(1);
   });
 });

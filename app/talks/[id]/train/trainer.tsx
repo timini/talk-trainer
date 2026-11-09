@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { clipsOf, textOf } from "@/lib/flow";
-import { header, instruction, joinCues, opening, openingOf, position, seedOf, termMode } from "@/lib/mastery";
+import { header, instruction, opening, position, seedOf, termMode } from "@/lib/mastery";
 import { countdown, streak } from "@/lib/schedule";
 import { redactBits } from "@/lib/text";
 import { deliveryLine, plural, savedLine, type Script, verdict } from "@/lib/train";
@@ -144,11 +144,9 @@ function Card({ e }: { e: Engine }) {
     // each sentence hidden by its own score, numbered; its terms in full, by their first letter, or hidden; the
     // unit's opening words always shown. A hidden word is drawn as itself, invisible, over a line, so each gap is as
     // long as the word.
-    const cues = joinCues(item);
     words = item.lines.map((l, k) => {
       const mode = termMode(l.eff, l.state), terms = l.sentence.must_say;
-      const keep = [...(mode === "full" ? terms : []), ...(k === 0 ? [opening(u)] : []),
-        ...(cues.includes(u.from + k) ? [openingOf(l.sentence.text)] : [])];
+      const keep = [...(mode === "full" ? terms : []), ...(k === 0 ? [opening(u)] : [])];
       const bits = redactBits(l.sentence.text, l.share, keep, l.state?.focus ?? [], seedOf(u.slide, l), mode === "initial" ? terms : []);
       return (
         <span key={l.sentence.i} className="sent">{k ? " " : ""}<sup>{l.sentence.i}</sup>

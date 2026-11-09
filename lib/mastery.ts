@@ -13,7 +13,7 @@
 // were flow:u: until parts were led in by the sentence before (10 November): a new name, so every part of a split
 // slide is checked once again from its sentences' scores.
 
-import { joins, learned, type Unit, units } from "./flow";
+import { learned, type Unit, units } from "./flow";
 import type { Problem } from "./judge";
 import { perSentence } from "./score";
 import type { Sentence, Slide } from "./train";
@@ -41,7 +41,29 @@ export const HINT = 0.5;
 export const TERMS = 0.8;
 
 export const sentenceKey = (slide: Slide, s: Sentence) => `flow:s:${slide.n}:${s.i}:${s.hash}`;
-export const unitKey = (u: Unit) => `flow:v:${u.slide.n}:${u.part}`;
+export const unitKey = (u: Unit) => (u.key.startsWith("flow:w:") ? u.key : `flow:v:${u.slide.n}:${u.part}`);
+
+// Windows of consecutive sentences, the units Tim learns a slide by (10 November): every sentence on its own, then
+// every pair, then every three, and so on, each a little longer than the last, up to the whole slide word for word
+// or to threes for the gist. On 9 November slide 4's parts of 2 to 4 sentences passed, but its 9 sentences together
+// were out of reach (6, 0 and 25 of 128 words) while every sentence scored 0.77 or more: the chain was not known,
+// and overlapping windows practise every join. Each slide's windows in order of size, then start.
+export const windowsOf = (slide: Slide, aim = 0.9): Unit[] => {
+  const n = slide.sentences.length, top = aim < 0.9 ? Math.min(3, n) : n, out: Unit[] = [];
+  for (let size = 1; size <= top; size += 1) {
+    for (let from = 0; from + size <= n; from += 1) {
+      out.push({ slide, part: from + 1, parts: n - size + 1, from, to: from + size, whole: size === n,
+        key: `flow:w:${slide.n}:${from}:${size}`, lead: false });
+    }
+  }
+  return out;
+};
+export const windows = (slides: Slide[], aim = 0.9) => slides.flatMap((s) => windowsOf(s, aim));
+
+// The bar a window must reach, rising with its size: on its own 0.5, pairs 0.7, threes 0.8, longer 0.9 word for word;
+// 0.4, then 0.5 for the gist. The whole slide always has the aim's own bar (0.9, or 0.5 for the gist).
+export const target = (size: number, aim = 0.9, whole = false) => (whole ? Math.min(aim, 0.9)
+  : aim < 0.9 ? (size === 1 ? 0.4 : 0.5) : [0.5, 0.7, 0.8][size - 1] ?? 0.9);
 const said = (u: Unit) => u.slide.sentences.slice(u.from, u.to);
 
 // The running score now, after the fading since the last attempt.
@@ -80,15 +102,16 @@ export type Pick = { unit: Unit; lines: Line[]; eff: number; share: number; due:
 
 // A unit now: its sentences, its weakest sentence's score, and the share of its words hidden overall.
 export const view = (u: Unit, get: Get, now: number, aim = 0.9): Pick => {
+  const bar = target(u.to - u.from, aim, u.whole);
   const lines = said(u).map((sentence) => {
     const state = get<State | null>(sentenceKey(u.slide, sentence), null), eff = effective(state, now);
-    return { sentence, state, eff, share: hidden(eff, aim) };
+    return { sentence, state, eff, share: hidden(eff, bar) };
   });
   const state = get<UnitState | null>(unitKey(u), null);
   const eff = Math.min(...lines.map((l) => l.eff));
   const words = lines.map((l) => l.sentence.text.split(/\s+/).length), all = words.reduce((a, b) => a + b, 0);
   const share = Math.round((20 * lines.reduce((a, l, k) => a + l.share * words[k], 0)) / all) / 20;
-  return { unit: u, lines, eff, share, due: !!state && eff < (DUE * aim) / 0.9, state };
+  return { unit: u, lines, eff, share, due: !!state && eff < (DUE * bar) / 0.9, state };
 };
 
 // Whether a unit is done at this aim: got at it, or at a higher one.
@@ -98,11 +121,10 @@ export const doneAt = (st: UnitState | null, aim: number) => !!st?.done && (st.a
 // yet done, lowest first; else the first new unit in talk order. null: everything is done and nothing is due.
 // goal: the last slide to work on today.
 export const pick = (slides: Slide[], get: Get, now: number, aim = 0.9, goal = Infinity): Pick | null => {
-  const all = units(slides.filter((s) => s.n <= goal)).map((u) => view(u, get, now, aim));
+  const all = windows(slides.filter((s) => s.n <= goal), aim).map((u) => view(u, get, now, aim));
   const started = all.filter((x) => x.state);
-  // the lowest first; on a tie a part before the whole slide, and the later part, which starts at the join
-  const low = (xs: Pick[]) => xs.slice().sort((a, b) => a.eff - b.eff || Number(a.unit.whole) - Number(b.unit.whole)
-    || b.unit.part - a.unit.part)[0];
+  // the lowest first; on a tie the shorter window
+  const low = (xs: Pick[]) => xs.slice().sort((a, b) => a.eff - b.eff || (a.unit.to - a.unit.from) - (b.unit.to - b.unit.from))[0];
   return low(started.filter((x) => x.due)) ?? low(started.filter((x) => !doneAt(x.state, aim)))
     ?? all.find((x) => !x.state) ?? null;
 };
@@ -121,7 +143,7 @@ export const record = (p: Pick, problems: Problem[], unitScore: number, now: num
       mine.filter((x) => x.kind !== "stumble").map((x) => x.script), mine.some((x) => x.kind === "wrong_term"));
   });
   const got = byHand === undefined ? unitScore >= gotAt(aim) : byHand;
-  const done = got && p.lines.every((l) => l.share >= hidden(1, aim));
+  const done = got && p.lines.every((l) => l.share >= hidden(1, target(p.unit.to - p.unit.from, aim, p.unit.whole)));
   // got at a lower aim than one already reached keeps the higher one
   const best = Math.max(done ? aim : 0, p.state?.done ? p.state.aim ?? 0.9 : 0);
   out[unitKey(p.unit)] = best ? { n: (p.state?.n ?? 0) + 1, done: true, aim: best } : { n: (p.state?.n ?? 0) + 1, done: false };
@@ -134,12 +156,15 @@ export const adjust = (p: Pick, to: typeof showAll, now: number): Record<string,
   [unitKey(p.unit)]: { n: p.state?.n ?? 0, done: false },
 });
 
-// The home screen: slides known (every unit done and not faded), the next new slide, and how many units are due.
-// Within the goal: slides up to that number.
+// The home screen: slides known (their longest windows done and not faded), the next new slide, and how many
+// windows are due. Within the goal: slides up to that number.
 export const summary = (slides: Slide[], get: Get, now: number, aim = 0.9, goal = Infinity) => {
   const spoken = slides.filter((s) => s.sentences.length && s.n <= goal);
-  const all = units(spoken).map((u) => view(u, get, now, aim));
-  const known = (s: Slide) => all.filter((x) => x.unit.slide === s).every((x) => doneAt(x.state, aim) && !x.due);
+  const all = windows(spoken, aim).map((u) => view(u, get, now, aim));
+  const known = (s: Slide) => {
+    const mine = all.filter((x) => x.unit.slide === s), top = Math.max(...mine.map((x) => x.unit.to - x.unit.from));
+    return mine.filter((x) => x.unit.to - x.unit.from === top).every((x) => doneAt(x.state, aim) && !x.due);
+  };
   return { learned: spoken.filter(known).length, total: spoken.length, from: all.find((x) => !x.state)?.unit.slide ?? null,
     due: all.filter((x) => x.due).length, left: all.filter((x) => !doneAt(x.state, aim) || x.due).length };
 };
@@ -162,7 +187,10 @@ export const migrate = (slides: Slide[], get: Get, now: number): Record<string, 
         const key = sentenceKey(s, x), have = out[key] as State | undefined;
         if (!have || seed.m > have.m) out[key] = seed;
       }
-      out[unitKey(u)] = { n: old?.n ?? 0, done: old ? old.done : true };
+      // the windows inside a part that was done are done too, word for word
+      if (old ? old.done : true) {
+        for (const w of windowsOf(s)) if (w.from >= u.from && w.to <= u.to) out[w.key] = { n: 0, done: true, aim: 0.9 };
+      }
     }
   }
   return out;
@@ -173,26 +201,20 @@ export const seedOf = (slide: Slide, l: Line) =>
   [...`${sentenceKey(slide, l.sentence)}:${l.state?.n ?? 0}`].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
 
 // The header over the card.
-export const header = (p: Pick, total: number, aim = 0.9) => {
-  const u = p.unit;
-  const part = u.parts === 1 ? "" : u.whole ? ", whole slide" : `, part ${u.part} of ${u.parts - 1}`;
-  return `${p.due ? "Again: slide" : "Slide"} ${u.slide.n} of ${total}${part}${aim < 0.9 ? " (gist)" : ""}`;
-};
+export const header = (p: Pick, total: number, aim = 0.9) =>
+  `${p.due ? "Again: slide" : "Slide"} ${p.unit.slide.n} of ${total}${aim < 0.9 ? " (gist)" : ""}`;
 
 // Where the unit is in its slide, always shown, so a fully hidden card still says what to say.
+const SIZES = ["on its own", "pairs", "threes", "fours", "fives", "sixes", "sevens", "eights", "nines"];
 export const position = (u: Unit) => {
-  const n = u.slide.sentences.length;
+  const n = u.slide.sentences.length, size = u.to - u.from;
   if (u.whole) return n === 1 ? "The whole slide: 1 sentence" : `The whole slide: all ${n} sentences`;
-  const span = u.to - u.from === 1 ? `Sentence ${u.from + 1}` : `Sentences ${u.from + 1} to ${u.to}`;
-  return `${span} of ${n} (part ${u.part} of ${u.parts - 1}${u.lead ? `, from the end of part ${u.part - 1}` : ""})`;
+  const span = size === 1 ? `Sentence ${u.from + 1}` : size === 2 ? `Sentences ${u.from + 1} and ${u.to}` : `Sentences ${u.from + 1} to ${u.to}`;
+  return `${span} of ${n} (${SIZES[size - 1] ?? `${size} at a time`}: ${u.from + 1} of ${n - size + 1})`;
 };
 // The opening words of a sentence (3), and of a unit, always shown.
 export const openingOf = (text: string) => text.split(/\s+/).slice(0, 3).join(" ");
 export const opening = (u: Unit) => openingOf(u.slide.sentences[u.from].text);
-// On the whole slide, the sentences where its parts join (as indexes in the slide) also show their opening words
-// until the whole slide has been got once. Not by score: the sentences are already well known from the parts, which
-// is when the joins were missed (9 November).
-export const joinCues = (p: Pick) => (p.unit.whole && !p.state?.done ? joins(p.unit.slide) : []);
 
 // What the card asks for.
 export const instruction = (share: number) => (share === 0 ? "Read it aloud."

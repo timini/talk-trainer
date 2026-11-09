@@ -250,13 +250,11 @@ export class Engine {
       const audio = await base64(blob);
       const res = await this.fetcher("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "card", audio, mime: blob.type.split(";")[0], target: parts.join(" "),
-          glossary: this.script.talk.glossary, must, at: { unit: unitKey(item.unit), m: item.eff, hidden: item.share,
+          glossary: this.script.talk.glossary, must, at: { unit: unitKey(item.unit), size: item.unit.to - item.unit.from, start: item.unit.from, m: item.eff, hidden: item.share,
             lines: item.lines.map((l) => [Math.round(l.eff * 100) / 100, l.share]) } }) });
       const body = await res.json().catch(() => ({})) as Verdict & { error?: string };
       if (!res.ok) throw new Error(body.error ?? `The judge answered ${res.status}.`);
       if (this.item !== item) return;
-      // almost nothing heard: a tap too soon or the microphone, not forgetting, so it does not count
-      if (empty(body, parts.join(" "))) throw new Error("I didn't catch that.");
       // started at another sentence of the slide: a wrong place, not forgetting, so it does not count
       const all = item.unit.slide.sentences.map((x) => x.text), from = item.unit.from;
       const begun = start(body.heard ?? "", all, from);
@@ -265,6 +263,8 @@ export class Engine {
         throw new Error(`That started at sentence ${begun + 1} ('${opening(begun)}'). This one starts at sentence ${from + 1}: `
           + `'${opening(from)}...'.`);
       }
+      // almost nothing heard: a tap too soon or the microphone, not forgetting, so it does not count
+      if (empty(body, parts.join(" "))) throw new Error("I didn't catch that.");
       this.result = judged(grade(parts, "", must), body);
       this.count(this.result.pass);
       this.phase = "judged";
