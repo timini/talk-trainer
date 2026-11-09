@@ -90,8 +90,9 @@ export const tally = (cards: { section: string; words: number; level: number | n
   return rows;
 };
 
-// Imported progress: for each card the newer review wins, practice days are joined, and other settings stay.
-const CARD = /^train:[^:]+:\d+:[0-9a-f]+$/;
+// Imported progress: for each card (a sentence card, or a slide part of the flow) the newer review wins, practice
+// days are joined, and other settings stay.
+const CARD = /^(train:[^:]+:\d+:[0-9a-f]+|flow:\d+:\d+)$/;
 export const merge = (mine: Record<string, unknown>, theirs: Record<string, unknown>): Record<string, unknown> => {
   const out: Record<string, unknown> = { ...mine };
   Object.entries(theirs).forEach(([k, v]) => {
