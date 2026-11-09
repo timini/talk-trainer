@@ -1,7 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "talk-trainer",
-  "main": ".open-next/worker.js",
+  // worker.ts: the OpenNext app, plus the build Workflow and the render container.
+  "main": "worker.ts",
   "compatibility_date": "2026-11-09",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -14,7 +15,8 @@
     {
       "binding": "DB",
       "database_name": "talk-trainer",
-      "database_id": "a40dbfb9-45dc-44b4-8561-4689ffb52126"
+      "database_id": "a40dbfb9-45dc-44b4-8561-4689ffb52126",
+      "migrations_dir": "migrations"
     }
   ],
   // Uploaded decks, slide images and voice clips. Create the bucket first: npx wrangler r2 bucket create talk-trainer-files
@@ -23,6 +25,27 @@
       "binding": "FILES",
       "bucket_name": "talk-trainer-files"
     }
-  ]
+  ],
+  // The background build of an uploaded talk (workers/build.ts).
+  "workflows": [
+    {
+      "name": "talk-trainer-build",
+      "binding": "BUILD",
+      "class_name": "BuildWorkflow"
+    }
+  ],
+  // The slide renderer: LibreOffice and poppler in a container (container/Dockerfile, workers/render.ts).
+  "containers": [
+    {
+      "class_name": "Render",
+      "image": "./container/Dockerfile",
+      "instance_type": "standard-2",
+      "max_instances": 2
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "RENDER", "class_name": "Render" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Render"] }],
   // Secrets, set with `npx wrangler secret put <NAME>` (the value on stdin): GEMINI_KEY, BETA_PASSWORD.
 }
