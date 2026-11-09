@@ -52,6 +52,8 @@ describe("the build", () => {
     const slides = (await env.db.prepare("SELECT n, title, notes, image_key FROM slides WHERE talk = ? ORDER BY n").bind(id).all()).results;
     // the notes keep their paragraphs; the sentences are split as if they were spaces
     expect(slides[0].notes).toBe("Good morning, and thank you for coming.\nToday we bake bread at example.io.");
+    const sections = (await env.db.prepare("SELECT section FROM slides WHERE talk = ?").bind(id).all()).results;
+    expect(sections.every((x) => x.section === null)).toBe(true);
     expect(slides.map((s) => [s.n, s.title, s.image_key])).toEqual([[1, "Welcome", `talks/${id}/slides/1.png`],
       [2, "Flour and water", `talks/${id}/slides/2.png`], [3, "Questions", `talks/${id}/slides/3.png`]]);
     expect(new Uint8Array(await (await env.files.get(`talks/${id}/slides/2.png`))!.arrayBuffer())).toEqual(standins.PNG);

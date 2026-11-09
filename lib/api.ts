@@ -133,13 +133,14 @@ export const change = async (request: Request, env: ApiEnv, id: string, now = Da
 };
 
 // GET /api/talks/:id/script: what the trainer needs: the talk, and each slide with its image and its sentences,
-// each with its voice clip and must-say items, and the sentences (from 0) that start a paragraph of its notes. File
+// each with its voice clip and must-say items, the sentences (from 0) that start a paragraph of its notes, and its
+// PowerPoint section (null when the deck has none). File
 // addresses are under /api/files/.
 export const script = async (env: ApiEnv, id: string) => {
   const talk = await talkOf(env, id);
   if (!talk) return json(404, { error: "No such talk." });
   const [slides, sentences] = await env.DB.batch<Record<string, unknown>>([
-    env.DB.prepare("SELECT n, title, notes, image_key FROM slides WHERE talk = ? ORDER BY n").bind(id),
+    env.DB.prepare("SELECT n, title, notes, section, image_key FROM slides WHERE talk = ? ORDER BY n").bind(id),
     env.DB.prepare("SELECT slide, i, text, hash, clip_key, must_say FROM sentences WHERE talk = ? ORDER BY slide, i").bind(id),
   ]);
   const file = (key: unknown) => (key ? `/api/files/${key}` : null);
@@ -147,7 +148,7 @@ export const script = async (env: ApiEnv, id: string) => {
     talk: { id: talk.id, title: talk.title, status: talk.status, talkAt: talk.talk_at, glossary: JSON.parse(talk.glossary) },
     slides: slides.results.map((s) => {
       const mine = sentences.results.filter((x) => x.slide === s.n);
-      return { n: s.n, title: s.title, image: file(s.image_key),
+      return { n: s.n, title: s.title, image: file(s.image_key), section: s.section ?? null,
         sentences: mine.map((x) => ({ i: x.i, text: x.text, hash: x.hash, clip: file(x.clip_key), must_say: JSON.parse(x.must_say as string) })),
         paras: paragraphs(s.notes as string, mine.map((x) => x.text as string)) };
     }),

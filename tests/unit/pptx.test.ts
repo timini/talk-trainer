@@ -11,10 +11,16 @@ describe("parseDeck", () => {
       { notes: ["A slide without a title says 3 < 4."] },
     ]));
     expect(slides).toEqual([
-      { n: 1, title: "Welcome", notes: "Good morning.\nToday we bake bread & cake." },
-      { n: 2, title: "No notes here", notes: "" },
-      { n: 3, title: "", notes: "A slide without a title says 3 < 4." },
+      { n: 1, title: "Welcome", notes: "Good morning.\nToday we bake bread & cake.", section: null },
+      { n: 2, title: "No notes here", notes: "", section: null },
+      { n: 3, title: "", notes: "A slide without a title says 3 < 4.", section: null },
     ]);
+  });
+
+  test("each slide's PowerPoint section, matched by its slide id", () => {
+    const slides = parseDeck(deck([{ title: "Intro", section: "Opening & why" }, { title: "Two" }, { title: "Gone", hidden: true },
+      { title: "Data", section: "The data" }]));
+    expect(slides.map((s) => [s.title, s.section])).toEqual([["Intro", "Opening & why"], ["Two", "Opening & why"], ["Data", "The data"]]);
   });
 
   test("hidden slides are left out and the rest numbered in order", () => {
@@ -32,7 +38,8 @@ describe("parseDeck", () => {
       + `</p:spTree></p:cSld></p:sld>`;
     const slides = parseDeck(zip({
       "ppt/presentation.xml": '<p:presentation><p:sldIdLst><p:sldId id="1" r:id="b"/><p:sldId id="2" r:id="a"/>'
-        + '<p:sldId id="3" r:id="missing"/><p:sldId id="4" r:id="c"/></p:sldIdLst></p:presentation>',
+        + '<p:sldId id="3" r:id="missing"/><p:sldId id="4" r:id="c"/></p:sldIdLst><p:extLst><p:ext><p14:sectionLst>'
+        + '<p14:section id="{x}"><p14:sldIdLst><p14:sldId id="2"/></p14:sldIdLst></p14:section></p14:sectionLst></p:ext></p:extLst></p:presentation>',
       "ppt/_rels/presentation.xml.rels": '<Relationships><Relationship Id="a" Type="x/slide" Target="/ppt/slides/first.xml"/>'
         + '<Relationship Id="b" Type="x/slide" Target="./slides/second.xml"/><Relationship Id="c" Type="x/slide" Target="slides/gone.xml"/>'
         + "<Relationship/></Relationships>",
@@ -40,7 +47,8 @@ describe("parseDeck", () => {
       "ppt/slides/second.xml": sld("Second", ' show="1"'),
       "ppt/slides/_rels/second.xml.rels": '<Relationships><Relationship Id="n" Type="x/notesSlide" Target="../notesSlides/absent.xml"/></Relationships>',
     }));
-    expect(slides).toEqual([{ n: 1, title: "Second line €A&nbsp;", notes: "" }, { n: 2, title: "First line €A&nbsp;", notes: "" }]);
+    expect(slides).toEqual([{ n: 1, title: "Second line €A&nbsp;", notes: "", section: null },
+      { n: 2, title: "First line €A&nbsp;", notes: "", section: "" }]);
   });
 
   test("a file that is not a deck is refused", () => {

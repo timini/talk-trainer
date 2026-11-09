@@ -69,7 +69,8 @@ export const parse = async (deps: Deps, talk: string) => {
   await db.batch([
     db.prepare("DELETE FROM sentences WHERE talk = ?").bind(talk),
     db.prepare("DELETE FROM slides WHERE talk = ?").bind(talk),
-    ...rows.map((s) => db.prepare("INSERT INTO slides (talk, n, title, notes) VALUES (?, ?, ?, ?)").bind(talk, s.n, s.title, s.notes)),
+    ...rows.map((s) => db.prepare("INSERT INTO slides (talk, n, title, notes, section) VALUES (?, ?, ?, ?, ?)")
+      .bind(talk, s.n, s.title, s.notes, s.section)),
     ...rows.flatMap((s) => s.sentences.map((x, i) => db.prepare(
       "INSERT INTO sentences (talk, slide, i, text, hash, must_say) VALUES (?, ?, ?, ?, ?, ?)",
     ).bind(talk, s.n, i + 1, x.text, x.hash, JSON.stringify(x.must)))),

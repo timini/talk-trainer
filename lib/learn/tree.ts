@@ -3,7 +3,8 @@
 // then groups of sentences, then the whole slide. Groups are the paragraphs of the speaker notes, where there are
 // several; within a paragraph, and with no paragraphs, the parts are paired into a balanced binary tree, so a node is
 // never much more than twice the size of its children. Above the slides: a bridge between each pair of spoken slides
-// (the last sentence of one and the first of the next), sections of about SECTION slides, and the whole talk.
+// (the last sentence of one and the first of the next), sections (the deck's own PowerPoint sections, or groups of
+// about SECTION slides when it has none), and the whole talk.
 //
 // Node ids: s:<slide>:<from>-<to>:<hash> for a span of a slide's leaves (from and to count from 0, both included),
 // b:<slide>:<hash> for the bridge from a slide to the next, sec:<i> and t. The hash is of the node's text, so an
@@ -12,7 +13,8 @@
 import { CLAUSE, SECTION, SPLIT } from "./rules";
 
 export type Kind = "clause" | "clauses" | "sentence" | "group" | "slide" | "bridge" | "section" | "talk";
-export type Input = { n: number; title?: string; sentences: { text: string; must_say?: string[] }[]; paras?: number[] };
+export type Input = { n: number; title?: string; sentences: { text: string; must_say?: string[] }[]; paras?: number[];
+  section?: string | null };
 
 export type Node = {
   id: string;
@@ -39,6 +41,8 @@ export type Node = {
   height: number;
   // a slide, a section or the talk: the higher bar
   top: boolean;
+  // a section's name, from the deck
+  name?: string;
 };
 export type Tree = { nodes: Map<string, Node>; order: string[]; roots: Map<number, string>; talk: string | null };
 
@@ -162,14 +166,30 @@ export const build = (slides: Input[]): Tree => {
     ...bridges.filter((b) => ns.includes(b.slides[0]) && ns.includes(b.slides[1])).map((b) => b.id)];
   let talk: string | null = null;
   if (spoken.length > 1) {
-    // sections of SECTION slides; a remainder of fewer than 3 joins the section before
-    const groups: number[][] = [];
-    for (let k = 0; k < spoken.length; k += SECTION) groups.push(spoken.slice(k, k + SECTION).map((s) => s.n));
-    if (groups.length > 1 && groups[groups.length - 1].length < 3) groups[groups.length - 2].push(...(groups.pop() as number[]));
+    // the deck's own sections (a slide with none stays in the section before); without them, sections of SECTION
+    // slides, a remainder of fewer than 3 joining the section before
+    const groups: { name?: string; slides: number[] }[] = [];
+    if (spoken.some((s) => s.section)) {
+      spoken.forEach((s, k) => {
+        if (k === 0 || (s.section && s.section !== groups[groups.length - 1].name)) groups.push({ name: s.section ?? undefined, slides: [] });
+        groups[groups.length - 1].slides.push(s.n);
+      });
+    } else {
+      for (let k = 0; k < spoken.length; k += SECTION) groups.push({ slides: spoken.slice(k, k + SECTION).map((s) => s.n) });
+      if (groups.length > 1 && groups[groups.length - 1].slides.length < 3) {
+        groups[groups.length - 2].slides.push(...(groups.pop() as { slides: number[] }).slides);
+      }
+    }
     const all = spoken.map((s) => s.n);
     if (groups.length === 1) run("t", "talk", all, within(all));
     else {
-      const secs = groups.map((g, i) => run(`sec:${i + 1}`, "section", g, within(g)));
+      // a section of one slide is just that slide, under the talk
+      const secs = groups.map((g, i) => {
+        if (g.slides.length === 1) return node(roots.get(g.slides[0]) as string);
+        const sec = run(`sec:${i + 1}`, "section", g.slides, within(g.slides));
+        if (g.name) sec.name = g.name;
+        return sec;
+      });
       const between = bridges.filter((b) => !secs.some((sec) => sec.kids.includes(b.id)));
       run("t", "talk", all, [...secs.map((s) => s.id), ...between.map((b) => b.id)]);
     }

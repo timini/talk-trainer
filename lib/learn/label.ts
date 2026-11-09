@@ -31,7 +31,7 @@ const words = (tree: Tree, node: Node): Short => {
     case "bridge":
       return { position: `From slide ${node.slides[0]} into slide ${node.slides[1]}`, crumb: "" };
     case "section":
-      return { position: `Run-through: slides ${node.slides[0]} to ${node.slides.at(-1)}`, crumb: "" };
+      return { position: `Run-through: ${node.name ? `${node.name}, ` : ""}slides ${node.slides[0]} to ${node.slides.at(-1)}`, crumb: "" };
     default:
       return { position: "Run-through: the whole talk", crumb: "" };
   }

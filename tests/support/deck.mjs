@@ -19,9 +19,24 @@ const rels = (items) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   + items.map(([id, type, target]) => `<Relationship Id="${id}" Type="${REL}/${type}" Target="${target}"/>`).join("")
   + "</Relationships>";
 
+// The section list, as PowerPoint writes it in an extension: a section starts at each slide with a section name.
+const sections = (slides) => {
+  const list = [];
+  slides.forEach((s, i) => {
+    if (s.section !== undefined) list.push({ name: s.section, ids: [] });
+    list.at(-1)?.ids.push(256 + i);
+  });
+  if (!list.length) return "";
+  return `<p:extLst><p:ext uri="{521415D9-36F7-43E2-AB2F-B90AF26B5E84}"><p14:sectionLst xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main">`
+    + list.map((x, k) => `<p14:section name="${esc(x.name)}" id="{0000000${k}-0000-0000-0000-000000000000}"><p14:sldIdLst>`
+      + x.ids.map((id) => `<p14:sldId id="${id}"/>`).join("") + "</p14:sldIdLst></p14:section>").join("")
+    + "</p14:sectionLst></p:ext></p:extLst>";
+};
+
 /**
- * Builds a deck. Each slide: { title?, notes?: string[] (paragraphs), body?: string[], hidden?: boolean }.
- * @param {{ title?: string, notes?: string[], body?: string[], hidden?: boolean }[]} slides
+ * Builds a deck. Each slide: { title?, notes?: string[] (paragraphs), body?: string[], hidden?: boolean, section?: string
+ * (the PowerPoint section that starts at this slide) }.
+ * @param {{ title?: string, notes?: string[], body?: string[], hidden?: boolean, section?: string }[]} slides
  * @returns {Uint8Array}
  */
 export function deck(slides) {
@@ -35,7 +50,7 @@ export function deck(slides) {
     "_rels/.rels": rels([["rId1", "officeDocument", "ppt/presentation.xml"]]),
     "ppt/presentation.xml": `<?xml version="1.0" encoding="UTF-8"?><p:presentation ${NS}><p:sldIdLst>`
       + slides.map((_, i) => `<p:sldId id="${256 + i}" r:id="rId${i + 2}"/>`).join("")
-      + `</p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>`,
+      + `</p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/>${sections(slides)}</p:presentation>`,
     "ppt/_rels/presentation.xml.rels": rels(slides.map((_, i) => [`rId${i + 2}`, "slide", `slides/slide${i + 1}.xml`])),
   };
   slides.forEach((s, i) => {

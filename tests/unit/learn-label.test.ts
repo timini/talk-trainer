@@ -31,6 +31,8 @@ describe("position and the path to it", () => {
     expect([position(tree, tree.nodes.get("t") as Node), crumbs(tree, tree.nodes.get("t") as Node)]).toEqual(["Run-through: the whole talk", []]);
     const big = build(Array.from({ length: 8 }, (_, k) => said(k + 1, ["Hello there."])));
     expect(position(big, big.nodes.get("sec:2") as Node)).toBe("Run-through: slides 6 to 8");
+    const named = build([{ ...said(1, ["One."]), section: "Opening" }, said(2, ["Two."]), { ...said(3, ["Three."]), section: "Close" }, said(4, ["Four."])]);
+    expect(position(named, named.nodes.get("sec:1") as Node)).toBe("Run-through: Opening, slides 1 to 2");
   });
 });
 

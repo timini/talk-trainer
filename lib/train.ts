@@ -6,8 +6,8 @@ import type { Kind, Problem, Verdict } from "./judge";
 import { ago, type Card, days } from "./schedule";
 
 export type Sentence = { i: number; text: string; hash: string; clip: string | null; must_say: string[] };
-// paras: the sentences (from 0) that start a paragraph of the speaker notes.
-export type Slide = { n: number; title: string; image: string | null; sentences: Sentence[]; paras?: number[] };
+// paras: the sentences (from 0) that start a paragraph of the speaker notes; section: its PowerPoint section.
+export type Slide = { n: number; title: string; image: string | null; sentences: Sentence[]; paras?: number[]; section?: string | null };
 export type Script = { talk: { id: string; title: string; status: string; talkAt: number | null; glossary: string[] };
   slides: Slide[] };
 // A card: one sentence. i counts from 0 within its slide.

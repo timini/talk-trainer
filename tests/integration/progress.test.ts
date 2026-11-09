@@ -11,7 +11,7 @@ beforeAll(async () => {
   env = { DB: cf.db, FILES: cf.files };
   const waits: Promise<unknown>[] = [];
   const res = await upload(new Request("https://x.test/", { method: "POST", body: deck([
-    { title: "Bread", notes: ["Mix 500 grams of flour.", "Add water."] }, { title: "End" }]) }), env,
+    { title: "Bread", notes: ["Mix 500 grams of flour.", "Add water."], section: "Baking" }, { title: "End" }]) }), env,
   starter(env, localDeps(env, { STANDINS: "1" }), (p) => waits.push(p), 0));
   id = (await res.json() as { id: string }).id;
   await Promise.all(waits);
@@ -47,6 +47,8 @@ describe("the script", () => {
     expect(s.slides[1].sentences).toEqual([]);
     // the notes' two paragraphs: the second sentence starts one
     expect([s.slides[0].paras, s.slides[1].paras]).toEqual([[0, 1], [0]]);
+    // the deck's section, kept with each slide
+    expect([s.slides[0].section, s.slides[1].section]).toEqual(["Baking", "Baking"]);
     await cf.db.prepare("UPDATE sentences SET clip_key = NULL WHERE talk = ? AND i = 2").bind(id).run();
     await cf.db.prepare("UPDATE slides SET image_key = NULL WHERE talk = ? AND n = 2").bind(id).run();
     const again = (await (await script(env, id)).json()) as { slides: { image: string | null; sentences: { clip: string | null }[] }[] };

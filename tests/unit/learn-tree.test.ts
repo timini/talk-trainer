@@ -129,6 +129,20 @@ describe("the talk's tree", () => {
     expect(t.order.at(-1)).toBe("t");
   });
 
+  test("the deck's own sections: a slide with none stays in the section before; a section of one slide is just the slide", () => {
+    const at = (n: number, section?: string | null): Input => ({ ...said(n, [short(n)]), section });
+    const t = build([at(1), at(2), at(3, "Data"), at(4, null), at(5, "End"), at(6, "Data")]);
+    const top = t.nodes.get("t") as Node;
+    const secs = top.kids.filter((k) => k.startsWith("sec:")).map((k) => t.nodes.get(k) as Node);
+    expect(secs.map((x) => [x.id, x.name, x.slides])).toEqual([["sec:1", undefined, [1, 2]], ["sec:2", "Data", [3, 4]]]);
+    // slides 5 and 6 are sections of one slide: under the talk, with the bridges between the sections
+    expect(top.kids.filter((k) => k.startsWith("s:")).map((k) => t.nodes.get(k)?.slides[0])).toEqual([5, 6]);
+    expect(top.kids.filter((k) => k.startsWith("b:")).map((k) => t.nodes.get(k)?.slides)).toEqual([[2, 3], [4, 5], [5, 6]]);
+    expect((t.nodes.get(t.roots.get(5) as string) as Node).parent).toBe("t");
+    // one section for the whole talk: just the talk
+    expect(build([at(1, "All"), at(2)]).nodes.has("sec:1")).toBe(false);
+  });
+
   test("sections of 5 slides, a short remainder joined to the section before, and the talk over them", () => {
     const talk = (n: number) => build(Array.from({ length: n }, (_, k) => said(k + 1, [short(k + 1)])));
     const sections = (n: number) => { const t = talk(n); return (t.nodes.get("t") as Node).kids.filter((k) => k.startsWith("sec:")).map((k) => t.nodes.get(k)?.slides); };

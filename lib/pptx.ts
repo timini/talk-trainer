@@ -4,7 +4,8 @@
 
 import { strFromU8, unzipSync } from "fflate";
 
-export type DeckSlide = { n: number; title: string; notes: string };
+// section: the name of the PowerPoint section the slide is in, or null when the deck has no sections.
+export type DeckSlide = { n: number; title: string; notes: string; section: string | null };
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 const decode = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, e: string) => {
@@ -58,6 +59,11 @@ export const parseDeck = (data: Uint8Array): DeckSlide[] => {
   const main = files["ppt/presentation.xml"];
   if (!main) throw new Error("This file is not a .pptx deck.");
   const byId = new Map(rels(files, "ppt/presentation.xml").map((r) => [r.id, r.target]));
+  // the deck's sections, in the extension list: each a name and the ids of its slides
+  const section = new Map<string, string>();
+  for (const [, tag, body] of main.matchAll(/<p14:section\b([^>]*)>([\s\S]*?)<\/p14:section>/g)) {
+    for (const [id] of body.matchAll(/<p14:sldId\b[^>]*>/g)) section.set(attr(id, "id") as string, decode(attr(` ${tag}`, "name") ?? ""));
+  }
   const out: DeckSlide[] = [];
   for (const [tag] of main.matchAll(/<p:sldId\b[^>]*>/g)) {
     const part = byId.get(attr(tag, "r:id"));
@@ -68,6 +74,7 @@ export const parseDeck = (data: Uint8Array): DeckSlide[] => {
       n: out.length + 1,
       title: placeholders(xml, ["title", "ctrTitle"]),
       notes: notes && files[notes.target] ? placeholders(files[notes.target], ["body"], "\n") : "",
+      section: section.get(attr(tag, "id") as string) ?? null,
     });
   }
   return out;
