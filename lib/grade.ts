@@ -193,6 +193,8 @@ export const said = (item: string, hyp: string[]): boolean => {
 
 // A sentence passes with at least 85% of its words said (close counts) and no number or must-say item wrong.
 export const PASS = 0.85;
+// Small words: left out, they do not count against the 85%. Added words never count.
+const SMALL = new Set(["a", "an", "the", "and", "so", "i", "we", "it", "that", "of", "to", "is", "are", "have", "has"]);
 
 // A name: a capital after the first letter of a sentence (CADD, SpliceAI, Evo), a digit, or 8 letters or more.
 const isName = (w: string, first: boolean): boolean => {
@@ -202,8 +204,9 @@ const isName = (w: string, first: boolean): boolean => {
 
 type Ref = Token & { p: number; crit: boolean; name: boolean };
 
-// Grade what was heard against one or more sentences said in a row. A sentence passes with at least 85% of its
-// words said (close counts) and no number (a word written with a digit) or must-say item wrong; a chain passes if
+// Grade what was heard against one or more sentences said in a row: the page's own grade, used only when the judge
+// cannot answer. A sentence passes with at least 85% of its words said (close counts, small words left out and
+// words added do not count) and no number (a word written with a digit) or must-say item wrong; a chain passes if
 // all of them do. Each sentence's display words come back marked (ok, close, crit), with at (the first display
 // word, counted across all the sentences, after the last one said) and left (the words still to say), which a
 // run-through follows.
@@ -228,6 +231,8 @@ export const grade = (parts: string[], heard: string, must: string[]): Result =>
   const tally = parts.map(() => ({ right: 0, total: 0, crit: 0 }));
   ref.forEach((x, k) => {
     const t = tally[x.p];
+    // a small word left out does not count against the sentence, and is not marked
+    if (!ok[k] && !x.crit && SMALL.has(x.t)) return;
     t.total += 1;
     x.o.forEach((o) => { marks[x.p][o].crit = marks[x.p][o].crit || x.crit; });
     if (ok[k]) {

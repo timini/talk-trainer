@@ -147,9 +147,14 @@ describe("grade", () => {
 
   test("a chain passes only if every sentence passes, and a run-through follows the words", () => {
     const parts = ["Good morning, and welcome.", "Diagnostic labs have to decide.", "Today we look."];
-    const g = grade(parts, "good morning and welcome diagnostic labs have decided today we look", []);
+    const g = grade(parts, "good morning and welcome diagnostic labs must think today we look", []);
     expect(g.parts.map((p) => p.pass)).toEqual([true, false, true]);
     expect(g.pass).toBe(false);
+    // a small word left out ("to") does not count, and is not marked; an added word never counts
+    const small = grade(parts, "good morning and welcome so diagnostic labs have decided today we look", []);
+    expect(small.parts.map((p) => p.pass)).toEqual([true, true, true]);
+    expect(small.parts[1].words.map((w) => w.ok)).toEqual([true, true, true, true, true]);
+    expect(small.parts[1].acc).toBe(1);
     const all = "good morning and welcome diagnostic labs have to decide today we look";
     expect(grade(parts, all, []).pass).toBe(true);
     // said so far: the first display word not yet said (counted across sentences), and the words left
@@ -202,5 +207,16 @@ describe("best", () => {
     // no better guess: the first stays
     expect(best(line, [["spliceai scores splicing", "nothing"]], []).heard).toBe("spliceai scores splicing");
     expect(best(line, [], []).heard).toBe("");
+  });
+});
+
+describe("the page's own grade is loose about small words", () => {
+  test("small words left out do not count against the 85%; other words and must-say items still do", () => {
+    const line = ["I am not a scientist and I have no clinical qualifications."];
+    expect(grade(line, "not scientist no clinical qualifications", []).pass).toBe(true);
+    expect(grade(line, "i am not a scientist and i have no qualifications", []).pass).toBe(true);
+    expect(grade(line, "i am not a scientist and i have", []).pass).toBe(false);
+    // a must-say small word still counts
+    expect(grade(["We have 2 of them."], "we 2 them", ["of"]).parts[0].critWrong).toBe(1);
   });
 });
