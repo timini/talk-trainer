@@ -60,3 +60,21 @@ button {
   font-size: 0.85rem;
   color: #666;
 }
+
+.dateline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.dateline input,
+.smallbtn {
+  padding: 0.3rem 0.5rem;
+}
+
+.trainlink {
+  font-weight: bold;
+  color: #005eb8;
+}

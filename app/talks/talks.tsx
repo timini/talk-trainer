@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Talk = { id: string; title: string; status: string; slides: number; sentences: number; images: number;
-  voiced: number; error: string | null };
+  voiced: number; error: string | null; talkAt: number | null };
 type Status = Talk & { noNotes: number[]; log: { step: string; message: string }[] };
 
 const BUILDING = new Set(["queued", "parsing", "rendering", "voicing"]);
@@ -17,6 +18,28 @@ export const describe = (t: Talk) => ({
   ready: `Ready: ${t.slides} slides, ${t.sentences} sentences`,
   failed: `Failed: ${t.error ?? "unknown error"}`,
 }[t.status] ?? t.status);
+
+// A datetime-local value in this browser's time zone.
+const local = (t: number) => {
+  const d = new Date(t), two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
+};
+
+function TalkDate({ talk, saved }: { talk: Talk; saved: (s: Status) => void }) {
+  const [value, setValue] = useState(talk.talkAt ? local(talk.talkAt) : "");
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch(`/api/talks/${talk.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ talkAt: value ? new Date(value).getTime() : null }) });
+    if (res.ok) saved(await res.json() as Status);
+  };
+  return (
+    <form onSubmit={save} className="dateline">
+      <label>Talk date <input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} /></label>
+      <button type="submit" className="smallbtn">Save</button>
+    </form>
+  );
+}
 
 function TalkRow({ talk }: { talk: Talk }) {
   const [s, setS] = useState<Status | null>(null);
@@ -40,6 +63,8 @@ function TalkRow({ talk }: { talk: Talk }) {
         <span className="warn">Slides with no notes (no script): {s.noNotes.join(", ")}</span>
       )}
       {s && building && s.log.length > 0 && <span className="small">{s.log[s.log.length - 1].message}</span>}
+      {s && <TalkDate key={String(s.talkAt)} talk={s} saved={setS} />}
+      {t.sentences > 0 && <Link href={`/talks/${t.id}/train`} className="trainlink">Train</Link>}
     </li>
   );
 }
