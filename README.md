@@ -4,11 +4,26 @@ Learn a talk word for word. You upload the slide deck, with the script in the sp
 script into sentences and voices each one. You then say the sentences back, and a judge checks each attempt.
 Cards come back on a schedule planned to the day of the talk.
 
-This is an early beta. So far it has the grading and scheduling logic (`lib/`), the judge's prompt and schemas,
-and a password gate. The training screens and the upload are next.
+This is an early beta. So far it has the grading and scheduling logic, the judge's prompt and schemas, a password
+gate, and the upload with its background build. The training screens are next.
 
-It runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare), with D1 for data and R2 for
-files.
+It runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare), with D1 for data, R2 for
+files, a Workflow for the background build and a container for rendering slides.
+
+## How an upload is built
+
+1. `POST /api/talks` stores the .pptx in R2, creates the talk in D1 and starts the `BUILD` Workflow.
+2. Parse: the slides in presentation order, their titles and speaker notes. The notes are split into sentences;
+   each sentence's names and numbers are its must-say items, and the talk's names make the judge's glossary.
+   Slides with no notes are listed on the talks page.
+3. Render: the `RENDER` container (LibreOffice and poppler, `container/`) turns the deck into one PNG a slide.
+4. Voice: one Gemini clip a sentence (`gemini-3.8-flash-tts`, voice Achird), stored as WAV under a hash of the text,
+   voice, model and style, so a sentence voiced before is never voiced again. Each sentence is its own step, retried
+   with backoff, so a rate limit only delays that sentence.
+5. The talks page polls `GET /api/talks/:id` and shows the progress, such as "Voicing 120 of 301".
+
+Stored files are served from `GET /api/files/<key>`, with byte ranges, behind the sign-in. Uploads are read whole
+before they are stored, up to 100 MB, as the build has to unzip the deck in memory anyway.
 
 ## Layout
 
@@ -18,8 +33,15 @@ files.
 - `lib/delivery.ts`: pace, the level meter, fillers and delivery tips.
 - `lib/judge.ts`: the Gemini judge's prompt and response schemas, its verdict over the local grade, and `same()`.
 - `lib/auth.ts`: the signed sign-in cookie.
+- `lib/pptx.ts`: reading slides, titles and notes from a .pptx.
+- `lib/build.ts`: the build steps. `lib/tts.ts`: Gemini text to speech. `lib/api.ts`: the talks API.
+- `lib/standins.ts`: stand-ins for the renderer and the voice, for tests and local development.
+- `workers/`: the Workflow and the container class. `worker.ts`: the Worker entry, around the OpenNext app.
+- `container/`: the render server and its Dockerfile.
+- `migrations/`: the D1 schema.
 - `proxy.ts`: sends anyone without a valid cookie to `/login`.
-- `tests/unit`: Vitest tests for `lib/`, at 100% coverage. `tests/e2e`: Playwright tests.
+- `tests/unit` and `tests/integration`: Vitest, with local D1 and R2 from Wrangler; 100% coverage of `lib/`.
+  `tests/e2e`: Playwright. `tests/fixtures/three-slides.pptx` is made by `npm run fixture` from invented text.
 
 ## Setup
 
@@ -36,17 +58,29 @@ cp .dev.vars.example .dev.vars   # then put a local password in it
 ## Local development
 
 ```sh
-BETA_PASSWORD=some-local-password npm run dev
+npx wrangler d1 migrations apply DB --local
+BETA_PASSWORD=some-local-password BUILD_INLINE=1 STANDINS=1 npm run dev
 ```
 
-Then open http://localhost:3000 and sign in with that password. `next dev` reads `BETA_PASSWORD` from the
-environment or from `.env.local`.
+Then open http://localhost:3000 and sign in with that password. `next dev` reads its variables from the environment
+or from `.env.local`. It uses local D1 and R2 (in `.wrangler/`), but it cannot run the Workflow or the container, so:
 
-To run the built Worker locally (it reads `.dev.vars`):
+- `BUILD_INLINE=1` runs the build in the request instead of the Workflow.
+- `STANDINS=1` uses blank slide images and silent clips. Without it, the build calls Gemini (set `GEMINI_KEY`) and
+  leaves the slides without images.
+
+To run the built Worker locally, with the real Workflow (it reads `.dev.vars`; put `STANDINS=1` there to skip the
+container and Gemini):
 
 ```sh
-npm run preview
+npx opennextjs-cloudflare build
+npx wrangler dev --enable-containers=false
 ```
+
+Without `--enable-containers=false`, Wrangler builds the render container with Docker.
+
+To try the render server on its own, with LibreOffice and poppler installed: `PORT=8080 node container/server.mjs`,
+then `curl --data-binary @tests/fixtures/three-slides.pptx localhost:8080/render -o slides.zip`.
 
 ## Tests
 
@@ -54,16 +88,18 @@ npm run preview
 npm run lint
 npm run typecheck
 npm test          # Vitest with coverage; fails under 100% for lib/
-npm run e2e       # Playwright, desktop and phone sizes; starts next dev with a test password
+npm run e2e       # Playwright, desktop and phone sizes; starts next dev with a test password and stand-ins
 ```
 
 The unit tests run in the Europe/London time zone, because days are counted in local time.
 
-To run the Playwright tests against a preview build instead:
+To run the Playwright tests against the built Worker instead (with `STANDINS=1` in `.dev.vars`):
 
 ```sh
 E2E_BASE_URL=http://localhost:8787 E2E_PASSWORD=<the password in .dev.vars> npm run e2e
 ```
+
+After changing `wrangler.jsonc`, run `npm run cf-typegen` to update `cloudflare-env.d.ts`.
 
 GitHub Actions runs all four on each push.
 
@@ -73,11 +109,14 @@ GitHub Actions runs all four on each push.
 
 - `DB`: the D1 database `talk-trainer`.
 - `FILES`: the R2 bucket `talk-trainer-files`.
+- `BUILD`: the Workflow `talk-trainer-build`.
+- `RENDER`: the render container (needs the Workers Paid plan).
 
 R2 has to be enabled for the account in the Cloudflare dashboard. Then create the bucket once:
 
 ```sh
 npx wrangler r2 bucket create talk-trainer-files
+npx wrangler d1 migrations apply DB --remote
 ```
 
 ### Secrets
@@ -101,7 +140,9 @@ pbpaste | npx wrangler secret put GEMINI_KEY
 npm run deploy
 ```
 
-This builds the app with OpenNext and deploys it with Wrangler.
+This builds the app with OpenNext and deploys it with Wrangler, which builds and pushes the container image with
+Docker. Apply new D1 migrations with `npx wrangler d1 migrations apply DB --remote` before deploying code that needs
+them.
 
 ## Licence
 
