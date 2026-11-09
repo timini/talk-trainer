@@ -19,11 +19,12 @@
       "migrations_dir": "migrations"
     }
   ],
-  // Uploaded decks, slide images and voice clips. Create the bucket first: npx wrangler r2 bucket create talk-trainer-files
-  "r2_buckets": [
+  // Uploaded decks, slide images and voice clips, in KV (lib/kvfiles.ts) while the account has no R2. To move to R2:
+  // npx wrangler r2 bucket create talk-trainer-files, and bind it as FILES; filesOf() then uses it.
+  "kv_namespaces": [
     {
-      "binding": "FILES",
-      "bucket_name": "talk-trainer-files"
+      "binding": "FILES_KV",
+      "id": "4fcafe8743a646cb801fbe94b0a880f7"
     }
   ],
   // The background build of an uploaded talk (workers/build.ts).

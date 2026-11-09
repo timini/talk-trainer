@@ -3,13 +3,14 @@
 import { getContainer } from "@cloudflare/containers";
 import type { Deps } from "@/lib/build";
 import * as standins from "@/lib/standins";
+import { filesOf } from "@/lib/kvfiles";
 import { speak } from "@/lib/tts";
 
 export const live = (env: CloudflareEnv & { GEMINI_KEY?: string; STANDINS?: string }): Deps => {
-  if (env.STANDINS === "1") return { db: env.DB, files: env.FILES, render: standins.render, speak: standins.speak };
+  if (env.STANDINS === "1") return { db: env.DB, files: filesOf(env), render: standins.render, speak: standins.speak };
   return {
     db: env.DB,
-    files: env.FILES,
+    files: filesOf(env),
     render: async (deck) => {
       const res = await getContainer(env.RENDER).fetch(new Request("http://render/render", { method: "POST", body: deck }));
       if (!res.ok) throw new Error(`The renderer answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
