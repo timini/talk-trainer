@@ -212,11 +212,12 @@ Attempts to reach the slide's bar (median and 95th percentile) and the pass rate
 | 1 | 11 / 19, 86% | 8 / 17, 83% |
 | 2 | 23 / 41, 86% | 16 / 23, 87% |
 | 4 | 52 / 72, 82% | 35 / 50, 82% |
-| 6 | 78 / 158, 85% | 53 / 78, 81% |
-| 9 | 166 / 297, 86% | 82 / 139, 84% |
-| 12 | 333 / 432, 89% | 142 / 153, 85% |
+| 6 | 78 / 155, 85% | 53 / 78, 81% |
+| 9 | 168 / 265, 86% | 82 / 139, 84% |
+| 12 | 332 / 426, 89% | 146 / 159, 85% |
 
-A talk of 7 slides (17 sentences) to its run-through: 489 to 710 attempts word for word, 248 to 484 for the gist.
+A talk of 7 slides (17 sentences) to its run-through: 492 to 872 attempts word for word (6 to 10 sessions of 30 minutes),
+243 to 340 for the gist (3 to 4 sessions).
 
 What the simulation changed from the first design:
 

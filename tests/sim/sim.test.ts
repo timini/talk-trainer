@@ -4,10 +4,10 @@
 //
 // The run that chose the constants in lib/learn/rules.ts (JOIN 0.9, UNDER 0.25, the verbatim node bar 0.75, SAME 3),
 // 20 slides of each size, median and 95th percentile attempts to the slide at its bar, and the pass rate:
-//   word for word: 1 sentence 11 / 19, 86%; 2: 23 / 41, 86%; 4: 52 / 72, 82%; 6: 78 / 158, 85%; 9: 166 / 297, 86%;
-//                  12: 333 / 432, 89%. A talk of 7 slides (17 sentences): 489 to 710 attempts, 6 to 8 sessions.
+//   word for word: 1 sentence 11 / 19, 86%; 2: 23 / 41, 86%; 4: 52 / 72, 82%; 6: 78 / 155, 85%; 9: 168 / 265, 86%;
+//                  12: 332 / 426, 89%. A talk of 7 slides (17 sentences): 492 to 872 attempts, 6 to 10 sessions.
 //   gist:          1 sentence 8 / 17, 83%; 2: 16 / 23, 87%; 4: 35 / 50, 82%; 6: 53 / 78, 81%; 9: 82 / 139, 84%;
-//                  12: 142 / 153, 85%. A talk of 7 slides: 248 to 484 attempts, 3 to 6 sessions.
+//                  12: 146 / 159, 85%. A talk of 7 slides: 243 to 340 attempts, 3 to 4 sessions.
 // Against JOIN 0.85 and the bar 0.8 (the first design), word for word took 64 attempts for 4 sentences, 317 for 9
 // and 495 for 12; JOIN 0.75 took more again.
 
