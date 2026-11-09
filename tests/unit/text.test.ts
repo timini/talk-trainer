@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { blank, chainStart, cue, cues, glossary, mustSay, sentences, shows } from "@/lib/text";
+import { hide, blank, chainStart, cue, cues, glossary, mustSay, sentences, shows } from "@/lib/text";
 
 describe("sentences", () => {
   test("split after . ! or ? and a closing quote or bracket, so 0.95 stays whole", () => {
@@ -78,5 +78,19 @@ describe("mustSay", () => {
     expect(mustSay("We ran BRCA1 on an H100, at 87% and 0.95, then BRCA1 again for 2026’s budget at example.io."))
       .toEqual(["BRCA1", "H100", "87%", "0.95", "2026", "example.io"]);
     expect(mustSay("Nothing to see here.")).toEqual([]);
+  });
+});
+
+describe("hide", () => {
+  test("only the phrases missed become first letters; with none missed, every word does", () => {
+    const t = "I am not a clinical scientist and have no clinical qualifications.";
+    expect(hide(t, [])).toBe("I a n a c s a h n c q.");
+    expect(hide(t, ["and have no clinical qualifications"])).toBe("I am not a clinical scientist a h n c q.");
+    // case and punctuation aside; a repeated word is hidden only where the phrase is
+    expect(hide(t, ["Clinical Qualifications!"])).toBe("I am not a clinical scientist and have no c q.");
+    expect(hide("We scored 0.95, then 13,000.", ["0.95"])).toBe("We scored 0, then 13,000.");
+    // a phrase not found, or with no words, hides nothing; two phrases each hide their run
+    expect(hide(t, ["not here", "..."])).toBe(t);
+    expect(hide(t, ["I am", "no"])).toBe("I a not a clinical scientist and have n clinical qualifications.");
   });
 });

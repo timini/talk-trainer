@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { clipsOf, header, INSTRUCTIONS, nextLabel, textOf } from "@/lib/flow";
 import { countdown, streak } from "@/lib/schedule";
-import { cue } from "@/lib/text";
+import { hide } from "@/lib/text";
 import { deliveryLine, plural, savedLine, type Script, verdict } from "@/lib/train";
 import { Engine } from "./engine";
 
@@ -125,7 +125,7 @@ function Card({ e }: { e: Engine }) {
     words = r.parts.flatMap((part, pi) => part.words.map((w, wi) => (
       <span key={`${pi}.${wi}`}>{pi || wi ? " " : ""}<span className={!w.ok ? (w.crit ? "miss crit" : "miss") : ""}>{w.w}</span></span>)));
   } else if (phase === "shown" || phase === "failed" || step === 1) words = text;
-  else if (step === 2) words = cue(text);
+  else if (step === 2) words = hide(text, e.focus);
   const label = (name: string, value: string | undefined) => (value ? <p className={name.toLowerCase()}><b>{`${name}: `}</b>{value}</p> : null);
   return (
     <section className="session">
@@ -162,6 +162,7 @@ function Card({ e }: { e: Engine }) {
               <button type="button" className="small" onClick={() => e.recount(true)}>Count it as got</button>)}
             {phase === "judged" && step > 1 && e.counted === true && r && !r.pass && (
               <button type="button" className="small" onClick={() => e.recount(false)}>Count it as missed</button>)}
+            {phase === "ready" && step === 3 && !item.warm && <button type="button" className="small" onClick={() => e.showMe()}>Show me first</button>}
             {phase === "ready" && e.micOn && step > 1 && <button type="button" className="small" onClick={() => e.reveal()}>Show the words</button>}
           </div>
           <div className="actions">

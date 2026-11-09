@@ -86,12 +86,12 @@ describe("recording attempts for debugging", () => {
     let t = 1000;
     const clock = () => (t += 250);
     replies.push(reply({ heard: "x" }), { status: 500, body: "no" }, { status: 200, body: "not json" });
-    await judge(post(), ENV, 1e12, (a) => seen.push(a), clock);
+    await judge(post({ ...BODY, at: { unit: "flow:2:1", step: 3, warm: false } }), ENV, 1e12, (a) => seen.push(a), clock);
     await judge(post(), ENV, 1e12 + 60000, (a) => seen.push(a), clock);
     await judge(post(), ENV, 1e12 + 120000, (a) => seen.push(a), clock);
     const base = { model: MODEL, mode: "card", target: BODY.target, glossary: BODY.glossary, mime: "audio/webm", audio: "QUJD", ms: 250 };
     expect(seen).toEqual([
-      { ...base, at: 1e12, status: 200, reply: { heard: "x" } },
+      { ...base, at: 1e12, status: 200, reply: { heard: "x" }, where: { unit: "flow:2:1", step: 3, warm: false } },
       { ...base, at: 1e12 + 60000, status: 502, error: "The judge answered 500." },
       { ...base, at: 1e12 + 120000, status: 502, error: "The judge's reply could not be read." },
     ]);

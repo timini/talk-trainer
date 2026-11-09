@@ -3,15 +3,15 @@
 // localStorage and online. The React component renders it and calls its actions; it says when to render again
 // through subscribe().
 //
-// One attempt at a time: tap to speak, tap to stop (or the recogniser hears the last words), then "Checking..."
+// One attempt at a time: tap to speak, tap to stop, then "Checking..."
 // while the judge works, then the verdict on the card just said. The progress moves when the verdict arrives.
 
-import { clipsOf, type Item, migrate, mustOf, next, record, summary, textOf } from "@/lib/flow";
+import { clipsOf, focusOf, type Item, migrate, mustOf, next, record, showFirst, summary, textOf } from "@/lib/flow";
 import { grade } from "@/lib/grade";
 import { judged, type Verdict } from "@/lib/judge";
 import { merge, ymd } from "@/lib/schedule";
 import { sentences } from "@/lib/text";
-import { heardAll, type Judged, type Script, type Sync } from "@/lib/train";
+import { type Judged, type Script, type Sync } from "@/lib/train";
 
 export type Screen = "home" | "session" | "done";
 // ready: nothing said yet; listening: recording; checking: the judge has the attempt; judged: the verdict is in;
@@ -21,7 +21,6 @@ export type Phase = "ready" | "listening" | "checking" | "judged" | "shown" | "f
 type SpeechResults = ArrayLike<ArrayLike<{ transcript: string }>>;
 type SpeechRec = { lang: string; continuous: boolean; interimResults: boolean; maxAlternatives: number;
   onresult: ((e: { results: SpeechResults }) => void) | null; onerror: (() => void) | null; start(): void; abort(): void };
-type SpeechCtor = new () => SpeechRec;
 
 // The longest attempt: a whole slide said slowly.
 const LONGEST = 180000;
@@ -117,7 +116,9 @@ export class Engine {
   private count(pass: boolean) {
     const item = this.item as Item, now = Date.now(), day = ymd(now);
     Object.entries(this.before).forEach(([k, v]) => (v === undefined ? this.remove(k) : this.set(k, v)));
-    const entries = record(item, pass, this.get, now);
+    const missed = (this.result?.problems ?? []).filter((x) => x.kind === "left_out" || x.kind === "changed"
+      || x.kind === "wrong_term").map((x) => x.script);
+    const entries = record(item, pass, this.get, now, missed);
     this.before = Object.fromEntries(Object.keys(entries).map((k) => [k, this.get<unknown>(k, undefined)]));
     Object.entries(entries).forEach(([k, v]) => this.set(k, v));
     const dates = this.get<string[]>("train:days", []);
@@ -135,6 +136,15 @@ export class Engine {
   mark(pass: boolean) {
     if (this.screen !== "session" || !this.item || (this.phase !== "shown" && this.phase !== "failed")) return;
     this.count(pass);
+    this.go();
+  }
+  // The phrases hidden at step 2 for the item on screen.
+  get focus() { return this.item ? focusOf(this.item, this.get, Date.now()) : []; }
+  // "Show me first": read it aloud with the text shown (step 1), then fill in the hidden words.
+  showMe() {
+    if (!this.item || this.phase !== "ready" || this.item.warm) return;
+    Object.entries(showFirst(this.item, this.get, Date.now())).forEach(([k, v]) => this.set(k, v));
+    this.pushSoon();
     this.go();
   }
   reveal() {
@@ -169,7 +179,7 @@ export class Engine {
       return;
     }
     if ((this.phase as Phase) !== "listening") { stream.getTracks().forEach((t) => t.stop()); return; }
-    const item = this.item, chunks: Blob[] = [], parts = sentences(textOf(item.unit)), must = mustOf(item.unit);
+    const chunks: Blob[] = [];
     const opus = "audio/webm;codecs=opus";
     const media = new MediaRecorder(stream, { audioBitsPerSecond: BITRATE,
       ...(MediaRecorder.isTypeSupported?.(opus) ? { mimeType: opus } : {}) });
@@ -182,20 +192,7 @@ export class Engine {
     media.start();
     this.rec = rec;
     rec.cap = setTimeout(() => this.stop(), LONGEST);
-    const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
-    const Speech = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (Speech) {
-      try {
-        const speech = new Speech();
-        Object.assign(speech, { lang: "en-GB", continuous: true, interimResults: true, maxAlternatives: 5 });
-        speech.onresult = (e) => {
-          if (heardAll(parts, Array.from(e.results, (r) => Array.from(r, (a) => a.transcript)), must)) this.stop();
-        };
-        speech.onerror = () => {};
-        speech.start();
-        rec.speech = speech;
-      } catch { /* no recognition: a tap stops */ }
-    }
+    // Only a tap (or Space) stops it: stopping on the recogniser's guess cut Tim off mid-slide.
   }
 
   // Stop recording and send the attempt to the judge; the card says "Checking..." until the verdict comes.
@@ -235,7 +232,7 @@ export class Engine {
       const audio = await base64(blob);
       const res = await this.fetcher("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "card", audio, mime: blob.type.split(";")[0], target: parts.join(" "),
-          glossary: this.script.talk.glossary, must }) });
+          glossary: this.script.talk.glossary, must, at: { unit: item.unit.key, step: item.step, warm: item.warm } }) });
       const body = await res.json().catch(() => ({})) as Verdict & { error?: string };
       if (!res.ok) throw new Error(body.error ?? `The judge answered ${res.status}.`);
       if (this.item !== item) return;

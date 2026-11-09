@@ -2,11 +2,12 @@
 // said on stage. A slide of more than 3 sentences is split into parts of at most 3 at sentence ends; each part is
 // learned on its own, then the whole slide is said once at the end.
 //
-// Each slide or part goes through three steps, one attempt each:
-// 1. Read it aloud, with the text shown. This step cannot fail: a miss only shows what to watch for.
-// 2. Say it from its first letters. A pass goes on; a miss repeats this step.
-// 3. Say it from the slide alone. A pass learns it; a miss goes back to step 2.
-// The whole slide, after its parts, starts at step 3.
+// Each slide or part starts with a test from memory, so what Tim already knows costs one attempt:
+// 3. Say it from the slide alone. A pass learns it; a miss goes to step 2.
+// 2. Fill in the hidden words: the phrases the judge said were missed are hidden as first letters and the rest is
+//    shown (with nothing missed yet, every word is first letters). A pass goes back to step 3; a miss repeats it.
+// 1. Read it aloud, with the text shown, when Tim asks to see it first ("Show me first"). It cannot fail; then step 2.
+// The phrases missed on a unit are kept (focus) until it is learned, so the help is only where it is needed.
 //
 // Each day starts with a warm-up: the slides learned before today, in talk order, each said once from the slide
 // (step 3). A miss in the warm-up goes back to step 2 for that slide, then step 3 again. Then new slides carry on
@@ -19,8 +20,8 @@ import { dayStart, ymd } from "./schedule";
 import type { Slide } from "./train";
 
 export type Step = 1 | 2 | 3;
-export type PartState = { step: Step; learned: boolean; last: number; at?: number };
-export type Warm = { done: number[]; step: 2 | 3 };
+export type PartState = { step: Step; learned: boolean; last: number; at?: number; focus?: string[] };
+export type Warm = { done: number[]; step: 2 | 3; focus?: string[] };
 // One thing to learn: a part of a slide (sentences from to to, end not included), or the whole slide.
 export type Unit = { slide: Slide; part: number; parts: number; from: number; to: number; whole: boolean; key: string };
 export type Item = { unit: Unit; step: Step; warm: boolean };
@@ -50,8 +51,8 @@ export const clipsOf = (u: Unit) => {
 };
 export const mustOf = (u: Unit) => u.slide.sentences.slice(u.from, u.to).flatMap((x) => x.must_say);
 
-// The step a unit starts at: the whole slide after its parts is said once, from the slide.
-export const firstStep = (u: Unit): Step => (u.whole && u.parts > 1 ? 3 : 1);
+// The step a unit starts at: always from memory.
+export const firstStep = (): Step => 3;
 
 // Where an attempt leads.
 export const move = (step: Step, pass: boolean): { step: Step; learned: boolean } => {
@@ -61,6 +62,12 @@ export const move = (step: Step, pass: boolean): { step: Step; learned: boolean 
 };
 
 const warmKey = (now: number) => `flow:warm:${ymd(now)}`;
+
+// The phrases still being worked on for an item.
+export const focusOf = (item: Item, get: Get, now: number): string[] => (item.warm
+  ? get<Warm>(warmKey(now), { done: [], step: 3 }).focus ?? []
+  : get<PartState | null>(item.unit.key, null)?.focus ?? []);
+const joined = (a: string[], b: string[]) => [...new Set([...a, ...b])];
 const wholeOf = (s: Slide) => unitsOf(s).at(-1) as Unit;
 const stateOf = (get: Get, u: Unit) => get<PartState | null>(u.key, null);
 
@@ -82,32 +89,38 @@ export const next = (slides: Slide[], get: Get, now: number): Item | null => {
   const warm = warmUp(slides, get, now);
   if (warm.length) return { unit: wholeOf(warm[0]), step: get<Warm>(warmKey(now), { done: [], step: 3 }).step, warm: true };
   const u = units(slides).find((x) => !stateOf(get, x)?.learned);
-  return u ? { unit: u, step: stateOf(get, u)?.step ?? firstStep(u), warm: false } : null;
+  return u ? { unit: u, step: stateOf(get, u)?.step ?? firstStep(), warm: false } : null;
 };
 
-// The progress entries an attempt writes.
-export const record = (item: Item, pass: boolean, get: Get, now: number): Record<string, unknown> => {
+// The progress entries an attempt writes. missed: the phrases the judge said were left out, changed or wrong.
+export const record = (item: Item, pass: boolean, get: Get, now: number, missed: string[] = []): Record<string, unknown> => {
+  const focus = joined(focusOf(item, get, now), pass ? [] : missed);
+  const to = move(item.step, pass);
   if (item.warm) {
     const w = get<Warm>(warmKey(now), { done: [], step: 3 });
-    const to = move(item.step, pass);
-    return { [warmKey(now)]: to.learned ? { done: w.done.concat(item.unit.slide.n), step: 3 } : { ...w, step: to.step } };
+    return { [warmKey(now)]: to.learned ? { done: w.done.concat(item.unit.slide.n), step: 3 } : { ...w, step: to.step, focus } };
   }
-  const to = move(item.step, pass);
-  return { [item.unit.key]: to.learned ? { step: 3, learned: true, last: now, at: now } : { step: to.step, learned: false, last: now } };
+  return { [item.unit.key]: to.learned ? { step: 3, learned: true, last: now, at: now }
+    : { step: to.step, learned: false, last: now, focus } };
 };
 
-// The fixed position over the card.
+// "Show me first": the unit goes to step 1 (read it aloud), keeping what was missed. Not in the warm-up.
+export const showFirst = (item: Item, get: Get, now: number): Record<string, unknown> =>
+  (item.warm ? {} : { [item.unit.key]: { step: 1, learned: false, last: now, focus: focusOf(item, get, now) } });
+
+// The fixed position over the card, and how the unit is being said.
+export const MODES: Record<Step, string> = { 1: "read it", 2: "with hints", 3: "from memory" };
 export const header = (item: Item, total: number) => {
   const u = item.unit;
   const part = u.parts === 1 ? "" : u.whole ? ", whole slide" : `, part ${u.part} of ${u.parts - 1}`;
-  return `${item.warm ? "Warm up: slide" : "Slide"} ${u.slide.n} of ${total}${part}, step ${item.step} of 3`;
+  return `${item.warm ? "Warm up: slide" : "Slide"} ${u.slide.n} of ${total}${part}: ${MODES[item.step]}`;
 };
 
 // What each step asks for.
 export const INSTRUCTIONS: Record<Step, string> = {
   1: "Read it aloud.",
-  2: "Say it from the first letters.",
-  3: "Say it from the slide.",
+  2: "Say it, filling in the hidden words.",
+  3: "From memory: say it from the slide.",
 };
 
 // The home screen's figures: slides learned of those with a script, the slide to start from, and today's warm-up.

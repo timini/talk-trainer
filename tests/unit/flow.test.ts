@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-  clipsOf, firstStep, header, INSTRUCTIONS, nextLabel, type Item, learned, migrate, MOST, move, mustOf, next, record, summary, textOf,
-  unitsOf, units, warmUp,
+  clipsOf, firstStep, focusOf, header, INSTRUCTIONS, nextLabel, type Item, learned, migrate, MOST, move, mustOf, next, record, showFirst,
+  summary, textOf, unitsOf, units, warmUp,
 } from "@/lib/flow";
 import { merge } from "@/lib/schedule";
 import type { Slide } from "@/lib/train";
@@ -50,43 +50,55 @@ describe("steps", () => {
     expect([move(2, true), move(2, false)]).toEqual([{ step: 3, learned: false }, { step: 2, learned: false }]);
     expect([move(3, true), move(3, false)]).toEqual([{ step: 3, learned: true }, { step: 2, learned: false }]);
     const [part, , whole] = unitsOf(slide(1, 4));
-    expect([firstStep(part), firstStep(whole), firstStep(unitsOf(slide(1, 2))[0])]).toEqual([1, 3, 1]);
+    expect(firstStep()).toBe(3);
     const item = (step: 1 | 2 | 3, warm = false, u = part): Item => ({ unit: u, step, warm });
     expect([nextLabel(item(1), false), nextLabel(item(2), false), nextLabel(item(2), true), nextLabel(item(3), true),
       nextLabel(item(3, false, whole), true), nextLabel(item(3, true, whole), true), nextLabel(item(3), false)])
       .toEqual(["Next step", "Try again", "Next step", "Next part", "Next slide", "Next", "Try again"]);
-    expect(INSTRUCTIONS).toEqual({ 1: "Read it aloud.", 2: "Say it from the first letters.", 3: "Say it from the slide." });
+    expect(INSTRUCTIONS).toEqual({ 1: "Read it aloud.", 2: "Say it, filling in the hidden words.", 3: "From memory: say it from the slide." });
   });
 
-  test("a slide goes through its steps, then the next slide starts, in talk order", () => {
+  test("each slide starts from memory: a known slide takes one attempt; a miss gets hints, then memory again", () => {
     const slides = [slide(1, 2), slide(2, 0), slide(3, 1)], s = store();
     const walk: string[] = [];
-    for (const pass of [true, true, false, true, true, true]) {
+    for (const [pass, missed] of [[false, ["Sentence 1.2"]], [false, ["1.1"]], [true, []], [true, []], [true, []]] as [boolean, string[]][]) {
       const item = next(slides, s.get, NOW) as Item;
       walk.push(header(item, 3));
-      s.apply(record(item, pass, s.get, NOW));
+      s.apply(record(item, pass, s.get, NOW, missed));
+      if (walk.length === 2) expect(focusOf(next(slides, s.get, NOW) as Item, s.get, NOW)).toEqual(["Sentence 1.2", "1.1"]);
     }
-    expect(walk).toEqual(["Slide 1 of 3, step 1 of 3", "Slide 1 of 3, step 2 of 3", "Slide 1 of 3, step 3 of 3",
-      "Slide 1 of 3, step 2 of 3", "Slide 1 of 3, step 3 of 3", "Slide 3 of 3, step 1 of 3"]);
+    expect(walk).toEqual(["Slide 1 of 3: from memory", "Slide 1 of 3: with hints", "Slide 1 of 3: with hints",
+      "Slide 1 of 3: from memory", "Slide 3 of 3: from memory"]);
+    // learning a unit clears what was missed
     expect(s.items["flow:1:1"]).toEqual({ step: 3, learned: true, last: NOW, at: NOW });
-    expect(s.items["flow:3:1"]).toEqual({ step: 2, learned: false, last: NOW });
-    expect(learned(s.get, slides[0])).toBe(true);
-    expect(learned(s.get, slides[1])).toBe(false);
+    expect(s.items["flow:3:1"]).toEqual({ step: 3, learned: true, last: NOW, at: NOW });
+    expect([learned(s.get, slides[0]), learned(s.get, slides[1])]).toEqual([true, false]);
   });
 
-  test("a split slide: each part from step 1, then the whole slide from step 3; the total never grows", () => {
+  test("Show me first reads it aloud, keeping what was missed, then hints; not in the warm-up", () => {
+    const slides = [slide(1, 1)], s = store({ "flow:1:1": { step: 2, learned: false, last: 1, focus: ["x"] } });
+    const item = next(slides, s.get, NOW) as Item;
+    s.apply(showFirst(item, s.get, NOW));
+    expect(s.items["flow:1:1"]).toEqual({ step: 1, learned: false, last: NOW, focus: ["x"] });
+    const read = next(slides, s.get, NOW) as Item;
+    expect(header(read, 1)).toBe("Slide 1 of 1: read it");
+    s.apply(record(read, false, s.get, NOW, ["y"]));
+    expect(s.items["flow:1:1"]).toEqual({ step: 2, learned: false, last: NOW, focus: ["x", "y"] });
+    expect(showFirst({ ...read, warm: true }, s.get, NOW)).toEqual({});
+    expect(focusOf({ ...read, warm: true }, store().get, NOW)).toEqual([]);
+    expect(focusOf(read, store().get, NOW)).toEqual([]);
+  });
+
+  test("a split slide: each part from memory, then the whole slide; the total never grows", () => {
     const slides = [slide(1, 4)], s = store();
     const walk: string[] = [];
-    for (const pass of [true, true, true, true, true, true, false, true, true]) {
+    for (const pass of [true, false, true, true, true]) {
       const item = next(slides, s.get, NOW) as Item;
       walk.push(header(item, 86));
       s.apply(record(item, pass, s.get, NOW));
     }
-    expect(walk).toEqual([
-      "Slide 1 of 86, part 1 of 2, step 1 of 3", "Slide 1 of 86, part 1 of 2, step 2 of 3", "Slide 1 of 86, part 1 of 2, step 3 of 3",
-      "Slide 1 of 86, part 2 of 2, step 1 of 3", "Slide 1 of 86, part 2 of 2, step 2 of 3", "Slide 1 of 86, part 2 of 2, step 3 of 3",
-      "Slide 1 of 86, whole slide, step 3 of 3", "Slide 1 of 86, whole slide, step 2 of 3", "Slide 1 of 86, whole slide, step 3 of 3",
-    ]);
+    expect(walk).toEqual(["Slide 1 of 86, part 1 of 2: from memory", "Slide 1 of 86, part 2 of 2: from memory",
+      "Slide 1 of 86, part 2 of 2: with hints", "Slide 1 of 86, part 2 of 2: from memory", "Slide 1 of 86, whole slide: from memory"]);
     expect(next(slides, s.get, NOW)).toBeNull();
     expect(summary(slides, s.get, NOW)).toEqual({ learned: 1, total: 1, from: null, warm: 0 });
   });
@@ -108,12 +120,12 @@ describe("the warm-up", () => {
       walk.push(header(item, 4));
       s.apply(record(item, pass, s.get, NOW));
     }
-    expect(walk).toEqual(["Warm up: slide 1 of 4, step 3 of 3", "Warm up: slide 2 of 4, step 3 of 3",
-      "Warm up: slide 2 of 4, step 2 of 3", "Warm up: slide 2 of 4, step 3 of 3", "Slide 4 of 4, step 1 of 3"]);
+    expect(walk).toEqual(["Warm up: slide 1 of 4: from memory", "Warm up: slide 2 of 4: from memory",
+      "Warm up: slide 2 of 4: with hints", "Warm up: slide 2 of 4: from memory", "Slide 4 of 4: from memory"]);
     expect(s.items["flow:warm:2026-11-10"]).toEqual({ done: [1, 2], step: 3 });
-    // the warm-up does not change what was learned; tomorrow it starts again with all three
+    // the warm-up does not change what was learned; tomorrow it has all four (slide 4 was passed from memory today)
     expect(s.items["flow:2:1"]).toEqual({ step: 3, learned: true, last: YESTERDAY, at: YESTERDAY });
-    expect(warmUp(slides, s.get, NOW + 24 * 3600 * 1000).map((x) => x.n)).toEqual([1, 2, 3]);
+    expect(warmUp(slides, s.get, NOW + 24 * 3600 * 1000).map((x) => x.n)).toEqual([1, 2, 3, 4]);
     // a learned state with no time counts as learned long ago
     expect(learned(store({ "flow:1:1": { step: 3, learned: true, last: NOW } }).get, slides[0], NOW)).toBe(true);
   });

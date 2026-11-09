@@ -20,9 +20,11 @@ export const HEDGE_AFTER = 4000;
 export const HEDGE_LIMIT = 12000;
 
 export type JudgeEnv = { GEMINI_KEY?: string; GEMINI_MODEL?: string; STANDINS?: string };
-type Body = { mode?: string; audio?: string; mime?: string; target?: string; glossary?: string[]; must?: string[] };
+// at: where in the talk the attempt was (the unit, the flow step, warm-up or not), kept with it for learning metrics.
+type At = { unit?: string; step?: number; warm?: boolean };
+type Body = { mode?: string; audio?: string; mime?: string; target?: string; glossary?: string[]; must?: string[]; at?: At };
 export type Attempt = { at: number; ms: number; model: string; mode?: string; target: string; glossary?: string[];
-  mime: string; audio: string; status: number; reply?: unknown; error?: string };
+  mime: string; audio: string; status: number; reply?: unknown; error?: string; where?: At };
 
 // The rate limit: a count for the current minute, in this copy of the Worker.
 const counter = { minute: -1, count: 0 };
@@ -55,7 +57,7 @@ export async function judge(request: Request, env: JudgeEnv, now = Date.now(),
   const run = body.mode === "run", model = env.GEMINI_MODEL || MODEL, start = clock();
   const seen = (status: number, out: { reply?: unknown; error?: string }) => {
     record({ at: now, ms: clock() - start, model, mode: body.mode, target: body.target as string, glossary: body.glossary,
-      mime: body.mime as string, audio: body.audio as string, status, ...out });
+      mime: body.mime as string, audio: body.audio as string, status, ...out, ...(body.at ? { where: body.at } : {}) });
   };
   // Gemini usually answers in 3 to 6 s but now and then takes 26 s: a second request goes out after HEDGE_AFTER, the
   // first answer wins, and after HEDGE_LIMIT the page is told to use its own grade.

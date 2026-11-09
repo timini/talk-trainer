@@ -3,6 +3,27 @@
 // The first letter of each word, punctuation and capitals kept: "Good morning, and welcome." is "G m, a w."
 export const cue = (text: string): string => text.replace(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu, (w) => w[0]);
 
+// The help after a miss: the phrases missed are hidden as first letters and every other word is shown. With
+// nothing missed, every word is first letters. A phrase is found as a run of words, case and punctuation aside; a
+// repeated phrase is hidden where it first appears, and a phrase that is not found hides nothing.
+const WORD = /[\p{L}\p{N}]+(?:['’.,][\p{L}\p{N}]+)*/gu;
+const bare = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+export const hide = (text: string, phrases: string[]): string => {
+  if (!phrases.length) return cue(text);
+  const found = [...text.matchAll(WORD)].map((m) => ({ at: m.index as number, w: m[0], b: bare(m[0]) }));
+  const hidden = new Set<number>();
+  for (const phrase of phrases) {
+    const seq = [...phrase.matchAll(WORD)].map((m) => bare(m[0])).filter(Boolean);
+    if (!seq.length) continue;
+    for (let i = 0; i + seq.length <= found.length; i += 1) {
+      if (seq.every((b, k) => found[i + k].b === b && !hidden.has(i + k))) { seq.forEach((_, k) => hidden.add(i + k)); break; }
+    }
+  }
+  let out = "", last = 0;
+  found.forEach((f, i) => { out += text.slice(last, f.at) + (hidden.has(i) ? f.w[0] : f.w); last = f.at + f.w.length; });
+  return out + text.slice(last);
+};
+
 // Sentences: split after . ! or ? (and a closing quote or bracket) and a space, so 0.95 stays whole.
 export const sentences = (text: string): string[] =>
   text.split(/(?<=[.!?]["”’)]?)\s+/).map((s) => s.trim()).filter(Boolean);
