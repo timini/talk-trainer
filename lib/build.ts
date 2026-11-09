@@ -22,7 +22,7 @@ export type Step = <T>(name: string, fn: () => Promise<T>) => Promise<T>;
 
 export type Talk = {
   id: string; title: string; status: string; deck_key: string; slides: number; sentences: number; images: number;
-  voiced: number; glossary: string; error: string | null; created: number; updated: number;
+  voiced: number; glossary: string; error: string | null; created: number; updated: number; talk_at: number | null;
 };
 
 const time = (deps: Deps) => (deps.now ?? Date.now)();

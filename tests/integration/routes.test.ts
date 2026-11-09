@@ -12,6 +12,9 @@ vi.mock("@opennextjs/cloudflare", () => ({
 const talks = await import("@/app/api/talks/route");
 const one = await import("@/app/api/talks/[id]/route");
 const files = await import("@/app/api/files/[...key]/route");
+const grade = await import("@/app/api/grade/route");
+const scriptRoute = await import("@/app/api/talks/[id]/script/route");
+const progressRoute = await import("@/app/api/talks/[id]/progress/route");
 
 let cf: Awaited<ReturnType<typeof local>>;
 beforeAll(async () => {
@@ -34,6 +37,16 @@ describe("the talk routes", () => {
     expect(all.talks.map((t) => t.id)).toContain(id);
     const img = await files.GET(new Request("https://x.test/"), { params: Promise.resolve({ key: ["talks", id, "slides", "1.png"] }) });
     expect([img.status, img.headers.get("Content-Type")]).toEqual([200, "image/png"]);
+    const params = { params: Promise.resolve({ id }) };
+    const changed = await one.PATCH(new Request("https://x.test/", { method: "PATCH", body: JSON.stringify({ talkAt: 5 }) }), params);
+    expect(await changed.json()).toMatchObject({ talkAt: 5 });
+    const sc = await (await scriptRoute.GET(new Request("https://x.test/"), params)).json() as { slides: unknown[] };
+    expect(sc.slides).toHaveLength(1);
+    await progressRoute.PUT(new Request("https://x.test/", { method: "PUT", body: JSON.stringify({ items: { "train:days": ["2026-11-09"] } }) }), params);
+    expect(await (await progressRoute.GET(new Request("https://x.test/"), params)).json()).toMatchObject({ items: { "train:days": ["2026-11-09"] } });
+    const judged = await grade.POST(new Request("https://x.test/api/grade", { method: "POST",
+      body: JSON.stringify({ mode: "card", audio: "QQ==", mime: "audio/webm", target: "Hello there." }) }));
+    expect(await judged.json()).toMatchObject({ verbatim: true, heard: "Hello there." });
   });
 
   test("with a Workflow binding, the upload starts the Workflow", async () => {
