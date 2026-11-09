@@ -9,7 +9,11 @@ export async function newTalk(page: Page, title: string): Promise<Script> {
     headers: { "Content-Type": "application/octet-stream", "X-Title": encodeURIComponent(title) } });
   expect(res.status()).toBe(201);
   const { id } = await res.json() as { id: string };
-  await expect.poll(async () => (await (await page.request.get(`/api/talks/${id}`)).json()).status, { timeout: 30000 }).toBe("ready");
+  // next dev may answer a first request while it is still compiling the route: such a reply counts as not ready yet
+  await expect.poll(async () => {
+    const res = await page.request.get(`/api/talks/${id}`);
+    return res.ok() ? ((await res.json()) as { status: string }).status : `HTTP ${res.status()}`;
+  }, { timeout: 30000 }).toBe("ready");
   await page.request.patch(`/api/talks/${id}`, { data: { talkAt: Date.now() + 3 * 24 * 3600 * 1000 + 3600 * 1000 } });
   return await (await page.request.get(`/api/talks/${id}/script`)).json() as Script;
 }
