@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { blank, chainStart, cue, cues, glossary, sentences, shows } from "@/lib/text";
+import { blank, chainStart, cue, cues, glossary, mustSay, sentences, shows } from "@/lib/text";
 
 describe("sentences", () => {
   test("split after . ! or ? and a closing quote or bracket, so 0.95 stays whole", () => {
@@ -70,5 +70,13 @@ describe("glossary", () => {
     expect(glossary([{ must_say: ["iPad", "IPad"], sentences: [] }])).toEqual(["IPad", "iPad"]);
     expect(glossary([{ must_say: [], sentences: ["Hello there."] }, { must_say: ["Zed", "ZedA"], sentences: [] }]))
       .toEqual(["Zed", "ZedA"]);
+  });
+});
+
+describe("mustSay", () => {
+  test("the names and numbers in a sentence, each once, in order", () => {
+    expect(mustSay("We ran BRCA1 on an H100, at 87% and 0.95, then BRCA1 again for 2026’s budget at example.io."))
+      .toEqual(["BRCA1", "H100", "87%", "0.95", "2026", "example.io"]);
+    expect(mustSay("Nothing to see here.")).toEqual([]);
   });
 });

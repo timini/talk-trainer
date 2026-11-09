@@ -31,21 +31,29 @@ export const shows = (level: number) => ({ image: level !== 3, point: level <= 2
 export const chainStart = (levels: (number | null)[], k: number): number =>
   (k > 0 && levels.slice(0, k).every((l) => l !== null && l >= 2) ? 0 : k);
 
-// The talk's names, for the judge: every word of the script with a capital after its first letter (CADD,
-// SpliceAI), a digit beside letters (BRCA1, H100) or a dot inside it (example.io), without the punctuation around it
-// or a possessive, and the must-say items that are terms (no digit, at most 3 words); sorted, each once.
+// The words of a text without the punctuation around them or a possessive, each marked when it is a name: a
+// capital after its first letter (CADD, SpliceAI), a digit beside letters (BRCA1, H100) or a dot inside it
+// (example.io).
+const words = (text: string) => text.split(/\s+/).filter(Boolean).map((word) => {
+  const w = word.replace(/^[.,;:!?()"'“”‘’]+|[.,;:!?()"'“”‘’]+$/g, "").replace(/[’']s$/, "");
+  const rest = [...w.slice(1)];
+  const name = rest.some((c) => c !== c.toLowerCase() && c === c.toUpperCase())
+    || (/\d/.test(w) && /\p{L}/u.test(w)) || /[a-z]\.[a-z]/.test(w);
+  return { w, name };
+});
+
+// What must be said exactly in a sentence: its names and its numbers (any other word with a digit, such as 0.95 or
+// 87%), each once, in order.
+export const mustSay = (sentence: string): string[] =>
+  [...new Set(words(sentence).filter(({ w, name }) => name || /\d/.test(w)).map(({ w }) => w))];
+
+// The talk's names, for the judge: every name in the script (as words() finds them) and the must-say items that are
+// terms (no digit, at most 3 words); sorted, each once.
 export const glossary = (slides: { must_say: string[]; sentences: string[] }[]): string[] => {
   const names = new Set<string>();
   for (const d of slides) {
     d.must_say.filter((m) => !/\d/.test(m) && m.split(/\s+/).filter(Boolean).length <= 3).forEach((m) => names.add(m));
-    for (const text of d.sentences) {
-      for (const word of text.split(/\s+/).filter(Boolean)) {
-        const w = word.replace(/^[.,;:!?()"'“”‘’]+|[.,;:!?()"'“”‘’]+$/g, "").replace(/[’']s$/, "");
-        const rest = [...w.slice(1)];
-        if (rest.some((c) => c !== c.toLowerCase() && c === c.toUpperCase())
-          || (/\d/.test(w) && /\p{L}/u.test(w)) || /[a-z]\.[a-z]/.test(w)) names.add(w);
-      }
-    }
+    for (const text of d.sentences) words(text).filter((x) => x.name).forEach(({ w }) => names.add(w));
   }
   const key = (n: string) => n.toLowerCase();
   return [...names].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : a < b ? -1 : 1));
