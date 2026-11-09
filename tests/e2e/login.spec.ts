@@ -14,7 +14,7 @@ test("a wrong password is refused, and the right one signs in with an httpOnly c
   await page.goto("/");
   await page.getByLabel("Password").fill("not the password");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: /./ })).toHaveText("That password is not right.");
+  await expect(page.locator(".error[role=alert]")).toHaveText("That password is not right.");
   await expect(page).toHaveURL(/\/login/);
 
   await page.getByLabel("Password").fill(PASSWORD);

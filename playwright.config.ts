@@ -17,10 +17,11 @@ export default defineConfig({
     { name: "phone", use: { ...devices["Pixel 7"] } },
   ],
   webServer: BASE ? undefined : {
-    command: `npx next dev --port ${PORT}`,
+    // Local D1 with the migrations applied; builds run in the request with stand-ins for the renderer and voice.
+    command: `npx wrangler d1 migrations apply DB --local && npx next dev --port ${PORT}`,
     url: `http://localhost:${PORT}/login`,
     reuseExistingServer: !process.env.CI,
-    env: { BETA_PASSWORD: PASSWORD },
+    env: { BETA_PASSWORD: PASSWORD, STANDINS: "1", BUILD_INLINE: "1" },
     timeout: 120000,
   },
 });
