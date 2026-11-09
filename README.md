@@ -24,27 +24,35 @@ files, a Workflow for the background build and a container for rendering slides.
 
 ## Training
 
-Each talk is trained at `/talks/<id>/train`, planned to the talk's date (set on the talks page or on the trainer's
-first screen). Each sentence is a card. You tap to speak; the attempt is recorded (Opus, 16 kbps) and sent to
-`POST /api/grade`, where Gemini judges whether the meaning came through. It does not have to be word for word.
+Each talk is trained at `/talks/<id>/train`, one slide at a time, in talk order (`lib/flow.ts`). A slide of more
+than 3 sentences is split into parts of at most 3, each learned on its own, then the whole slide is said once.
+Each slide or part has three steps, one attempt each:
 
-- A card fails for a point left out, a changed meaning, a wrong number, name or key term (the talk's names and the
-  must-say items), points in a different order, or a stumble (a false start, a repeat or a self-correction).
+1. Read it aloud, with the text shown. This step cannot fail; a miss shows what to watch for.
+2. Say it from the first letters. A miss repeats this step.
+3. Say it from the slide alone. A pass learns it; a miss goes back to step 2.
+
+Each day starts with a warm-up: the slides learned before today, each said once from the slide. The header shows a
+fixed position, such as "Slide 4 of 86, step 2 of 3". Progress is kept as `flow:<slide>:<part>` in localStorage and
+in D1 (`/api/talks/<id>/progress`), merged so the newer state of each part wins. Sentence cards from the earlier
+trainer are moved over once: a slide whose every sentence was at level 2 or more counts as learned.
+
+You tap to speak and tap to stop; recording also stops once the browser's speech recognition has heard the last
+words, and never on a pause. The attempt (Opus, 16 kbps) goes to `POST /api/grade`, where Gemini judges whether the
+meaning came through, and the verdict shows on the same card after "Checking...".
+
+- An attempt fails for a point left out, a changed meaning, a wrong number, name or key term (the talk's names and
+  the must-say items), points in a different order, or a stumble (a false start, a repeat or a self-correction).
 - Small words added or dropped, contractions, a greeting or filler, synonyms and light rewording within a point are
   fine. A pass that was not word for word says so quietly.
-- Each problem's phrase is marked as one run of words in the sentence, so a word said right elsewhere is never
-  marked (`judged()` in `lib/judge.ts`).
-- Without the judge, the page's own grade is used: 85% of the words, with small words left out not counted.
+- Each problem's phrase is marked as one run of words, so a word said right elsewhere is never marked
+  (`judged()` in `lib/judge.ts`).
+- Without the judge, you mark yourself.
 
-The browser's speech recognition, where there is one, only decides when to stop: as soon as it has heard the
-sentence's last words, or after 1.2 seconds of quiet. The next card comes up at once and the judge works in the
-background: a strip over the card says how the last one went, and tapping it shows the full feedback. A card is
-marked when its verdict arrives; a missed one comes back in the session. "Wait for each verdict" in the menu makes
-each card wait instead. Hear it plays the sentence's clip, or a chain card's clips one after another. Progress is
-kept in localStorage and in D1 (`/api/talks/<id>/progress`), merged so the newer review of each card wins, and saved
-a few seconds after each card and when the page is closed.
+Hear it plays the clips of the slide or part, one after another.
 
-Keys on a laptop: Space to speak or stop, Enter for next, 1 got it, 3 missed, R to hear the sentence.
+Keys on a laptop: Space to speak, stop or go on, Enter to go on, R to hear it, 1 got it and 3 missed when marking
+yourself.
 
 Stored files are served from `GET /api/files/<key>`, with byte ranges, behind the sign-in. Uploads are read whole
 before they are stored, up to 100 MB, as the build has to unzip the deck in memory anyway.

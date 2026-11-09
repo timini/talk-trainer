@@ -21,7 +21,7 @@ export async function newTalk(page: Page, title: string): Promise<Script> {
 // Say an attempt: tap to speak, wait a moment, tap to stop.
 export async function attempt(page: Page) {
   await page.getByRole("button", { name: "Tap to speak" }).click();
-  const stop = page.getByRole("button", { name: "Listening. Tap when done" });
+  const stop = page.getByRole("button", { name: "Tap to stop" });
   await expect(stop).toBeVisible();
   await page.waitForTimeout(800);
   await stop.click();
