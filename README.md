@@ -5,7 +5,7 @@ script into sentences and voices each one. You then say the sentences back, and 
 Cards come back on a schedule planned to the day of the talk.
 
 This is an early beta. So far it has the grading and scheduling logic, the judge's prompt and schemas, a password
-gate, and the upload with its background build. The training screens are next.
+gate, the upload with its background build, and the training screens. The run-through is next.
 
 It runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare), with D1 for data, R2 for
 files, a Workflow for the background build and a container for rendering slides.
@@ -21,6 +21,18 @@ files, a Workflow for the background build and a container for rendering slides.
    voice, model and style, so a sentence voiced before is never voiced again. Each sentence is its own step, retried
    with backoff, so a rate limit only delays that sentence.
 5. The talks page polls `GET /api/talks/:id` and shows the progress, such as "Voicing 120 of 301".
+
+## Training
+
+Each talk is trained at `/talks/<id>/train`, planned to the talk's date (set on the talks page or on the trainer's
+first screen). Each sentence is a card. You tap to speak; the attempt is recorded and sent to `POST /api/grade`,
+where Gemini judges it word for word and is strict about restarts. The browser's speech recognition, where there is
+one, only stops the recording after 2.5 seconds of quiet. A card passes with at least 85% of its words and no number
+or must-say item wrong (`judged()` in `lib/judge.ts`). Hear it plays the sentence's clip, or a chain card's clips one
+after another. Progress is kept in localStorage and in D1 (`/api/talks/<id>/progress`), merged so the newer review
+of each card wins, and saved a few seconds after each card and when the page is closed.
+
+Keys on a laptop: Space to speak or stop, Enter for next, 1 got it, 3 missed, R to hear the sentence.
 
 Stored files are served from `GET /api/files/<key>`, with byte ranges, behind the sign-in. Uploads are read whole
 before they are stored, up to 100 MB, as the build has to unzip the deck in memory anyway.
@@ -88,7 +100,8 @@ then `curl --data-binary @tests/fixtures/three-slides.pptx localhost:8080/render
 npm run lint
 npm run typecheck
 npm test          # Vitest with coverage; fails under 100% for lib/
-npm run e2e       # Playwright, desktop and phone sizes; starts next dev with a test password and stand-ins
+npm run e2e       # Playwright, desktop and phone sizes; starts next dev with a test password, stand-ins
+                  # for the renderer, voice and judge, and a fake microphone
 ```
 
 The unit tests run in the Europe/London time zone, because days are counted in local time.
