@@ -22,6 +22,9 @@ test("a session flows on without waiting: the strip follows the verdicts and a m
   await signIn(page);
   const s = await newTalk(page, "Session test");
   await page.goto(`/talks/${s.talk.id}/train`);
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByLabel("Wait for each verdict").uncheck();
+  await page.getByRole("button", { name: "Close" }).click();
   await expect(page.getByText("3 days to the talk")).toBeVisible();
   await expect(page.getByTestId("startinfo")).toHaveText("4 sentences, about 1 minute. 0 to review, 4 new.");
   await page.getByRole("button", { name: "Start today's session" }).click();
@@ -71,6 +74,9 @@ test("a missed card counted as got from its sheet does not come back", async ({ 
   await signIn(page);
   const s = await newTalk(page, "Recount test");
   await page.goto(`/talks/${s.talk.id}/train`);
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByLabel("Wait for each verdict").uncheck();
+  await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Start today's session" }).click();
   await restart(page);
   await attempt(page);
@@ -157,6 +163,9 @@ test("progress survives a reload, and comes back from the site", async ({ page }
   await signIn(page);
   const s = await newTalk(page, "Progress test");
   await page.goto(`/talks/${s.talk.id}/train`);
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByLabel("Wait for each verdict").uncheck();
+  await page.getByRole("button", { name: "Close" }).click();
   await expect(page.getByTestId("today")).toHaveText("No cards yet today.");
   await page.getByRole("button", { name: "Start today's session" }).click();
   await attempt(page);

@@ -11,7 +11,7 @@ import { grade } from "@/lib/grade";
 import { judged, type Verdict } from "@/lib/judge";
 import { type Card, logged, merge, plan, review, ymd } from "@/lib/schedule";
 import { chainStart } from "@/lib/text";
-import { cardsOf, heardAll, type Judged, type Last, type Script, type Sync, type TrainCard, view } from "@/lib/train";
+import { cardsOf, type Judged, type Last, type Script, type Sync, type TrainCard, view } from "@/lib/train";
 
 export type Screen = "home" | "session" | "done" | "stats";
 // ready: nothing said yet; listening: recording; judging: the judge has the attempt; graded: the verdict is in;
@@ -21,14 +21,11 @@ export type Phase = "ready" | "listening" | "judging" | "graded" | "shown" | "fa
 type SpeechResults = ArrayLike<ArrayLike<{ transcript: string }>>;
 type SpeechRec = { lang: string; continuous: boolean; interimResults: boolean; maxAlternatives: number;
   onresult: ((e: { results: SpeechResults }) => void) | null; onerror: (() => void) | null; start(): void; abort(): void };
-type SpeechCtor = new () => SpeechRec;
 type View = NonNullable<ReturnType<Engine["view"]>>;
 
 // An attempt judged in the background: its card, the card's state before it was marked, and how it went.
 export type Attempt = Last & { card: TrainCard; prior: Card | null };
 
-// Stop after this much quiet once the recogniser has heard something, unless it heard the last words first.
-const QUIET = 1200;
 const LONGEST = 90000;
 // Opus at 16 kbps: a smaller upload, and the judge hears it as well as at 24.
 const BITRATE = 16000;
@@ -92,8 +89,8 @@ export class Engine {
       && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
   }
   setMic(on: boolean) { this.set("train:mic", on); this.blocked = false; this.emit(); }
-  get waits() { return this.get("train:wait", false); }
-  setWait(on: boolean) { this.set("train:wait", on); this.emit(); }
+  get waits() { return this.get("train:waits", true); }
+  setWait(on: boolean) { this.set("train:waits", on); this.emit(); }
   get last() { return this.attempts[this.attempts.length - 1] ?? null; }
   get pending() { return this.attempts.filter((a) => a.checking).length; }
 
@@ -223,7 +220,7 @@ export class Engine {
       return;
     }
     if ((this.phase as Phase) !== "listening") { stream.getTracks().forEach((t) => t.stop()); return; }
-    const chunks: Blob[] = [], v = this.view() as View;
+    const chunks: Blob[] = [];
     const opus = "audio/webm;codecs=opus";
     const media = new MediaRecorder(stream, { audioBitsPerSecond: BITRATE,
       ...(MediaRecorder.isTypeSupported?.(opus) ? { mimeType: opus } : {}) });
@@ -234,25 +231,9 @@ export class Engine {
       rec.done?.(new Blob(chunks, { type: media.mimeType || "audio/webm" }));
     };
     media.start();
-    const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
-    const Speech = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    // Only a tap (or Space) stops the recording: stopping on the recogniser's guess cut Tim off mid-sentence.
     this.rec = rec;
     rec.cap = setTimeout(() => this.stop(), LONGEST);
-    if (Speech) {
-      try {
-        const speech = new Speech();
-        Object.assign(speech, { lang: "en-GB", continuous: true, interimResults: true, maxAlternatives: 5 });
-        speech.onresult = (e) => {
-          clearTimeout(rec.quiet);
-          const alts = Array.from(e.results, (r) => Array.from(r, (a) => a.transcript));
-          if (heardAll(v.parts, alts, v.must)) this.stop();
-          else rec.quiet = setTimeout(() => this.stop(), QUIET);
-        };
-        speech.onerror = () => {};
-        speech.start();
-        rec.speech = speech;
-      } catch { /* no recognition: a tap stops */ }
-    }
   }
 
   // Stop recording and send the attempt to the judge: wait for its verdict, or go straight on to the next card.
