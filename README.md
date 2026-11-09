@@ -18,7 +18,8 @@ files, a Workflow for the background build and a container for rendering slides.
    Slides with no notes are listed on the talks page.
 3. Render: the `RENDER` container (LibreOffice and poppler, `container/`) turns the deck into one PNG a slide.
 4. Voice: one Gemini clip a sentence (`gemini-3.8-flash-tts`, voice Achird), stored as WAV under a hash of the text,
-   voice, model and style, so a sentence voiced before is never voiced again. Each sentence is its own step, retried
+   voice, model and style, so a sentence voiced before is never voiced again. Sentences are voiced 8 at a time. Each
+   sentence is its own step, retried
    with backoff, so a rate limit only delays that sentence.
 5. The talks page polls `GET /api/talks/:id` and shows the progress, such as "Voicing 120 of 301".
 

@@ -17,8 +17,13 @@ export type Deps = {
   now?: () => number;
 };
 
-// Runs one named step and returns its result, which must be plain JSON.
-export type Step = <T>(name: string, fn: () => Promise<T>) => Promise<T>;
+// Runs one named step and returns its result, which must be plain JSON. kind "voice" marks a call to Gemini text to
+// speech, which the Workflow retries longer, as its rate limit may need a wait of a minute or more.
+export type Step = <T>(name: string, fn: () => Promise<T>, kind?: "voice") => Promise<T>;
+
+// Sentences voiced at once: enough to make a long talk quick, few enough for Gemini's rate limit. A 429 fails only
+// that sentence's step, which waits and tries again.
+export const VOICE_BATCH = 8;
 
 export type Talk = {
   id: string; title: string; status: string; deck_key: string; slides: number; sentences: number; images: number;
@@ -129,13 +134,19 @@ export const finish = async (deps: Deps, talk: string) => {
   return true;
 };
 
-// The whole build, step by step. A step that still fails after its retries marks the talk failed, with the reason.
-export const build = async (deps: Deps, talk: string, step: Step) => {
+// The whole build, step by step. The sentences are voiced in batches of `batch` at once, each its own step; a batch
+// finishes before a failure in it is reported. A step that still fails after its retries marks the talk failed,
+// with the reason.
+export const build = async (deps: Deps, talk: string, step: Step, batch = VOICE_BATCH) => {
   try {
     await step("parse", () => parse(deps, talk));
     await step("render", () => render(deps, talk));
-    for (const [slide, i] of await step("list sentences", () => unvoiced(deps, talk))) {
-      await step(`voice ${slide}.${i}`, () => voice(deps, talk, slide, i));
+    const todo = await step("list sentences", () => unvoiced(deps, talk));
+    for (let k = 0; k < todo.length; k += batch) {
+      const done = await Promise.allSettled(todo.slice(k, k + batch)
+        .map(([slide, i]) => step(`voice ${slide}.${i}`, () => voice(deps, talk, slide, i), "voice")));
+      const failed = done.find((d) => d.status === "rejected");
+      if (failed) throw failed.reason;
     }
     await step("finish", () => finish(deps, talk));
   } catch (err) {

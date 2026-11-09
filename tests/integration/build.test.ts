@@ -105,6 +105,35 @@ describe("the build", () => {
     expect(await row(odd)).toMatchObject({ status: "failed", error: "plain" });
   });
 
+  test("sentences are voiced in batches at once; a failure lets its batch finish, then fails the talk", async () => {
+    const fresh = (tag: string, n: number) => [{ title: "Many", notes: Array.from({ length: n }, (_, k) => `Batch ${tag} sentence ${k}.`) }];
+    let now = 0, most = 0;
+    const kinds: (string | undefined)[] = [];
+    const slow = deps({ speak: async (text) => {
+      now += 1;
+      most = Math.max(most, now);
+      await new Promise((r) => setTimeout(r, 20));
+      now -= 1;
+      return standins.speak(text);
+    } });
+    const id = await talk(fresh("a", 10));
+    await build(slow, id, (name, fn, kind) => { if (name.startsWith("voice")) kinds.push(kind); return inline(0)(name, fn); }, 4);
+    expect(most).toBe(4);
+    expect(kinds).toEqual(Array(10).fill("voice"));
+    expect(await row(id)).toMatchObject({ status: "ready", voiced: 10 });
+    // the default batch is 8
+    most = 0;
+    await build(slow, await talk(fresh("b", 9)), inline(0));
+    expect(most).toBe(8);
+    // one sentence keeps failing: the others in its batch are voiced, and the talk fails with the reason
+    const bad = await talk(fresh("c", 3));
+    await expect(build(deps({ speak: async (text) => {
+      if (text.endsWith("1.")) throw new Error("Gemini answered 429: slow down");
+      return standins.speak(text);
+    } }), bad, inline(0))).rejects.toThrow("Gemini answered 429");
+    expect(await row(bad)).toMatchObject({ status: "failed", voiced: 2, error: "Gemini answered 429: slow down" });
+  });
+
   test("missing pieces are clear errors", async () => {
     const d = deps();
     await expect(parse(d, "nope")).rejects.toThrow("No talk nope.");
