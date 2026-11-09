@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
 import { countdown, minutes, progress, streak, tally, ymd } from "@/lib/schedule";
 import { shows } from "@/lib/text";
 import {
-  deliveryLine, doneLines, exportFile, importFile, kind, LEVELS, plural, savedLine, type Script, startInfo, todayLine,
-  verdict, weakLine,
+  checkingLine, deliveryLine, doneLines, exportFile, importFile, kind, lastLine, LEVELS, plural, savedLine, type Script,
+  startInfo, todayLine, verdict, weakLine,
 } from "@/lib/train";
 import { cues } from "@/lib/text";
-import { Engine } from "./engine";
+import { type Attempt, Engine } from "./engine";
 
 export function Trainer({ id }: { id: string }) {
   const [engine, setEngine] = useState<Engine | null>(null);
@@ -31,6 +31,9 @@ export function Trainer({ id }: { id: string }) {
   if (!engine) return <main className="tr-main"><p>Loading the talk</p></main>;
   return <Train engine={engine} />;
 }
+
+const EngineContext = createContext<Engine | null>(null);
+const useEngine = () => useContext(EngineContext);
 
 function Train({ engine: e }: { engine: Engine }) {
   useSyncExternalStore(e.subscribe, e.snapshot, e.snapshot);
@@ -65,6 +68,7 @@ function Train({ engine: e }: { engine: Engine }) {
 
   const status = e.screen === "session" ? `${e.session.done + 1} of ${e.session.done + e.queue}` : e.script.talk.title;
   return (
+    <EngineContext.Provider value={e}>
     <div className="trainer" data-screen={e.screen}>
       <header className="tr-head">
         <button type="button" className="name" onClick={() => e.show("home")}>Train</button>
@@ -80,6 +84,7 @@ function Train({ engine: e }: { engine: Engine }) {
       </main>
       {menu && <Menu e={e} close={() => setMenu(false)} />}
     </div>
+    </EngineContext.Provider>
   );
 }
 
@@ -142,6 +147,49 @@ function Home({ e }: { e: Engine }) {
   );
 }
 
+// The strip over the card: how the attempt before it went, judged in the background. Tapping it opens the full
+// feedback.
+function Strip({ a }: { a: Attempt }) {
+  const [open, setOpen] = useState(false);
+  const line = lastLine(a);
+  return (
+    <>
+      <button type="button" className={`strip ${line.tone}`} data-testid="strip" onClick={() => setOpen(true)}
+        disabled={a.checking}>{line.text}</button>
+      {open && !a.checking && <LastSheet a={a} close={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function LastSheet({ a, close }: { a: Attempt; close: () => void }) {
+  const e = useEngine();
+  const r = a.result, j = r?.judge, v = r ? verdict(r) : null;
+  return (
+    <div className="menu" onClick={(ev) => { if (ev.target === ev.currentTarget) close(); }}>
+      <div className="sheet" role="dialog" aria-label="The last card">
+        <p className="stitle">{`${a.card.s.n}. ${a.card.s.title}`}</p>
+        {r ? <p className="cue small-cue">{r.parts.flatMap((part, pi) => part.words.map((w, wi) => (
+          <span key={`${pi}.${wi}`}>{pi || wi ? " " : ""}<span className={!w.ok ? (w.crit ? "miss crit" : "miss") : ""}>{w.w}</span></span>)))}</p>
+          : <p className="cue small-cue">{a.card.text}</p>}
+        {v && <div className={`verdict ${v.good ? "good" : "bad"}`}>{v.head}<small>{v.detail}</small></div>}
+        {!r && <p className="note">{`The judge could not check it: ${a.error}`}</p>}
+        {j && (
+          <div className="feedback">
+            {j.heard && <p className="heard"><b>Heard: </b>{j.heard}</p>}
+            <p className="delivery"><b>Delivery: </b>{deliveryLine(j)}</p>
+            {j.tip && <p className="tip"><b>Tip: </b>{j.tip}</p>}
+          </div>
+        )}
+        <div className="minor">
+          {a.marked !== true && <button type="button" className="small" onClick={() => { e?.recount(a, true); close(); }}>Count it as got</button>}
+          {a.marked !== false && <button type="button" className="small" onClick={() => { e?.recount(a, false); close(); }}>Count it as missed</button>}
+        </div>
+        <button type="button" className="item" onClick={close}>Close</button>
+      </div>
+    </div>
+  );
+}
+
 function Session({ e }: { e: Engine }) {
   const c = e.card, v = e.view();
   if (!c || !v) return null;
@@ -169,6 +217,7 @@ function Session({ e }: { e: Engine }) {
             <div className="noimg">{sh.image ? "No slide image" : "First letters only: no slide"}</div>)}
         </div>
         <div className="cardcol">
+          {e.last && <Strip key={e.attempts.length} a={e.last} />}
           <div className="meta">
             <span className="dots" role="img" aria-label={`Level ${v.lv} of 4`} title={`Level ${v.lv} of 4`}>
               {[1, 2, 3, 4].map((i) => <span key={i} className={i <= v.lv ? "on" : ""} />)}
@@ -221,13 +270,19 @@ function Session({ e }: { e: Engine }) {
 }
 
 function Done({ e }: { e: Engine }) {
-  const now = e.now;
-  const [sum, next] = doneLines(e.session, e.planNow(now), now);
+  const now = e.now, p = e.planNow(now);
+  const [sum, next] = doneLines(e.session, p, now);
+  const waiting = e.pending;
   return (
     <section className="stack">
       <h1>Session done</h1>
-      <p data-testid="dsum">{sum}</p>
-      <p>{next}</p>
+      {waiting ? <p data-testid="dsum">{checkingLine(waiting)}</p> : <>
+        <p data-testid="dsum">{sum}</p>
+        <p>{next}</p>
+        {p.queue.length > 0 && <button type="button" className="big primary" onClick={() => e.resume()}>
+          {`Keep going: ${plural(p.queue.length, "card")} came back`}</button>}
+      </>}
+      {e.last && <Strip key={e.attempts.length} a={e.last} />}
       <button type="button" className="big primary" onClick={() => e.show("home")}>Back to the start</button>
     </section>
   );
@@ -289,6 +344,11 @@ function Menu({ e, close }: { e: Engine; close: () => void }) {
         <p className="note">With the microphone on, each attempt is recorded and sent through this site to Google&apos;s
           Gemini, which judges it word for word. The recording is not kept. With it off, say the sentence, tap Show,
           then mark yourself.</p>
+        <label className="toggle">
+          <input type="checkbox" checked={e.waits} onChange={(ev) => e.setWait(ev.target.checked)} /> Wait for each verdict
+        </label>
+        <p className="note">Off: the next card comes up at once, and the judge&apos;s verdict on the last one shows in a strip
+          over it. On: each card waits for its verdict.</p>
         <button type="button" className="item" onClick={() => { close(); e.show("stats"); }}>Progress, export and import</button>
         <Link className="item" href="/talks">Your talks</Link>
         <button type="button" className="item" onClick={close}>Close</button>
