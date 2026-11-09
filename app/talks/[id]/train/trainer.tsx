@@ -192,16 +192,16 @@ function Card({ e }: { e: Engine }) {
             </div>
           )}
           {e.note && <p className="note" role="status">{e.note}</p>}
-          <div className="minor">
-            {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
-            {phase === "judged" && e.counted === false && (
-              <button type="button" className="small" onClick={() => e.recount(true)}>Count it as got</button>)}
-            {phase === "judged" && e.counted === true && r && !r.pass && (
-              <button type="button" className="small" onClick={() => e.recount(false)}>Count it as missed</button>)}
-            {phase === "ready" && share > 0 && <button type="button" className="small" onClick={() => e.showMe()}>Show me</button>}
-            {phase === "ready" && share < 0.9 && <button type="button" className="small" onClick={() => e.knowIt()}>I know this one</button>}
-          </div>
           <div className="actions">
+            <div className="minor">
+              {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
+              {phase === "judged" && e.counted === false && (
+                <button type="button" className="small" onClick={() => e.recount(true)}>Count it as got</button>)}
+              {phase === "judged" && e.counted === true && r && !r.pass && (
+                <button type="button" className="small" onClick={() => e.recount(false)}>Count it as missed</button>)}
+              {phase === "ready" && share > 0 && <button type="button" className="small" onClick={() => e.showMe()}>Show me</button>}
+              {phase === "ready" && share < 0.9 && <button type="button" className="small" onClick={() => e.knowIt()}>I know this one</button>}
+            </div>
             {phase === "ready" && e.micOn && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
             {phase === "ready" && !e.micOn && <button type="button" className="big primary" onClick={() => e.reveal()}>Show the words</button>}
             {phase === "listening" && <button type="button" className="big primary on" onClick={() => e.space()}>Tap to stop</button>}
