@@ -8,12 +8,16 @@
 // record, when given, gets each attempt Gemini judged (the request, the reply or the error, and how long Gemini
 // took), so real attempts can be replayed when the judge seems wrong (tools/debug-pull.mjs).
 
+import { hedge } from "./hedge";
 import { CARD, MODEL, prompt, RUN } from "./judge";
 
 export const API = "https://generativelanguage.googleapis.com";
 export const LIMIT = 1024 * 1024;
 // Requests a minute, for each running copy of the Worker: a session is one card every few seconds at most.
 export const RATE = 60;
+// When a second Gemini request goes out, and when to give up (ms).
+export const HEDGE_AFTER = 4000;
+export const HEDGE_LIMIT = 12000;
 
 export type JudgeEnv = { GEMINI_KEY?: string; GEMINI_MODEL?: string; STANDINS?: string };
 type Body = { mode?: string; audio?: string; mime?: string; target?: string; glossary?: string[]; must?: string[] };
@@ -53,27 +57,36 @@ export async function judge(request: Request, env: JudgeEnv, now = Date.now(),
     record({ at: now, ms: clock() - start, model, mode: body.mode, target: body.target as string, glossary: body.glossary,
       mime: body.mime as string, audio: body.audio as string, status, ...out });
   };
-  const res = await fetch(`${API}/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: { "x-goog-api-key": env.GEMINI_KEY as string, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt({ mode: body.mode, target: body.target, glossary: body.glossary, must: body.must }) },
-        { inline_data: { mime_type: body.mime, data: body.audio } }] }],
-      generationConfig: { responseMimeType: "application/json", responseSchema: run ? RUN : CARD, temperature: 0,
-        thinkingConfig: { thinkingLevel: "low" } },
-    }),
-  });
-  if (!res.ok) {
-    seen(502, { error: `The judge answered ${res.status}.` });
-    return json(502, { error: `The judge answered ${res.status}.` });
-  }
+  // Gemini usually answers in 3 to 6 s but now and then takes 26 s: a second request goes out after HEDGE_AFTER, the
+  // first answer wins, and after HEDGE_LIMIT the page is told to use its own grade.
+  const ask = async (signal: AbortSignal) => {
+    const res = await fetch(`${API}/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      signal,
+      headers: { "x-goog-api-key": env.GEMINI_KEY as string, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt({ mode: body.mode, target: body.target as string, glossary: body.glossary, must: body.must }) },
+          { inline_data: { mime_type: body.mime, data: body.audio } }] }],
+        generationConfig: { responseMimeType: "application/json", responseSchema: run ? RUN : CARD, temperature: 0,
+          thinkingConfig: { thinkingLevel: "low" } },
+      }),
+    });
+    if (!res.ok) throw new Error(`The judge answered ${res.status}.`);
+    try {
+      const reply = await res.json() as { candidates: { content: { parts: { text: string }[] } }[] };
+      return JSON.parse(reply.candidates[0].content.parts[0].text) as unknown;
+    } catch {
+      throw new Error("The judge's reply could not be read.");
+    }
+  };
   try {
-    const reply = await res.json() as { candidates: { content: { parts: { text: string }[] } }[] };
-    const out = JSON.parse(reply.candidates[0].content.parts[0].text);
+    const out = await hedge(ask, HEDGE_AFTER, HEDGE_LIMIT);
     seen(200, { reply: out });
     return json(200, out);
-  } catch {
-    seen(502, { error: "The judge's reply could not be read." });
-    return json(502, { error: "The judge's reply could not be read." });
+  } catch (e) {
+    const slow = (e as Error).message === "timeout";
+    const error = slow ? "The judge took too long, so this is the page's own grade." : (e as Error).message;
+    seen(slow ? 504 : 502, { error });
+    return json(slow ? 504 : 502, { error });
   }
 }

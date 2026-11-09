@@ -97,3 +97,18 @@ describe("recording attempts for debugging", () => {
     ]);
   });
 });
+
+describe("a slow judge", () => {
+  test("after the limit the page is told to use its own grade (504), and the attempt is recorded", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", (_url: string, init: RequestInit) => new Promise((_res, rej) => {
+      init.signal?.addEventListener("abort", () => rej(new Error("aborted")));
+    }));
+    const seen: { status: number; error?: string }[] = [];
+    const p = judge(post(), ENV, 2e12, (a) => seen.push(a));
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(await answer(await p)).toEqual([504, { error: "The judge took too long, so this is the page's own grade." }]);
+    expect(seen.map((a) => [a.status, a.error])).toEqual([[504, "The judge took too long, so this is the page's own grade."]]);
+    vi.useRealTimers();
+  });
+});
