@@ -50,8 +50,8 @@
 .dots span.on { background: #005eb8; }
 .stitle { font-size: 0.9rem; margin: 0.4rem 0 0; }
 .before { font-size: 0.95rem; font-style: italic; margin: 0.5rem 0 0; }
-.cue { font-size: 1.55rem; line-height: 1.5; margin: 0.75rem 0 0.5rem; white-space: pre-wrap; }
-.cue.letters { letter-spacing: 0.06em; }
+.cue { font-size: 1.9rem; line-height: 1.55; margin: 0.75rem 0 0.5rem; white-space: pre-wrap; }
+.cue.letters { letter-spacing: 0.12em; word-spacing: 0.3em; }
 .cue.prompt { font-size: 1.2rem; font-style: italic; }
 .cue .miss { color: #df007d; text-decoration: underline; font-weight: bold; }
 .cue .close { text-decoration: underline dotted #2b2f3b; text-underline-offset: 0.2em; opacity: 0.75; }
