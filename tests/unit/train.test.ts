@@ -3,7 +3,7 @@ import { grade } from "@/lib/grade";
 import { judged } from "@/lib/judge";
 import { chainStart } from "@/lib/text";
 import {
-  cardsOf, deliveryLine, doneLines, exportFile, importFile, kind, LEVELS, plural, savedLine, type Slide, startInfo,
+  cardsOf, checkingLine, deliveryLine, heardAll, lastLine, reason, doneLines, exportFile, importFile, kind, LEVELS, plural, savedLine, type Slide, startInfo,
   todayLine, verdict, view, weakLine, when,
 } from "@/lib/train";
 
@@ -104,5 +104,41 @@ describe("the words on each screen", () => {
       '{"kind":"talk-trainer-progress","items":[]}', '{"kind":"talk-trainer-progress","items":3}']) {
       expect(() => importFile(bad), bad).toThrow("That file is not a progress export.");
     }
+  });
+});
+
+describe("judging in the background", () => {
+  const line = ["Mix 500 grams of flour with water."];
+  const local = grade(line, "", ["500"]);
+
+  test("the recording stops once the recogniser has heard the last words", () => {
+    expect(heardAll(line, [["mix 500 grams of flour"]], ["500"])).toBe(false);
+    expect(heardAll(line, [["mix 500 grams of flour"], ["with water"]], ["500"])).toBe(true);
+    expect(heardAll(line, [["mix five hundred grams", "mix 500 grams"], ["of flour with water"]], ["500"])).toBe(true);
+    expect(heardAll(line, [], [])).toBe(false);
+  });
+
+  test("why a card was missed, in a few words", () => {
+    expect(reason(judged(local, { verbatim: true, stumbles: ["mix mix"] }))).toBe("a restart");
+    expect(reason(judged(local, { verbatim: false, missed: ["500"] }))).toBe("a number or must-say item");
+    expect(reason(judged(local, { verbatim: false, missed: ["flour", "water"] }))).toBe("missed flour, water");
+    expect(reason(judged(local, { verbatim: false, missed: ["mix", "grams", "of", "flour"] }))).toBe("missed Mix, grams, of...");
+    expect(reason(judged(local, { verbatim: false, missed: [] }))).toBe("not word for word");
+    expect(reason(grade(line, "mix 500 grams of flour with water", ["500"]))).toBe("not word for word");
+  });
+
+  test("the strip about the last card", () => {
+    const missed = judged(local, { verbatim: true, stumbles: ["mix mix"] });
+    const got = judged(local, { verbatim: true });
+    expect(lastLine({ checking: true, result: null, marked: null, error: "" })).toEqual({ text: "Last: checking...", tone: "" });
+    expect(lastLine({ checking: false, result: got, marked: true, error: "" })).toEqual({ text: "Last: Got it", tone: "good" });
+    expect(lastLine({ checking: false, result: missed, marked: false, error: "" }))
+      .toEqual({ text: "Last: Missed, it will come back (a restart)", tone: "bad" });
+    // counted as missed by hand, though the judge passed it
+    expect(lastLine({ checking: false, result: got, marked: false, error: "" }).text).toBe("Last: Missed, it will come back");
+    expect(lastLine({ checking: false, result: null, marked: false, error: "" }).text).toBe("Last: Missed, it will come back");
+    expect(lastLine({ checking: false, result: null, marked: null, error: "The judge answered 502." }))
+      .toEqual({ text: "Last: not checked. The judge answered 502.", tone: "bad" });
+    expect([checkingLine(1), checkingLine(2)]).toEqual(["Checking the last one...", "Checking the last 2..."]);
   });
 });

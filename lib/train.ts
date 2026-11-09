@@ -1,7 +1,7 @@
 // The trainer's plain logic, apart from React: the cards of a talk, what a card shows (its chain, levels and clips),
 // and the words on each screen.
 
-import type { Result } from "./grade";
+import { best, type Result } from "./grade";
 import type { Verdict } from "./judge";
 import { ago, type Card, days } from "./schedule";
 
@@ -110,3 +110,29 @@ export const importFile = (text: string): Record<string, unknown> => {
   }
   return got.items as Record<string, unknown>;
 };
+
+// Whether the browser's recogniser has heard the whole of what is to be said, through its last words: the
+// recording can stop at once. alts: its guesses for each stretch of speech.
+export const heardAll = (parts: string[], alts: string[][], must: string[]) =>
+  alts.length > 0 && best(parts, alts, must).result.left <= 0;
+
+// Why a judged card was missed, in a few words.
+export const reason = (r: Judged) => {
+  const missed = r.parts.flatMap((x) => x.words.filter((w) => !w.ok)
+    .map((w) => w.w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")));
+  return r.stumbles?.length ? "a restart" : r.parts.some((x) => x.critWrong) ? "a number or must-say item"
+    : missed.length ? `missed ${missed.slice(0, 3).join(", ")}${missed.length > 3 ? "..." : ""}` : "not word for word";
+};
+
+// The strip over the card about the attempt before it, judged in the background. marked: how the card was counted
+// (null: not yet); error: why it could not be checked.
+export type Last = { checking: boolean; result: Judged | null; marked: boolean | null; error: string };
+export const lastLine = (a: Last): { text: string; tone: "" | "good" | "bad" } => {
+  if (a.checking) return { text: "Last: checking...", tone: "" };
+  if (a.marked === null) return { text: `Last: not checked. ${a.error}`, tone: "bad" };
+  if (a.marked) return { text: "Last: Got it", tone: "good" };
+  return { text: `Last: Missed, it will come back${a.result && !a.result.pass ? ` (${reason(a.result)})` : ""}`, tone: "bad" };
+};
+
+// The done screen while verdicts are still coming.
+export const checkingLine = (n: number) => (n === 1 ? "Checking the last one..." : `Checking the last ${n}...`);
