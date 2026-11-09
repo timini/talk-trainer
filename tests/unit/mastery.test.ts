@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { units } from "@/lib/flow";
 import {
-  adjust, effective, HALF, header, hidden, instruction, knowIt, migrate, pick, record, seedOf, sentenceKey, showAll, type State,
+  adjust, AIMS, doneAt, effective, HALF, header, hidden, instruction, knowIt, migrate, pick, record, seedOf, sentenceKey, showAll, type State,
   summary, termMode, unitKey, update, view,
 } from "@/lib/mastery";
 import { perSentence } from "@/lib/score";
@@ -75,7 +75,7 @@ describe("what comes next", () => {
       s.apply(record(p, [], 100, NOW));
     }
     expect(walk).toEqual([[1, 0], [1, 0.55], [1, 0.85], [1, 0.95], [1, 1], [2, 0]]);
-    expect(summary(slides, s.get, NOW)).toEqual({ learned: 1, total: 2, from: null, due: 1 }); // slide 2 is under way
+    expect(summary(slides, s.get, NOW)).toEqual({ learned: 1, total: 2, from: null, due: 1, left: 1 }); // slide 2 is under way
   });
 
   test("a miss on one sentence drops only that sentence; the unit is as well known as its weakest", () => {
@@ -118,7 +118,7 @@ describe("what comes next", () => {
     });
     const first = pick(slides, s.get, NOW)!;
     expect([first.unit.slide.n, first.due, header(first, 3)]).toEqual([1, true, "Again: slide 1 of 3"]);
-    expect(summary(slides, s.get, NOW)).toEqual({ learned: 0, total: 3, from: null, due: 3 });
+    expect(summary(slides, s.get, NOW)).toEqual({ learned: 0, total: 3, from: null, due: 3, left: 3 });
     const done = store({ [unitKey(a)]: { n: 5, done: true }, [sentenceKey(slides[0], slides[0].sentences[0])]: st(0.95, NOW, 3) });
     expect(pick([slides[0]], done.get, NOW)).toBeNull();
   });
@@ -177,5 +177,43 @@ describe("redact", () => {
     expect(redact(T, 0.9, [], ["to rank"], 4)).toMatch(/\bt_ r___\b/);
     expect(redact(T, 0.9, [], ["not in it", "..."], 4)).toBe(redact(T, 0.9, [], [], 4));
     expect([redact(T, 0, [], [], 5), redact(T, 1, [], [], 5)]).toEqual([T, ""]);
+  });
+});
+
+describe("the aims and today's goal", () => {
+  test("the gist: at most 55% hidden, 2 attempts a part, a Nearly counts; it stops at the goal", () => {
+    const g = AIMS.gist;
+    expect([hidden(0.5, g), hidden(0.95, g), hidden(0.2, g), hidden(0.95)]).toEqual([0.55, 0.55, 0.2, 1]);
+    const slides = [slide(1, 1), slide(2, 1), slide(3, 1)], s = store();
+    const walk: [number, number][] = [];
+    for (let k = 0; k < 4; k += 1) {
+      const p = pick(slides, s.get, NOW, g, 2)!;
+      walk.push([p.unit.slide.n, p.share]);
+      s.apply(record(p, [], k === 1 ? 70 : 100, NOW, undefined, g));
+    }
+    expect(walk).toEqual([[1, 0], [1, 0.55], [2, 0], [2, 0.55]]);
+    expect(pick(slides, s.get, NOW, g, 2)).toBeNull(); // slide 3 is past the goal
+    expect(summary(slides, s.get, NOW, g, 2)).toEqual({ learned: 2, total: 2, from: null, due: 0, left: 0 });
+    expect(header(pick(slides, s.get, NOW, g)!, 3, g)).toBe("Slide 3 of 3 (gist)");
+    // done at the gist is not done word for word: word for word, slide 1 comes back
+    expect(pick(slides, s.get, NOW, AIMS.verbatim, 2)!.unit.slide.n).toBe(1);
+    expect(summary(slides, s.get, NOW, AIMS.verbatim, 2).learned).toBe(0);
+  });
+
+  test("done at an aim holds for lower aims; a later gist pass keeps a word-for-word done", () => {
+    expect([doneAt(null, 0.5), doneAt({ n: 1, done: true }, 0.9), doneAt({ n: 1, done: true, aim: 0.5 }, 0.9),
+      doneAt({ n: 1, done: true, aim: 0.9 }, 0.5), doneAt({ n: 1, done: false }, 0.5)]).toEqual([false, true, false, true, false]);
+    const slides = [slide(1, 1)], [u] = units(slides);
+    const s = store({ [unitKey(u)]: { n: 4, done: true, aim: 0.9 }, [sentenceKey(slides[0], slides[0].sentences[0])]: st(0.95, NOW, 3) });
+    s.apply(record(view(u, s.get, NOW, AIMS.gist), [], 30, NOW, undefined, AIMS.gist));
+    expect(s.items[unitKey(u)]).toEqual({ n: 5, done: true, aim: 0.9 });
+    // done before there were aims counts as word for word
+    s.apply({ [unitKey(u)]: { n: 2, done: true } });
+    s.apply(record(view(u, s.get, NOW, AIMS.gist), [], 30, NOW, undefined, AIMS.gist));
+    expect(s.items[unitKey(u)]).toEqual({ n: 3, done: true, aim: 0.9 });
+    // a whole slide whose sentences were learned in its parts can be done on its first attempt
+    const w = store({ [sentenceKey(slides[0], slides[0].sentences[0])]: st(0.95, NOW, 3) });
+    w.apply(record(view(u, w.get, NOW), [], 100, NOW));
+    expect(w.items[unitKey(u)]).toEqual({ n: 1, done: true, aim: 0.9 });
   });
 });

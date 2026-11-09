@@ -17,7 +17,15 @@ import { perSentence } from "./score";
 import type { Sentence, Slide } from "./train";
 
 export type State = { m: number; at: number; passes: number; n: number; focus: string[]; full: number };
-export type UnitState = { n: number; done: boolean };
+// done: got at the aim held in aim (0.9 when missing, from before there were aims).
+export type UnitState = { n: number; done: boolean; aim?: number };
+
+// The aims: the running score at which a part counts as done. Get the gist moves on once the meaning is right with
+// about half the words hidden (2 attempts a part); word for word drills each part until it is fully hidden.
+export type Aim = "gist" | "verbatim";
+export const AIMS: Record<Aim, number> = { gist: 0.5, verbatim: 0.9 };
+// The score that counts as got: Nearly (60) is enough for the gist.
+const gotAt = (aim: number) => (aim < 0.9 ? 60 : GOT);
 type Get = <T>(key: string, fallback: T) => T;
 
 const HOUR = 3600 * 1000;
@@ -43,7 +51,11 @@ export const effective = (st: State | null, now: number) => {
 
 // The share of a sentence's words hidden: in proportion to its running score, so that 0.9 hides it all, in steps of
 // 5%. A new sentence got every time goes 0, 55%, 85%, 95%, then all of it: 5 attempts.
-export const hidden = (eff: number) => (eff >= 0.9 ? 1 : Math.round((eff / 0.9) * 20) / 20);
+// With an aim below word for word, no more is hidden than at the aim (55% for the gist).
+export const hidden = (eff: number, aim = 0.9) => {
+  const share = (x: number) => (x >= 0.9 ? 1 : Math.round((x / 0.9) * 20) / 20);
+  return Math.min(share(eff), share(aim));
+};
 
 // How a sentence's terms show: in full, by their first letter, or hidden like any word.
 export const termMode = (eff: number, st: State | null): "full" | "initial" | "hide" =>
@@ -65,31 +77,36 @@ export type Line = { sentence: Sentence; state: State | null; eff: number; share
 export type Pick = { unit: Unit; lines: Line[]; eff: number; share: number; due: boolean; state: UnitState | null };
 
 // A unit now: its sentences, its weakest sentence's score, and the share of its words hidden overall.
-export const view = (u: Unit, get: Get, now: number): Pick => {
+export const view = (u: Unit, get: Get, now: number, aim = 0.9): Pick => {
   const lines = said(u).map((sentence) => {
     const state = get<State | null>(sentenceKey(u.slide, sentence), null), eff = effective(state, now);
-    return { sentence, state, eff, share: hidden(eff) };
+    return { sentence, state, eff, share: hidden(eff, aim) };
   });
   const state = get<UnitState | null>(unitKey(u), null);
   const eff = Math.min(...lines.map((l) => l.eff));
   const words = lines.map((l) => l.sentence.text.split(/\s+/).length), all = words.reduce((a, b) => a + b, 0);
   const share = Math.round((20 * lines.reduce((a, l, k) => a + l.share * words[k], 0)) / all) / 20;
-  return { unit: u, lines, eff, share, due: !!state && eff < DUE, state };
+  return { unit: u, lines, eff, share, due: !!state && eff < (DUE * aim) / 0.9, state };
 };
+
+// Whether a unit is done at this aim: got at it, or at a higher one.
+export const doneAt = (st: UnitState | null, aim: number) => !!st?.done && (st.aim ?? 0.9) >= aim;
 
 // What to say next: a started unit whose weakest sentence has faded below DUE, lowest first; else a started unit not
 // yet done, lowest first; else the first new unit in talk order. null: everything is done and nothing is due.
-export const pick = (slides: Slide[], get: Get, now: number): Pick | null => {
-  const all = units(slides).map((u) => view(u, get, now));
+// goal: the last slide to work on today.
+export const pick = (slides: Slide[], get: Get, now: number, aim = 0.9, goal = Infinity): Pick | null => {
+  const all = units(slides.filter((s) => s.n <= goal)).map((u) => view(u, get, now, aim));
   const started = all.filter((x) => x.state);
   const low = (xs: Pick[]) => xs.slice().sort((a, b) => a.eff - b.eff)[0];
-  return low(started.filter((x) => x.due)) ?? low(started.filter((x) => !x.state?.done)) ?? all.find((x) => !x.state) ?? null;
+  return low(started.filter((x) => x.due)) ?? low(started.filter((x) => !doneAt(x.state, aim)))
+    ?? all.find((x) => !x.state) ?? null;
 };
 
 // The progress entries one attempt writes: each sentence's score from where its problems fall, the unit's attempt
 // count, and done when the whole unit was got with every sentence hidden. byHand: marked got (100) or missed (0) by
 // Tim, for every sentence.
-export const record = (p: Pick, problems: Problem[], unitScore: number, now: number, byHand?: boolean): Record<string, unknown> => {
+export const record = (p: Pick, problems: Problem[], unitScore: number, now: number, byHand?: boolean, aim = 0.9): Record<string, unknown> => {
   const texts = p.lines.map((l) => l.sentence.text);
   const scores = byHand === undefined ? perSentence(problems, texts) : texts.map(() => (byHand ? 100 : 0));
   const out: Record<string, unknown> = {};
@@ -99,8 +116,11 @@ export const record = (p: Pick, problems: Problem[], unitScore: number, now: num
     out[sentenceKey(p.unit.slide, l.sentence)] = update(l.state, scores[k], now,
       mine.filter((x) => x.kind !== "stumble").map((x) => x.script), mine.some((x) => x.kind === "wrong_term"));
   });
-  const got = byHand === undefined ? unitScore >= GOT : byHand;
-  out[unitKey(p.unit)] = { n: (p.state?.n ?? 0) + 1, done: got && p.lines.every((l) => l.share >= 1) };
+  const got = byHand === undefined ? unitScore >= gotAt(aim) : byHand;
+  const done = got && p.lines.every((l) => l.share >= hidden(1, aim));
+  // got at a lower aim than one already reached keeps the higher one
+  const best = Math.max(done ? aim : 0, p.state?.done ? p.state.aim ?? 0.9 : 0);
+  out[unitKey(p.unit)] = best ? { n: (p.state?.n ?? 0) + 1, done: true, aim: best } : { n: (p.state?.n ?? 0) + 1, done: false };
   return out;
 };
 
@@ -111,12 +131,13 @@ export const adjust = (p: Pick, to: typeof showAll, now: number): Record<string,
 });
 
 // The home screen: slides known (every unit done and not faded), the next new slide, and how many units are due.
-export const summary = (slides: Slide[], get: Get, now: number) => {
-  const spoken = slides.filter((s) => s.sentences.length);
-  const all = units(slides).map((u) => view(u, get, now));
-  const known = (s: Slide) => all.filter((x) => x.unit.slide === s).every((x) => !!x.state?.done && x.eff >= DUE);
+// Within the goal: slides up to that number.
+export const summary = (slides: Slide[], get: Get, now: number, aim = 0.9, goal = Infinity) => {
+  const spoken = slides.filter((s) => s.sentences.length && s.n <= goal);
+  const all = units(spoken).map((u) => view(u, get, now, aim));
+  const known = (s: Slide) => all.filter((x) => x.unit.slide === s).every((x) => doneAt(x.state, aim) && !x.due);
   return { learned: spoken.filter(known).length, total: spoken.length, from: all.find((x) => !x.state)?.unit.slide ?? null,
-    due: all.filter((x) => x.due).length };
+    due: all.filter((x) => x.due).length, left: all.filter((x) => !doneAt(x.state, aim) || x.due).length };
 };
 
 // Earlier progress, once: a unit's running score (flow:m:<slide>:<part>, the whole-unit version) seeds each of its
@@ -148,10 +169,10 @@ export const seedOf = (slide: Slide, l: Line) =>
   [...`${sentenceKey(slide, l.sentence)}:${l.state?.n ?? 0}`].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
 
 // The header over the card.
-export const header = (p: Pick, total: number) => {
+export const header = (p: Pick, total: number, aim = 0.9) => {
   const u = p.unit;
   const part = u.parts === 1 ? "" : u.whole ? ", whole slide" : `, part ${u.part} of ${u.parts - 1}`;
-  return `${p.due ? "Again: slide" : "Slide"} ${u.slide.n} of ${total}${part}`;
+  return `${p.due ? "Again: slide" : "Slide"} ${u.slide.n} of ${total}${part}${aim < 0.9 ? " (gist)" : ""}`;
 };
 
 // What the card asks for.

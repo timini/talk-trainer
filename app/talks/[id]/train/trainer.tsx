@@ -63,7 +63,7 @@ function Train({ engine: e }: { engine: Engine }) {
   }, [e]);
 
   const sum = e.summary();
-  const status = e.screen === "session" && e.item ? header(e.item, e.slides.length) : e.script.talk.title;
+  const status = e.screen === "session" && e.item ? header(e.item, e.slides.length, e.aimAt) : e.script.talk.title;
   return (
     <div className="trainer" data-screen={e.screen}>
       <header className="tr-head">
@@ -81,10 +81,13 @@ function Train({ engine: e }: { engine: Engine }) {
         {e.screen === "home" && <Home e={e} />}
         {e.screen === "session" && <Card e={e} />}
         {e.screen === "done" && (
-          <section className="stack">
-            <h1>Every slide is learned</h1>
-            <p>Nothing is due now. Come back later: slides you know fade over time and come back with some text showing.</p>
-            <button type="button" className="big primary" onClick={() => e.show("home")}>Back to the start</button>
+          <section className="stack" data-testid="goal-reached">
+            <h1>{`Goal reached: slides 1 to ${Math.min(e.goal, e.slides.length)}${e.aim === "gist" ? " at the gist" : " word for word"}`}</h1>
+            <p>Nothing up to there is due now. Slides you know fade over time and come back with some text showing.</p>
+            {e.goal < e.slides.length && (
+              <button type="button" className="big primary" onClick={() => { e.setGoal(e.goal + 10); e.start(); }}>
+                {`Carry on to slide ${Math.min(e.goal + 10, e.slides.length)}`}</button>)}
+            <button type="button" className="big" onClick={() => e.show("home")}>Back to the start</button>
           </section>
         )}
       </main>
@@ -102,6 +105,17 @@ function Home({ e }: { e: Engine }) {
       {e.talkAt && <p className="countdown">{countdown(now, e.talkAt)}</p>}
       <p className="hstatus" data-testid="learned">{`${sum.learned} of ${plural(sum.total, "slide")} learned`}</p>
       <div className="meter"><span style={{ width: `${(100 * sum.learned) / Math.max(1, sum.total)}%` }} /></div>
+      <div className="aim" role="radiogroup" aria-label="Aim">
+        <label><input type="radio" name="aim" checked={e.aim === "gist"} onChange={() => e.setAim("gist")} />
+          {" "}Get the gist: move on once the meaning is right with about half hidden</label>
+        <label><input type="radio" name="aim" checked={e.aim === "verbatim"} onChange={() => e.setAim("verbatim")} />
+          {" "}Word for word: drill each part until it is fully hidden</label>
+      </div>
+      <label className="goal">Today, up to slide{" "}
+        <input type="number" min={1} max={e.slides.length} value={e.goal} aria-label="Up to slide"
+          onChange={(ev) => e.setGoal(Number(ev.target.value))} />
+        {` of ${e.slides.length}`}</label>
+      {sum.left > 0 && <p className="note" data-testid="left">{`${plural(sum.left, "part")} to go, about ${plural(Math.max(1, Math.round((sum.left * (e.aim === "gist" ? 2 : 5) * 40) / 60)), "minute")}.`}</p>}
       <button type="button" className="big primary" disabled={!todo} onClick={() => e.start()}>
         {todo ? "Start" : "Every slide is learned"}
       </button>

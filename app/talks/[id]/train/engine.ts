@@ -7,7 +7,7 @@
 // while the judge works, then the verdict on the card just said. The progress moves when the verdict arrives.
 
 import { clipsOf, migrate, mustOf, textOf } from "@/lib/flow";
-import { adjust, knowIt, migrate as toMastery, type Pick, pick, record, showAll, summary, unitKey } from "@/lib/mastery";
+import { adjust, type Aim, AIMS, knowIt, migrate as toMastery, type Pick, pick, record, showAll, summary, unitKey } from "@/lib/mastery";
 import { grade } from "@/lib/grade";
 import { judged, type Verdict } from "@/lib/judge";
 import { empty } from "@/lib/score";
@@ -97,7 +97,18 @@ export class Engine {
       && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
   }
   setMic(on: boolean) { this.set("train:mic", on); this.blocked = false; this.emit(); }
-  summary() { return summary(this.slides, this.get, this.now); }
+  // The aim (get the gist, or word for word; the gist by default) and the last slide to work on today.
+  get aim(): Aim { return this.get<Aim>("train:aim", "gist"); }
+  get aimAt() { return AIMS[this.aim] ?? AIMS.gist; }
+  setAim(aim: Aim) { this.set("train:aim", aim); this.pushSoon(); this.emit(); }
+  get goal() { return this.get<number>("train:goal", 14); }
+  setGoal(n: number) {
+    if (!Number.isFinite(n) || n < 1) return;
+    this.set("train:goal", Math.min(Math.round(n), this.slides.length));
+    this.pushSoon();
+    this.emit();
+  }
+  summary() { return summary(this.slides, this.get, this.now, this.aimAt, this.goal); }
 
   show(screen: Screen) {
     this.halt();
@@ -112,7 +123,7 @@ export class Engine {
   // After a verdict: the next thing to say, or the done screen when everything is learned.
   go() {
     this.halt();
-    this.item = pick(this.slides, this.get, Date.now());
+    this.item = pick(this.slides, this.get, Date.now(), this.aimAt, this.goal);
     Object.assign(this, { phase: "ready", result: null, counted: null, note: "", before: {} });
     if (!this.item && this.screen === "session") this.screen = "done";
     this.emit();
@@ -125,7 +136,7 @@ export class Engine {
     Object.entries(this.before).forEach(([k, v]) => (v === undefined ? this.remove(k) : this.set(k, v)));
     const judged = !byHand && this.result?.score !== undefined;
     const entries = record(item, judged ? this.result?.problems ?? [] : [], judged ? this.result?.score ?? 0 : 0, now,
-      judged ? undefined : pass);
+      judged ? undefined : pass, this.aimAt);
     this.before = Object.fromEntries(Object.keys(entries).map((k) => [k, this.get<unknown>(k, undefined)]));
     Object.entries(entries).forEach(([k, v]) => this.set(k, v));
     const dates = this.get<string[]>("train:days", []);

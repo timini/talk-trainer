@@ -104,3 +104,8 @@ table.grid td.n { text-align: right; white-space: nowrap; }
 .mastery { display: flex; gap: 0.25rem; margin: 0.3rem 0; }
 .mastery span { flex: 1; height: 0.4rem; background: #e6f9fe; border-radius: 0.2rem; overflow: hidden; }
 .mastery i { display: block; height: 100%; background: #26913c; }
+
+/* The aim and today's goal on the home screen */
+.aim { display: grid; gap: 0.4rem; text-align: left; margin: 1rem auto; max-width: 28rem; font-size: 0.95rem; }
+.goal { display: block; margin: 0.5rem 0; font-size: 0.95rem; }
+.goal input { width: 4rem; font: inherit; padding: 0.2rem 0.3rem; }

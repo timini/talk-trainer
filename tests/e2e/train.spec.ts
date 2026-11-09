@@ -13,11 +13,12 @@ const verdict = (page: Page, json: Record<string, unknown>) => page.route("**/ap
 const status = (page: Page) => page.getByTestId("status");
 const big = (page: Page, name: string) => page.locator(".actions").getByRole("button", { name, exact: true });
 
-async function open(page: Page, title: string): Promise<Script> {
+async function open(page: Page, title: string, aim: "gist" | "verbatim" = "verbatim"): Promise<Script> {
   await signIn(page);
   const s = await newTalk(page, title);
   await page.goto(`/talks/${s.talk.id}/train`);
   await expect(page.getByTestId("learned")).toHaveText("0 of 2 slides learned");
+  if (aim === "verbatim") await page.getByLabel(/Word for word/).check();
   return s;
 }
 // Pass the attempt on screen with the stand-in judge, then Next.
@@ -133,4 +134,24 @@ test("cards from the earlier trainer: a slide well known there counts as learned
   }, { id: s.talk.id, hashes: s.slides[0].sentences.map((x) => x.hash) });
   await page.reload();
   await expect(page.getByTestId("from")).toHaveText(/slide 2: Flour and water\./);
+});
+
+test("get the gist: about half hidden, then the next slide; today's goal stops it, and Carry on goes further", async ({ page }) => {
+  await open(page, "Gist test", "gist");
+  await expect(page.getByLabel(/Get the gist/)).toBeChecked();
+  await page.getByLabel("Up to slide").fill("1");
+  await expect(page.getByTestId("left")).toHaveText("1 part to go, about 1 minute.");
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(status(page)).toHaveText("Slide 1 of 3 (gist)");
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
+  await pass(page);
+  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (55% hidden).");
+  await pass(page);
+  await expect(page.getByTestId("goal-reached")).toContainText("Goal reached: slides 1 to 1 at the gist");
+  await page.getByRole("button", { name: "Carry on to slide 3" }).click();
+  await expect(status(page)).toHaveText("Slide 2 of 3 (gist)");
+  // the aim and the goal are kept
+  await page.reload();
+  await expect(page.getByLabel(/Get the gist/)).toBeChecked();
+  await expect(page.getByLabel("Up to slide")).toHaveValue("3");
 });
