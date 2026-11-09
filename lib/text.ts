@@ -24,6 +24,41 @@ export const hide = (text: string, phrases: string[]): string => {
   return out + text.slice(last);
 };
 
+// A share of the words hidden, chosen afresh for each seed. keep: words never hidden (names, numbers, acronyms,
+// while they are not yet well known). cued: phrases missed last time, whose words, when hidden, show their first
+// letter instead of a blank. A hidden word is a blank as long as the word. share 1 hides the whole text ("").
+export const redact = (text: string, share: number, keep: string[], cued: string[], seed: number): string => {
+  if (share >= 1) return "";
+  const found = [...text.matchAll(WORD)].map((m) => ({ at: m.index as number, w: m[0], b: bare(m[0]) }));
+  const kept = new Set(keep.flatMap((k) => [...k.matchAll(WORD)].map((m) => bare(m[0]))));
+  const cue = new Set<number>();
+  for (const phrase of cued) {
+    const seq = [...phrase.matchAll(WORD)].map((m) => bare(m[0])).filter(Boolean);
+    for (let i = 0; seq.length && i + seq.length <= found.length; i += 1) {
+      if (seq.every((b, k) => found[i + k].b === b)) { seq.forEach((_, k) => cue.add(i + k)); break; }
+    }
+  }
+  // a seeded shuffle (mulberry32) of the words that may be hidden; the first share of all the words are hidden
+  let a = seed >>> 0;
+  const rand = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const open = found.map((_, i) => i).filter((i) => !kept.has(found[i].b));
+  for (let i = open.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [open[i], open[j]] = [open[j], open[i]]; }
+  const hide = new Set(open.slice(0, Math.min(open.length, Math.round(share * found.length))));
+  let out = "", last = 0;
+  found.forEach((f, i) => {
+    const shown = !hide.has(i) ? f.w : cue.has(i) ? f.w[0] + "_".repeat(f.w.length - 1) : "_".repeat(f.w.length);
+    out += text.slice(last, f.at) + shown;
+    last = f.at + f.w.length;
+  });
+  return out + text.slice(last);
+};
+
 // Sentences: split after . ! or ? (and a closing quote or bracket) and a space, so 0.95 stays whole.
 export const sentences = (text: string): string[] =>
   text.split(/(?<=[.!?]["”’)]?)\s+/).map((s) => s.trim()).filter(Boolean);

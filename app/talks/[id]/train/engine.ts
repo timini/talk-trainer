@@ -1,12 +1,13 @@
-// The trainer's state and actions in the browser, for the one-slide-at-a-time flow (lib/flow.ts): what to say
-// next, recording an attempt for the judge, the verdict on the same card, Hear it, and keeping the progress in
+// The trainer's state and actions in the browser (lib/mastery.ts): what to say next, recording an attempt for the
+// judge, the verdict on the same card, Hear it, and keeping the progress in
 // localStorage and online. The React component renders it and calls its actions; it says when to render again
 // through subscribe().
 //
 // One attempt at a time: tap to speak, tap to stop, then "Checking..."
 // while the judge works, then the verdict on the card just said. The progress moves when the verdict arrives.
 
-import { clipsOf, focusOf, type Item, migrate, mustOf, next, record, showFirst, summary, textOf } from "@/lib/flow";
+import { clipsOf, migrate, mustOf, textOf } from "@/lib/flow";
+import { keyOf, knowIt, migrate as toMastery, type Pick, pick, showAll, summary, update } from "@/lib/mastery";
 import { grade } from "@/lib/grade";
 import { judged, type Verdict } from "@/lib/judge";
 import { empty } from "@/lib/score";
@@ -30,7 +31,7 @@ const BITRATE = 16000;
 
 export class Engine {
   screen: Screen = "home";
-  item: Item | null = null;
+  item: Pick | null = null;
   phase: Phase = "ready";
   result: Judged | null = null;
   // How the attempt on screen was counted (the judge's pass, or the speaker's own mark), and the progress entries
@@ -82,8 +83,12 @@ export class Engine {
   // Progress from the earlier trainer, once: its well-known slides count as learned.
   private migrateOnce() {
     const items = this.items();
-    if (Object.keys(items).some((k) => k.startsWith("flow:"))) return;
-    Object.entries(migrate(this.slides, items)).forEach(([k, v]) => this.set(k, v));
+    if (!Object.keys(items).some((k) => k.startsWith("flow:"))) {
+      Object.entries(migrate(this.slides, items)).forEach(([k, v]) => this.set(k, v));
+    }
+    if (!Object.keys(this.items()).some((k) => k.startsWith("flow:m:"))) {
+      Object.entries(toMastery(this.slides, this.get, Date.now())).forEach(([k, v]) => this.set(k, v));
+    }
   }
 
   get talkAt() { return this.script.talk.talkAt; }
@@ -107,19 +112,21 @@ export class Engine {
   // After a verdict: the next thing to say, or the done screen when everything is learned.
   go() {
     this.halt();
-    this.item = next(this.slides, this.get, Date.now());
+    this.item = pick(this.slides, this.get, Date.now());
     Object.assign(this, { phase: "ready", result: null, counted: null, note: "", before: {} });
     if (!this.item && this.screen === "session") this.screen = "done";
     this.emit();
   }
 
-  // Count the attempt on screen: the flow moves on, and the day goes into the practice record.
-  private count(pass: boolean) {
-    const item = this.item as Item, now = Date.now(), day = ymd(now);
+  // Count the attempt on screen: the unit's running score moves (the judge's score, or 100 or 0 when marked by
+  // hand), and the day goes into the practice record.
+  private count(pass: boolean, byHand = false) {
+    const item = this.item as Pick, now = Date.now(), day = ymd(now);
     Object.entries(this.before).forEach(([k, v]) => (v === undefined ? this.remove(k) : this.set(k, v)));
     const missed = (this.result?.problems ?? []).filter((x) => x.kind === "left_out" || x.kind === "changed"
       || x.kind === "wrong_term").map((x) => x.script);
-    const entries = record(item, pass, this.get, now, missed);
+    const points = byHand || this.result?.score === undefined ? (pass ? 100 : 0) : this.result.score;
+    const entries = { [keyOf(item.unit)]: update(item.state, points, item.share, now, byHand ? [] : missed) };
     this.before = Object.fromEntries(Object.keys(entries).map((k) => [k, this.get<unknown>(k, undefined)]));
     Object.entries(entries).forEach(([k, v]) => this.set(k, v));
     const dates = this.get<string[]>("train:days", []);
@@ -130,21 +137,23 @@ export class Engine {
   // Count the attempt on screen the other way ("Count it as got").
   recount(pass: boolean) {
     if (this.phase !== "judged" || this.counted === pass) return;
-    this.count(pass);
+    this.count(pass, true);
     this.emit();
   }
   // Marking yourself, without the judge: the attempt counts, then on to the next.
   mark(pass: boolean) {
     if (this.screen !== "session" || !this.item || (this.phase !== "shown" && this.phase !== "failed")) return;
-    this.count(pass);
+    this.count(pass, true);
     this.go();
   }
-  // The phrases hidden at step 2 for the item on screen.
-  get focus() { return this.item ? focusOf(this.item, this.get, Date.now()) : []; }
-  // "Show me first": read it aloud with the text shown (step 1), then fill in the hidden words.
-  showMe() {
-    if (!this.item || this.phase !== "ready" || this.item.warm) return;
-    Object.entries(showFirst(this.item, this.get, Date.now())).forEach(([k, v]) => this.set(k, v));
+  // The phrases missed last time on the unit on screen: cued with their first letters.
+  get focus() { return this.item?.state?.focus ?? []; }
+  // "Show me": the whole text again for this unit. "I know this one": nearly all of it hidden.
+  showMe() { this.adjust(showAll); }
+  knowIt() { this.adjust(knowIt); }
+  private adjust(to: typeof showAll) {
+    if (!this.item || this.phase !== "ready") return;
+    this.set(keyOf(this.item.unit), to(this.item.state, Date.now()));
     this.pushSoon();
     this.go();
   }
@@ -199,7 +208,7 @@ export class Engine {
   // Stop recording and send the attempt to the judge; the card says "Checking..." until the verdict comes.
   stop() {
     if (this.phase !== "listening") return;
-    const rec = this.rec, item = this.item as Item;
+    const rec = this.rec, item = this.item as Pick;
     if (!rec) {
       // stopped before the microphone was ready: nothing was recorded
       Object.assign(this, { phase: "ready", note: "Nothing was recorded. Tap to speak again." });
@@ -226,14 +235,14 @@ export class Engine {
 
   // The judge: the recording, the text, the talk's names and the must-say items go to /api/grade, which asks
   // Gemini whether the meaning came through (lib/judge judged).
-  private async ask(item: Item, blob: Blob) {
+  private async ask(item: Pick, blob: Blob) {
     const parts = sentences(textOf(item.unit)), must = mustOf(item.unit);
     try {
       if (!blob.size) throw new Error("Nothing was recorded.");
       const audio = await base64(blob);
       const res = await this.fetcher("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "card", audio, mime: blob.type.split(";")[0], target: parts.join(" "),
-          glossary: this.script.talk.glossary, must, at: { unit: item.unit.key, step: item.step, warm: item.warm } }) });
+          glossary: this.script.talk.glossary, must, at: { unit: keyOf(item.unit), m: item.eff, hidden: item.share } }) });
       const body = await res.json().catch(() => ({})) as Verdict & { error?: string };
       if (!res.ok) throw new Error(body.error ?? `The judge answered ${res.status}.`);
       if (this.item !== item) return;

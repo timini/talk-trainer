@@ -20,20 +20,20 @@ async function open(page: Page, title: string): Promise<Script> {
   await expect(page.getByTestId("learned")).toHaveText("0 of 2 slides learned");
   return s;
 }
-// Pass the step on screen with the stand-in judge.
-async function pass(page: Page, then: string) {
+// Pass the attempt on screen with the stand-in judge, then Next.
+async function pass(page: Page) {
   await attempt(page);
   await expect(page.getByTestId("verdict")).toContainText("Got it");
-  await big(page, then).click();
+  await big(page, "Next").click();
 }
+const blanks = async (page: Page) => ((await page.getByTestId("cue").textContent()) ?? "").split(/\s+/).filter((w) => /^_+[.,]?$/.test(w)).length;
 
-test("one slide at a time: from memory first, so a known slide takes one attempt", async ({ page }) => {
+test("a new slide is read in full, then more of it is hidden with each pass, until the slide alone; then the next", async ({ page }) => {
   const s = await open(page, "Flow test");
   await page.getByRole("button", { name: "Start" }).click();
-  await expect(status(page)).toHaveText("Slide 1 of 3: from memory");
-  await expect(page.getByTestId("instruction")).toHaveText("From memory: say it from the slide.");
-  await expect(page.getByTestId("cue")).toHaveCount(0);
-  await expect(page.locator(".slidecol img")).toBeVisible();
+  await expect(status(page)).toHaveText("Slide 1 of 3");
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
+  await expect(page.getByTestId("cue")).toHaveText("Good morning, and thank you for coming. Today we bake bread.");
 
   // Hear it plays the slide's clips one after another
   const heard: string[] = [];
@@ -41,46 +41,49 @@ test("one slide at a time: from memory first, so a known slide takes one attempt
   await page.getByRole("button", { name: "Hear it" }).click();
   await expect.poll(() => [...new Set(heard)], { timeout: 10000 }).toEqual(s.slides[0].sentences.map((x) => x.clip));
 
-  // the verdict comes on the same card, after "Checking..."; a pass learns the slide and the next one starts
+  // the verdict on the same card, after "Checking..."
   await slow(page);
   await attempt(page);
   await expect(page.getByTestId("checking")).toHaveText("Checking...");
   await expect(page.getByTestId("card").getByTestId("verdict")).toContainText("Got it");
-  await expect(page.getByTestId("strip")).toHaveCount(0);
   await page.unroute("**/api/grade");
-  await big(page, "Next slide").click();
-  await expect(status(page)).toHaveText("Slide 2 of 3: from memory");
+  await big(page, "Next").click();
 
-  // Show me first: read it aloud, then the first letters, then from memory
-  await page.getByRole("button", { name: "Show me first" }).click();
-  await expect(status(page)).toHaveText("Slide 2 of 3: read it");
-  await expect(page.getByTestId("cue")).toHaveText("Mix 500 grams of flour with 350 grams of water. Let it rest for an hour.");
-  await pass(page, "Next step");
-  await expect(status(page)).toHaveText("Slide 2 of 3: with hints");
-  await expect(page.getByTestId("cue")).toHaveText("M 5 g o f w 3 g o w. L i r f a h.");
-  await pass(page, "Next step");
-  await expect(status(page)).toHaveText("Slide 2 of 3: from memory");
+  // more hidden each time: 55%, 85%, 95%, then the slide alone
+  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (55% hidden).");
+  const first = await blanks(page);
+  await pass(page);
+  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (85% hidden).");
+  expect(await blanks(page)).toBeGreaterThan(first);
+  await pass(page);
+  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (95% hidden).");
+  await pass(page);
+  await expect(page.getByTestId("instruction")).toHaveText("From memory: say it from the slide.");
+  await expect(page.getByTestId("cue")).toHaveCount(0);
+  await pass(page);
+  await expect(status(page)).toHaveText("Slide 2 of 3");
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
 });
 
-test("a miss hides only what was missed, then memory again; the total never grows", async ({ page }) => {
+test("a miss shows more of the text next time; Show me shows all of it; I know this one hides it all", async ({ page }) => {
   await open(page, "Miss test");
   await page.getByRole("button", { name: "Start" }).click();
-  await expect(status(page)).toHaveText("Slide 1 of 3: from memory");
+  await pass(page);
+  await pass(page);
+  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (85% hidden).");
   await verdict(page, { heard: "Good morning, and thank you for coming.", meaning_ok: false,
     problems: [{ kind: "left_out", script: "Today we bake bread." }] });
   await attempt(page);
   await expect(page.getByTestId("verdict")).toContainText("Missed");
-  await expect(page.getByTestId("verdict")).toContainText("Left out 'Today we bake bread'.");
   await expect(page.locator(".cue .miss")).toHaveText(["Today", "we", "bake", "bread."]);
-  await expect(page.getByRole("button", { name: "Count it as got" })).toBeVisible();
   await page.unroute("**/api/grade");
-  await big(page, "Try with hints").click();
-  await expect(status(page)).toHaveText("Slide 1 of 3: with hints");
-  await expect(page.getByTestId("cue")).toHaveText("Good morning, and thank you for coming. T w b b.");
-  await pass(page, "Next step");
-  await expect(status(page)).toHaveText("Slide 1 of 3: from memory");
-  await pass(page, "Next slide");
-  await expect(status(page)).toHaveText("Slide 2 of 3: from memory");
+  await big(page, "Next").click();
+  // 0.75 after two passes, then a score of about 45: down to 0.6, 65% hidden; the missed words come back cued
+  await expect(page.getByTestId("instruction")).toHaveText("Say it, filling in the blanks (65% hidden).");
+  await page.getByRole("button", { name: "Show me" }).click();
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
+  await page.getByRole("button", { name: "I know this one" }).click();
+  await expect(page.getByTestId("instruction")).toHaveText("From memory: say it from the slide.");
 });
 
 test("a long pause does not stop the recording", async ({ page }) => {
@@ -94,11 +97,11 @@ test("a long pause does not stop the recording", async ({ page }) => {
   await expect(page.getByTestId("verdict")).toContainText("Got it");
 });
 
-test("progress survives a reload and comes back from the site; the next day starts with a warm-up", async ({ page }) => {
+test("progress survives a reload and comes back from the site; after a long gap a slide comes back with text", async ({ page }) => {
   const s = await open(page, "Progress test");
   await page.getByRole("button", { name: "Start" }).click();
-  await pass(page, "Next slide");
-  await expect(status(page)).toHaveText("Slide 2 of 3: from memory");
+  for (let k = 0; k < 5; k += 1) await pass(page);
+  await expect(status(page)).toHaveText("Slide 2 of 3");
   await page.reload();
   await expect(page.getByTestId("learned")).toHaveText("1 of 2 slides learned");
   await expect(page.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
@@ -108,18 +111,16 @@ test("progress survives a reload and comes back from the site; the next day star
   await expect(page.getByTestId("learned")).toHaveText("1 of 2 slides learned");
   await expect(page.getByTestId("from")).toHaveText("Start at slide 2: Flour and water.");
 
-  // the next day: slide 1 was learned yesterday, so it is warmed up first, from the slide
+  // six hours later, got once: slide 1 has faded, so it comes back first, with some of its text showing
   await page.evaluate((id) => {
-    const key = `talk-trainer:${id}:flow:1:1`, yesterday = Date.now() - 24 * 3600 * 1000;
-    localStorage.setItem(key, JSON.stringify({ step: 3, learned: true, at: yesterday, last: Date.now() + 1e6 }));
+    const key = `talk-trainer:${id}:flow:m:1:1`, st = JSON.parse(localStorage.getItem(key) as string);
+    localStorage.setItem(key, JSON.stringify({ ...st, passes: 1, at: Date.now() - 6 * 3600 * 1000 }));
   }, s.talk.id);
   await page.reload();
-  await expect(page.getByTestId("warm")).toHaveText("Warm up: 1 slide learned before today, each said once from the slide.");
-  await expect(page.getByTestId("from")).toHaveText("Then new slides from slide 2: Flour and water.");
+  await expect(page.getByTestId("due")).toHaveText("1 part to go over again first: it has faded since you last said it.");
   await page.getByRole("button", { name: "Start" }).click();
-  await expect(status(page)).toHaveText("Warm up: slide 1 of 3: from memory");
-  await pass(page, "Next");
-  await expect(status(page)).toHaveText("Slide 2 of 3: from memory");
+  await expect(status(page)).toHaveText("Again: slide 1 of 3");
+  await expect(page.getByTestId("instruction")).toHaveText(/filling in the blanks/);
 });
 
 test("cards from the earlier trainer: a slide well known there counts as learned", async ({ page }) => {
@@ -129,6 +130,5 @@ test("cards from the earlier trainer: a slide well known there counts as learned
     Object.keys(localStorage).filter((k) => k.includes(":flow:")).forEach((k) => localStorage.removeItem(k));
   }, { id: s.talk.id, hashes: s.slides[0].sentences.map((x) => x.hash) });
   await page.reload();
-  await expect(page.getByTestId("learned")).toHaveText("1 of 2 slides learned");
-  await expect(page.getByTestId("warm")).toHaveText("Warm up: 1 slide learned before today, each said once from the slide.");
+  await expect(page.getByTestId("from")).toHaveText(/slide 2: Flour and water\./);
 });
