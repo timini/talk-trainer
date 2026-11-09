@@ -148,7 +148,8 @@ describe("judging in the background", () => {
   });
 
   test("the strip about the last card", () => {
-    const missed = judged(local, { meaning_ok: true, problems: [{ kind: "stumble", script: "Mix", said: "mix mix" }] });
+    const missed = judged(local, { meaning_ok: false, problems: [{ kind: "stumble", script: "Mix", said: "mix mix" },
+      { kind: "stumble", script: "Mix", said: "mix mix" }, { kind: "stumble", script: "Mix", said: "mix mix" }] });
     const got = judged(local, { meaning_ok: true, problems: [] });
     expect(lastLine({ checking: true, result: null, marked: null, error: "" })).toEqual({ text: "Last: checking...", tone: "" });
     expect(lastLine({ checking: false, result: got, marked: true, error: "" })).toEqual({ text: "Last: Got it", tone: "good" });

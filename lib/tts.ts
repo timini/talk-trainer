@@ -5,7 +5,8 @@
 
 export const TTS_MODEL = "gemini-3.8-flash-tts";
 export const VOICE = "Achird";
-export const STYLE = "a calm, clear conference speaker";
+// British, as the talk is given: without the accent named, Gemini speaks with an American one (Tim, 9 November).
+export const STYLE = "a calm conference speaker with a standard southern British English accent";
 export const API = "https://generativelanguage.googleapis.com";
 // Gemini's audio: 16-bit little-endian PCM, mono, 24 kHz.
 const RATE = 24000;

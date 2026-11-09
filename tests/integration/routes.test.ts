@@ -54,6 +54,6 @@ describe("the talk routes", () => {
     ctx.env = { DB: cf.db, FILES: cf.files, BUILD: { create } };
     const res = await talks.POST(new Request("https://x.test/api/talks", { method: "POST", body: deck([{ title: "W" }]) }));
     const { id } = await res.json() as { id: string };
-    expect(create).toHaveBeenCalledWith({ id, params: { talk: id } });
+    expect(create).toHaveBeenCalledWith({ id: expect.stringMatching(new RegExp(`^${id}-\\d+$`)), params: { talk: id } });
   });
 });

@@ -5,8 +5,9 @@
 // Each slide or part starts with a test from memory, so what Tim already knows costs one attempt:
 // 3. Say it from the slide alone. A pass learns it; a miss goes to step 2.
 // 2. Fill in the hidden words: the phrases the judge said were missed are hidden as first letters and the rest is
-//    shown (with nothing missed yet, every word is first letters). A pass goes back to step 3; a miss repeats it.
-// 1. Read it aloud, with the text shown, when Tim asks to see it first ("Show me first"). It cannot fail; then step 2.
+//    shown (with nothing missed yet, every word is first letters). A pass goes back to step 3; a miss goes to step 1.
+// 1. Read it aloud, with the text shown: after a miss with hints, or when Tim asks ("Show me first"). It cannot
+//    fail; then step 2.
 // The phrases missed on a unit are kept (focus) until it is learned, so the help is only where it is needed.
 //
 // Each day starts with a warm-up: the slides learned before today, in talk order, each said once from the slide
@@ -21,22 +22,28 @@ import type { Slide } from "./train";
 
 export type Step = 1 | 2 | 3;
 export type PartState = { step: Step; learned: boolean; last: number; at?: number; focus?: string[] };
-export type Warm = { done: number[]; step: 2 | 3; focus?: string[] };
+export type Warm = { done: number[]; step: Step; focus?: string[] };
 // One thing to learn: a part of a slide (sentences from to to, end not included), or the whole slide.
 export type Unit = { slide: Slide; part: number; parts: number; from: number; to: number; whole: boolean; key: string };
 export type Item = { unit: Unit; step: Step; warm: boolean };
 type Get = <T>(key: string, fallback: T) => T;
 
-// At most this many sentences are said in one go.
-export const MOST = 3;
+// At most about this many characters are said in one go: on 9 November Tim passed 2 of 7 attempts of 250 or more
+// characters, and most under 150. A longer sentence stands alone.
+export const MOST = 200;
 
-// A slide's parts: one part for a slide of up to 3 sentences, which is the whole slide; otherwise parts of 3 (the
-// last may be shorter), then the whole slide. None for a slide with no script.
+// A slide's parts: sentences grouped, in order, into parts of at most MOST characters (a longer sentence on its
+// own), then the whole slide. A slide that fits in one part is just the whole slide. None for a slide with no script.
 export const unitsOf = (slide: Slide): Unit[] => {
   const n = slide.sentences.length;
   if (!n) return [];
   const spans: [number, number][] = [];
-  if (n > MOST) for (let from = 0; from < n; from += MOST) spans.push([from, Math.min(n, from + MOST)]);
+  let from = 0, size = 0;
+  slide.sentences.forEach((x, i) => {
+    if (i > from && size + 1 + x.text.length > MOST) { spans.push([from, i]); from = i; size = 0; }
+    size += (size ? 1 : 0) + x.text.length;
+  });
+  if (spans.length) spans.push([from, n]);
   spans.push([0, n]);
   return spans.map(([from, to], k) => ({ slide, part: k + 1, parts: spans.length, from, to, whole: k === spans.length - 1,
     key: `flow:${slide.n}:${k + 1}` }));
@@ -55,18 +62,21 @@ export const mustOf = (u: Unit) => u.slide.sentences.slice(u.from, u.to).flatMap
 export const firstStep = (): Step => 3;
 
 // Where an attempt leads.
+// A miss goes down a level (memory to hints, hints to reading it), so Tim is never stuck on something he cannot
+// recall, such as an acronym; reading it always goes on to hints.
 export const move = (step: Step, pass: boolean): { step: Step; learned: boolean } => {
   if (step === 1) return { step: 2, learned: false };
-  if (!pass) return { step: 2, learned: false };
+  if (!pass) return { step: step === 3 ? 2 : 1, learned: false };
   return step === 2 ? { step: 3, learned: false } : { step: 3, learned: true };
 };
 
 const warmKey = (now: number) => `flow:warm:${ymd(now)}`;
 
 // The phrases still being worked on for an item.
-export const focusOf = (item: Item, get: Get, now: number): string[] => (item.warm
-  ? get<Warm>(warmKey(now), { done: [], step: 3 }).focus ?? []
-  : get<PartState | null>(item.unit.key, null)?.focus ?? []);
+export const focusOf = (item: Item, get: Get, now: number): string[] => {
+  const own = get<PartState | null>(item.unit.key, null)?.focus ?? [];
+  return item.warm ? joined(own, get<Warm>(warmKey(now), { done: [], step: 3 }).focus ?? []) : own;
+};
 const joined = (a: string[], b: string[]) => [...new Set([...a, ...b])];
 const wholeOf = (s: Slide) => unitsOf(s).at(-1) as Unit;
 const stateOf = (get: Get, u: Unit) => get<PartState | null>(u.key, null);
@@ -94,13 +104,13 @@ export const next = (slides: Slide[], get: Get, now: number): Item | null => {
 
 // The progress entries an attempt writes. missed: the phrases the judge said were left out, changed or wrong.
 export const record = (item: Item, pass: boolean, get: Get, now: number, missed: string[] = []): Record<string, unknown> => {
-  const focus = joined(focusOf(item, get, now), pass ? [] : missed);
+  const focus = joined(focusOf(item, get, now), missed);
   const to = move(item.step, pass);
   if (item.warm) {
     const w = get<Warm>(warmKey(now), { done: [], step: 3 });
     return { [warmKey(now)]: to.learned ? { done: w.done.concat(item.unit.slide.n), step: 3 } : { ...w, step: to.step, focus } };
   }
-  return { [item.unit.key]: to.learned ? { step: 3, learned: true, last: now, at: now }
+  return { [item.unit.key]: to.learned ? { step: 3, learned: true, last: now, at: now, ...(missed.length ? { focus: missed } : {}) }
     : { step: to.step, learned: false, last: now, focus } };
 };
 
@@ -142,11 +152,11 @@ export const migrate = (slides: Slide[], items: Record<string, unknown>): Record
   return out;
 };
 
-// The big button after a verdict: step 1 always goes on; a miss tries again (at step 2); a pass goes to the next
-// step, or on to the next part, slide or warm-up slide.
+// The big button after a verdict: step 1 always goes on; a miss says where it goes down to (hints, or reading it);
+// a pass goes to the next step, or on to the next part, slide or warm-up slide.
 export const nextLabel = (item: Item, pass: boolean) => {
   if (item.step === 1) return "Next step";
-  if (!pass) return "Try again";
+  if (!pass) return item.step === 3 ? "Try with hints" : "Read it first";
   if (item.step === 2) return "Next step";
   return item.warm ? "Next" : item.unit.whole ? "Next slide" : "Next part";
 };

@@ -66,14 +66,15 @@ test("a miss hides only what was missed, then memory again; the total never grow
   await open(page, "Miss test");
   await page.getByRole("button", { name: "Start" }).click();
   await expect(status(page)).toHaveText("Slide 1 of 3: from memory");
-  await verdict(page, { meaning_ok: false, problems: [{ kind: "left_out", script: "Today we bake bread." }] });
+  await verdict(page, { heard: "Good morning, and thank you for coming.", meaning_ok: false,
+    problems: [{ kind: "left_out", script: "Today we bake bread." }] });
   await attempt(page);
   await expect(page.getByTestId("verdict")).toContainText("Missed");
   await expect(page.getByTestId("verdict")).toContainText("Left out 'Today we bake bread'.");
   await expect(page.locator(".cue .miss")).toHaveText(["Today", "we", "bake", "bread."]);
   await expect(page.getByRole("button", { name: "Count it as got" })).toBeVisible();
   await page.unroute("**/api/grade");
-  await big(page, "Try again").click();
+  await big(page, "Try with hints").click();
   await expect(status(page)).toHaveText("Slide 1 of 3: with hints");
   await expect(page.getByTestId("cue")).toHaveText("Good morning, and thank you for coming. T w b b.");
   await pass(page, "Next step");

@@ -7,8 +7,10 @@ import { merge } from "@/lib/schedule";
 import type { Slide } from "@/lib/train";
 
 const NOW = Date.parse("2026-11-10T12:00:00Z"), YESTERDAY = NOW - 24 * 3600 * 1000;
+// A sentence of 99 characters: two fit in one part (199 with the space between), three do not.
+const say = (n: number, i: number) => `Sentence ${n}.${i + 1} ${"word ".repeat(16)}`.padEnd(95, "w") + "end.";
 const slide = (n: number, count: number, clips = true): Slide => ({ n, title: `Slide ${n}`, image: null,
-  sentences: Array.from({ length: count }, (_, i) => ({ i: i + 1, text: `Sentence ${n}.${i + 1}.`, hash: `h${n}${i}`,
+  sentences: Array.from({ length: count }, (_, i) => ({ i: i + 1, text: say(n, i), hash: `h${n}${i}`,
     clip: clips ? `/c/${n}-${i}.wav` : null, must_say: [`${n}${i}`] })) });
 // A store of progress items, as the engine keeps them.
 const store = (items: Record<string, unknown> = {}) => {
@@ -17,19 +19,18 @@ const store = (items: Record<string, unknown> = {}) => {
 };
 
 describe("parts", () => {
-  test("a slide of up to 3 sentences is one part, the whole slide; more are split into 3s, then the whole slide", () => {
+  test("parts of at most 200 characters at sentence ends, then the whole slide; a longer sentence stands alone", () => {
+    expect(say(1, 0).length).toBe(99);
     const shape = (count: number) => unitsOf(slide(1, count)).map((u) => [u.from, u.to, u.whole]);
     expect(shape(0)).toEqual([]);
     expect(shape(1)).toEqual([[0, 1, true]]);
     expect(shape(2)).toEqual([[0, 2, true]]);
-    expect(shape(3)).toEqual([[0, 3, true]]);
-    expect(shape(4)).toEqual([[0, 3, false], [3, 4, false], [0, 4, true]]);
-    expect(shape(5)).toEqual([[0, 3, false], [3, 5, false], [0, 5, true]]);
-    expect(shape(6)).toEqual([[0, 3, false], [3, 6, false], [0, 6, true]]);
-    expect(shape(7)).toEqual([[0, 3, false], [3, 6, false], [6, 7, false], [0, 7, true]]);
-    expect(shape(8)).toEqual([[0, 3, false], [3, 6, false], [6, 8, false], [0, 8, true]]);
-    expect(shape(9)).toEqual([[0, 3, false], [3, 6, false], [6, 9, false], [0, 9, true]]);
-    expect(MOST).toBe(3);
+    expect(shape(3)).toEqual([[0, 2, false], [2, 3, false], [0, 3, true]]);
+    expect(shape(5)).toEqual([[0, 2, false], [2, 4, false], [4, 5, false], [0, 5, true]]);
+    const odd: Slide = { ...slide(9, 3), sentences: ["Short one.", "x".repeat(250) + ".", "Short two."].map((text, i) =>
+      ({ i: i + 1, text, hash: `o${i}`, clip: null, must_say: [] })) };
+    expect(unitsOf(odd).map((u) => [u.from, u.to])).toEqual([[0, 1], [1, 2], [2, 3], [0, 3]]);
+    expect(MOST).toBe(200);
     const u = unitsOf(slide(4, 4));
     expect(u.map((x) => [x.key, x.part, x.parts])).toEqual([["flow:4:1", 1, 3], ["flow:4:2", 2, 3], ["flow:4:3", 3, 3]]);
     expect(units([slide(1, 1), slide(2, 0), slide(3, 2)]).map((x) => x.key)).toEqual(["flow:1:1", "flow:3:1"]);
@@ -37,9 +38,9 @@ describe("parts", () => {
 
   test("a unit's text, clips and must-say items", () => {
     const [first, , whole] = unitsOf(slide(2, 4));
-    expect(textOf(first)).toBe("Sentence 2.1. Sentence 2.2. Sentence 2.3.");
+    expect(textOf(first)).toBe(`${say(2, 0)} ${say(2, 1)}`);
     expect(clipsOf(whole)).toEqual(["/c/2-0.wav", "/c/2-1.wav", "/c/2-2.wav", "/c/2-3.wav"]);
-    expect(mustOf(first)).toEqual(["20", "21", "22"]);
+    expect(mustOf(first)).toEqual(["20", "21"]);
     expect(clipsOf(unitsOf(slide(3, 2, false))[0])).toBeNull();
   });
 });
@@ -47,32 +48,41 @@ describe("parts", () => {
 describe("steps", () => {
   test("step 1 always moves on; step 2 goes on or repeats; step 3 learns or goes back to step 2", () => {
     expect([move(1, true), move(1, false)]).toEqual([{ step: 2, learned: false }, { step: 2, learned: false }]);
-    expect([move(2, true), move(2, false)]).toEqual([{ step: 3, learned: false }, { step: 2, learned: false }]);
+    expect([move(2, true), move(2, false)]).toEqual([{ step: 3, learned: false }, { step: 1, learned: false }]);
     expect([move(3, true), move(3, false)]).toEqual([{ step: 3, learned: true }, { step: 2, learned: false }]);
     const [part, , whole] = unitsOf(slide(1, 4));
     expect(firstStep()).toBe(3);
     const item = (step: 1 | 2 | 3, warm = false, u = part): Item => ({ unit: u, step, warm });
     expect([nextLabel(item(1), false), nextLabel(item(2), false), nextLabel(item(2), true), nextLabel(item(3), true),
       nextLabel(item(3, false, whole), true), nextLabel(item(3, true, whole), true), nextLabel(item(3), false)])
-      .toEqual(["Next step", "Try again", "Next step", "Next part", "Next slide", "Next", "Try again"]);
+      .toEqual(["Next step", "Read it first", "Next step", "Next part", "Next slide", "Next", "Try with hints"]);
     expect(INSTRUCTIONS).toEqual({ 1: "Read it aloud.", 2: "Say it, filling in the hidden words.", 3: "From memory: say it from the slide." });
   });
 
   test("each slide starts from memory: a known slide takes one attempt; a miss gets hints, then memory again", () => {
     const slides = [slide(1, 2), slide(2, 0), slide(3, 1)], s = store();
     const walk: string[] = [];
-    for (const [pass, missed] of [[false, ["Sentence 1.2"]], [false, ["1.1"]], [true, []], [true, []], [true, []]] as [boolean, string[]][]) {
+    for (const [pass, missed] of [[false, ["Sentence 1.2"]], [false, ["1.1"]], [true, []], [true, []], [true, []], [true, []]] as [boolean, string[]][]) {
       const item = next(slides, s.get, NOW) as Item;
       walk.push(header(item, 3));
       s.apply(record(item, pass, s.get, NOW, missed));
       if (walk.length === 2) expect(focusOf(next(slides, s.get, NOW) as Item, s.get, NOW)).toEqual(["Sentence 1.2", "1.1"]);
     }
-    expect(walk).toEqual(["Slide 1 of 3: from memory", "Slide 1 of 3: with hints", "Slide 1 of 3: with hints",
-      "Slide 1 of 3: from memory", "Slide 3 of 3: from memory"]);
+    expect(walk).toEqual(["Slide 1 of 3: from memory", "Slide 1 of 3: with hints", "Slide 1 of 3: read it",
+      "Slide 1 of 3: with hints", "Slide 1 of 3: from memory", "Slide 3 of 3: from memory"]);
     // learning a unit clears what was missed
     expect(s.items["flow:1:1"]).toEqual({ step: 3, learned: true, last: NOW, at: NOW });
     expect(s.items["flow:3:1"]).toEqual({ step: 3, learned: true, last: NOW, at: NOW });
     expect([learned(s.get, slides[0]), learned(s.get, slides[1])]).toEqual([true, false]);
+  });
+
+  test("a Nearly from memory learns the unit and keeps its weak phrases for the warm-up's hints", () => {
+    const slides = [slide(1, 1)], s = store();
+    s.apply(record(next(slides, s.get, NOW) as Item, true, s.get, NOW, ["weak phrase"]));
+    expect(s.items["flow:1:1"]).toEqual({ step: 3, learned: true, last: NOW, at: NOW, focus: ["weak phrase"] });
+    const tomorrow = NOW + 24 * 3600 * 1000, warm = next(slides, s.get, tomorrow) as Item;
+    expect(warm.warm).toBe(true);
+    expect(focusOf(warm, s.get, tomorrow)).toEqual(["weak phrase"]);
   });
 
   test("Show me first reads it aloud, keeping what was missed, then hints; not in the warm-up", () => {

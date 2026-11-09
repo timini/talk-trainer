@@ -81,15 +81,23 @@ describe("judged", () => {
     const nums = grade(["Mix 500 grams of flour."], "", ["500"]);
     const r = judged(nums, { meaning_ok: false, problems: [{ kind: "wrong_term", script: "500", said: "400" }] });
     expect([r.pass, marked(r), r.parts[0].critWrong]).toEqual([false, [["500", true]], 1]);
+    // one slip is Nearly: it counts, nothing is marked for an order problem, a restart or a phrase not in the target
     for (const problem of [{ kind: "order" as const, script: "I am not a scientist" }, { kind: "stumble" as const, script: "I am", said: "I am I am" },
-      { kind: "left_out" as const, script: "something never in the target" }, { kind: "left_out" as const, script: "..." }]) {
+      { kind: "left_out" as const, script: "never in it" }, { kind: "left_out" as const, script: "..." }]) {
       const x = judged(local, { meaning_ok: false, problems: [problem] });
-      expect([x.pass, marked(x)], problem.kind).toEqual([false, []]);
+      expect([x.pass, x.band, marked(x)], problem.kind).toEqual([true, "nearly", []]);
     }
+    // a number said in words is the same number: no problem left, so Got it
+    const said = judged(nums, { meaning_ok: false, problems: [{ kind: "wrong_term", script: "500", said: "five hundred" }] });
+    expect([said.pass, said.band, said.score, said.problems]).toEqual([true, "good", 100, []]);
   });
 
-  test("the pass rule: meaning_ok and no problems; a restart fails even when the meaning came through", () => {
-    expect(judged(local, { meaning_ok: true, problems: [{ kind: "stumble", script: "I am", said: "I am I am" }] }).pass).toBe(false);
+  test("the pass rule: the score; one restart is Nearly, two slips are Missed", () => {
+    const one = judged(local, { meaning_ok: true, problems: [{ kind: "stumble", script: "I am", said: "I am I am" }] });
+    expect([one.pass, one.band, one.score]).toEqual([true, "nearly", 80]);
+    const two = judged(local, { meaning_ok: false, problems: [{ kind: "stumble", script: "I am", said: "I am I am" },
+      { kind: "order", script: "x" }, { kind: "stumble", script: "What", said: "what what" }] });
+    expect([two.pass, two.band, two.score]).toEqual([false, "missed", 40]);
     expect(judged(local, { meaning_ok: false, problems: [] }).pass).toBe(false);
     expect(judged(local, {}).pass).toBe(false);
     const empty = judged(grade([""], "", []), { meaning_ok: true });

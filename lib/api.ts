@@ -20,7 +20,8 @@ const json = (status: number, body: unknown) =>
 export const starter = (env: ApiEnv, local: Deps | null, waitUntil: (p: Promise<unknown>) => void, wait?: number) =>
   async (talk: string) => {
     if (!local) {
-      await env.BUILD!.create({ id: talk, params: { talk } });
+      // each run its own id, so a talk can be built again (POST /api/talks/:id rebuilds it)
+      await env.BUILD!.create({ id: `${talk}-${Date.now()}`, params: { talk } });
       return;
     }
     waitUntil(build(local, talk, inline(wait)).catch(() => undefined));
@@ -105,6 +106,15 @@ export const file = async (request: Request, env: ApiEnv, key: string) => {
 };
 
 const talkOf = (env: ApiEnv, id: string) => env.DB.prepare("SELECT * FROM talks WHERE id = ?").bind(id).first<Talk>();
+
+// POST /api/talks/:id: build the talk again from its stored deck, for example after the voice changed. Progress is
+// kept: it is per slide, not per clip. 202.
+export const rebuild = async (env: ApiEnv, id: string, start: (talk: string) => Promise<void>, now = Date.now()) => {
+  if (!(await talkOf(env, id))) return json(404, { error: "No such talk." });
+  await env.DB.prepare("UPDATE talks SET status = 'queued', error = NULL, updated = ? WHERE id = ?").bind(now, id).run();
+  await start(id);
+  return json(202, { id });
+};
 
 // PATCH /api/talks/:id: {title?, talkAt? (ms, or null)}.
 export const change = async (request: Request, env: ApiEnv, id: string, now = Date.now()) => {

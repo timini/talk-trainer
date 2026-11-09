@@ -7,6 +7,7 @@
 // start, a repeat or a self-correction). Small words added or dropped, contractions, synonyms and light rewording
 // within a point are fine.
 
+import { band, type Band, NEARLY, real, score } from "./score";
 import { normalise, type Part, type Result } from "./grade";
 
 // The newest stable Flash model that takes audio.
@@ -127,8 +128,8 @@ const find = (tokens: At[], phrase: string, taken: Set<number>): number[] => {
 // said right elsewhere is never marked: left_out and changed as missed, wrong_term as a must-say miss (crit). A
 // stumble or an order problem marks nothing. A phrase that cannot be found marks nothing, and the problem still
 // counts.
-export const judged = (local: Result, j: Verdict): Result & { problems: Problem[]; judge: Verdict } => {
-  const problems = j.problems ?? [];
+export const judged = (local: Result, j: Verdict): Result & { problems: Problem[]; judge: Verdict; score: number; band: Band } => {
+  const problems = real(j.problems ?? []);
   const parts: Part[] = local.parts.map((p) => ({ ...p, words: p.words.map((w) => ({ ...w, ok: true, close: false, crit: false })) }));
   const tokens: At[] = parts.flatMap((p, pi) => p.words.flatMap((w, wi) => normalise(w.w).map((t) => ({ t, p: pi, w: wi }))));
   const taken = new Set<number>();
@@ -139,13 +140,18 @@ export const judged = (local: Result, j: Verdict): Result & { problems: Problem[
       w.crit = w.crit || x.kind === "wrong_term";
     });
   });
-  const pass = j.meaning_ok === true && !problems.length;
+  // the score decides; a reply listing no problem at all counts only when it says the meaning came through (a
+  // problem dropped as not real, such as three for 3, leaves the score at 100)
+  const listed = j.problems ?? [];
+  const points = !listed.length && j.meaning_ok !== true ? 0 : score(problems, local.parts.flatMap((p) => p.words.map((w) => w.w)).join(" "));
+  const pass = points >= NEARLY;
   const out = parts.map((p) => {
     const wrong = p.words.filter((w) => !w.ok);
     return { ...p, acc: p.words.length ? 1 - wrong.length / p.words.length : 1, critWrong: wrong.filter((w) => w.crit).length, pass };
   });
   const all = out.flatMap((p) => p.words);
-  return { ...local, parts: out, pass, problems, acc: all.length ? all.filter((w) => w.ok).length / all.length : 1, judge: j };
+  return { ...local, parts: out, pass, problems, acc: all.length ? all.filter((w) => w.ok).length / all.length : 1, judge: j,
+    score: points, band: band(points) };
 };
 
 // The judge's run-through report, from its reply on each piece of the recording ({from, to, reply}: slide numbers

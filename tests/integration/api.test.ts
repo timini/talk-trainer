@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { type ApiEnv, file, LIMIT, list, localDeps, starter, status, upload } from "@/lib/api";
+import { type ApiEnv, file, LIMIT, list, localDeps, rebuild, starter, status, upload } from "@/lib/api";
 import * as standins from "@/lib/standins";
 import { local } from "../support/cf";
 import { deck } from "../support/deck.mjs";
@@ -50,11 +50,26 @@ describe("upload", () => {
   });
 });
 
+describe("building a talk again", () => {
+  test("queues it and starts its build; an unknown talk is 404", async () => {
+    const res = await upload(post(DECK), env, async () => {}, 5);
+    const { id } = await res.json() as { id: string };
+    await cf.db.prepare("UPDATE talks SET status = 'failed', error = 'x' WHERE id = ?").bind(id).run();
+    const started: string[] = [];
+    expect(await answer(await rebuild(env, id, async (t) => { started.push(t); }, 9))).toEqual([202, { id }]);
+    expect(started).toEqual([id]);
+    expect(await cf.db.prepare("SELECT status, error, updated FROM talks WHERE id = ?").bind(id).first())
+      .toEqual({ status: "queued", error: null, updated: 9 });
+    expect((await rebuild(env, "nope", async () => {})).status).toBe(404);
+    expect((await rebuild(env, id, async () => {})).status).toBe(202); // the clock by default
+  });
+});
+
 describe("starting a build", () => {
   test("as a Workflow when there is one", async () => {
     const create = vi.fn(async () => ({}));
     await starter({ ...env, BUILD: { create } }, null, () => {})("t1");
-    expect(create).toHaveBeenCalledWith({ id: "t1", params: { talk: "t1" } });
+    expect(create).toHaveBeenCalledWith({ id: expect.stringMatching(/^t1-\d+$/), params: { talk: "t1" } });
   });
 
   test("in the request otherwise, after the reply; a failure is recorded, not thrown", async () => {

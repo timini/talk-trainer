@@ -9,6 +9,7 @@
 import { clipsOf, focusOf, type Item, migrate, mustOf, next, record, showFirst, summary, textOf } from "@/lib/flow";
 import { grade } from "@/lib/grade";
 import { judged, type Verdict } from "@/lib/judge";
+import { empty } from "@/lib/score";
 import { merge, ymd } from "@/lib/schedule";
 import { sentences } from "@/lib/text";
 import { type Judged, type Script, type Sync } from "@/lib/train";
@@ -236,6 +237,8 @@ export class Engine {
       const body = await res.json().catch(() => ({})) as Verdict & { error?: string };
       if (!res.ok) throw new Error(body.error ?? `The judge answered ${res.status}.`);
       if (this.item !== item) return;
+      // almost nothing heard: a tap too soon or the microphone, not forgetting, so it does not count
+      if (empty(body, parts.join(" "))) throw new Error("I didn't catch that.");
       this.result = judged(grade(parts, "", must), body);
       this.count(this.result.pass);
       this.phase = "judged";

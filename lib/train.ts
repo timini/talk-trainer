@@ -67,7 +67,7 @@ export const savedLine = (state: Sync, at: number, now: number) => (state === "o
   : state === "error" ? "Saved in this browser; the online copy could not be reached and will be tried again."
   : "Saved in this browser.");
 
-export type Judged = Result & { problems?: Problem[]; judge?: Verdict };
+export type Judged = Result & { problems?: Problem[]; judge?: Verdict; score?: number; band?: "good" | "nearly" | "missed" };
 
 const quote = (text: string) => `'${text.trim().replace(/[.,;:!?]+$/, "")}'`;
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -85,12 +85,13 @@ export const problemLine = (x: Problem) => {
   }[x.kind] ?? `${quote(x.script)} not right`;
 };
 
-// The verdict banner over a judged card. With the judge: the meaning came through, or up to 2 of its problems; a
+// The verdict banner over a judged card. With the judge: Got it (the meaning came through), Nearly (a small slip:
+// it counts) or Missed, with up to 2 of its problems; a
 // pass that was not word for word says small wording differences are fine. Without it (the page's own grade): how
 // many words came through.
 export const verdict = (r: Judged) => {
   if (r.judge) {
-    if (r.pass) {
+    if (r.pass && r.band !== "nearly") {
       const target = normalise(r.parts.flatMap((p) => p.words.map((w) => w.w)).join(" ")).join(" ");
       const differs = !!r.judge.heard && normalise(r.judge.heard).join(" ") !== target;
       return { head: "Got it", detail: "The meaning came through.", note: differs ? "Small wording differences are fine." : "", good: true };
@@ -100,6 +101,7 @@ export const verdict = (r: Judged) => {
     const detail = problems.length ? `${capital(problems.slice(0, 2).map(problemLine).join("; "))}${more > 0 ? ` and ${more} more` : ""}.`
       + (problems.some((x) => x.kind === "stumble") ? " Say it in one smooth line." : "")
       : "The meaning did not come through.";
+    if (r.band === "nearly") return { head: "Nearly", detail, note: "It counts. Those words come back hidden.", good: true };
     return { head: "Missed", detail, note: "", good: false };
   }
   const crit = r.parts.some((x) => x.critWrong);
