@@ -3,9 +3,10 @@ import { expect, type Page } from "@playwright/test";
 
 export type Script = { talk: { id: string }; slides: { n: number; sentences: { i: number; text: string; hash: string; clip: string }[] }[] };
 
-// Uploads the fixture deck, waits for its build (stand-ins), sets the talk three days ahead, and returns its script.
-export async function newTalk(page: Page, title: string): Promise<Script> {
-  const res = await page.request.post("/api/talks", { data: readFileSync("tests/fixtures/three-slides.pptx"),
+// Uploads the fixture deck (or the deck given), waits for its build (stand-ins), sets the talk three days ahead, and
+// returns its script.
+export async function newTalk(page: Page, title: string, data: Buffer | Uint8Array = readFileSync("tests/fixtures/three-slides.pptx")): Promise<Script> {
+  const res = await page.request.post("/api/talks", { data: Buffer.from(data),
     headers: { "Content-Type": "application/octet-stream", "X-Title": encodeURIComponent(title) } });
   expect(res.status()).toBe(201);
   const { id } = await res.json() as { id: string };

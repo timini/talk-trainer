@@ -124,6 +124,7 @@ function Home({ e }: { e: Engine }) {
         {sum.from && <p data-testid="from">{`${sum.due ? "Then new slides from" : "Start at"} slide ${sum.from.n}: ${sum.from.title}.`}</p>}
         {days > 0 && <p>{`Streak: ${plural(days, "day")} in a row.`}</p>}
         <p className={`note saved${e.sync.state === "error" ? " off" : ""}`} data-testid="saved">{savedLine(e.sync.state, e.sync.at, now)}</p>
+        <Link className="trial" href={`/talks/${e.script.talk.id}/learn`}>Try the new trainer</Link>
       </div>
     </section>
   );

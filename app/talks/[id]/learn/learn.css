@@ -1,0 +1,16 @@
+/* The new trainer: the card and buttons of the old one (../train/train.css), with the tree and the Progress screen. */
+.crumbs { font-size: 0.85rem; color: #2b2f3b; opacity: 0.8; margin: 0.15rem 0 0; }
+.cue .leaf + .leaf { margin-left: 0.3em; }
+.cue .change { display: block; font-size: 0.9rem; font-weight: bold; color: #005eb8; letter-spacing: normal; word-spacing: normal;
+  margin: 0.4rem 0 0.2rem; }
+.known { font-size: 0.95rem; margin: 0.4rem 0 0; }
+.known.up { color: #26913c; }
+.known.down { color: #df007d; }
+.runs { display: grid; gap: 0.5rem; margin: 0.6rem 0; }
+.runs li { list-style: none; }
+.runs .on { font-weight: bold; color: #005eb8; }
+.runs .done { opacity: 0.7; }
+.progress dl { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; text-align: left; }
+.progress dt { font-weight: bold; color: #005eb8; }
+.progress dd { margin: 0; }
+.trial { display: block; margin: 0.6rem auto 0; }

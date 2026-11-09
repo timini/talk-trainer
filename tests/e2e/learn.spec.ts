@@ -1,0 +1,146 @@
+import { type Browser, expect, type Page, test } from "@playwright/test";
+import { deck } from "../support/deck.mjs";
+import { signIn } from "./signin";
+import { attempt, newTalk, type Script } from "./talk";
+
+// The new trainer, /learn, with the stand-in judge (every attempt got) unless a test sets a verdict.
+const verdict = (page: Page, json: Record<string, unknown>) => page.route("**/api/grade", (route) => route.fulfill({
+  json: { heard: "", clarity: 5, fluency: 5, pace: "good", tip: "Good.", ...json } }));
+const position = (page: Page) => page.getByTestId("position");
+const big = (page: Page, name: string) => page.locator(".actions").getByRole("button", { name, exact: true });
+
+async function open(page: Page, title: string, data?: Uint8Array): Promise<Script> {
+  await signIn(page);
+  const s = await newTalk(page, title, data);
+  await page.goto(`/talks/${s.talk.id}/learn`);
+  await expect(page.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
+  await page.getByLabel(/Word for word/).check();
+  return s;
+}
+// Say the card on screen with the stand-in judge, then Next.
+async function pass(page: Page) {
+  await attempt(page);
+  await expect(page.getByTestId("verdict")).toContainText("Got it");
+  await big(page, "Next").click();
+}
+// The positions of the next n cards, each passed.
+async function walk(page: Page, n: number) {
+  const seen: string[] = [];
+  for (let k = 0; k < n; k += 1) {
+    seen.push(await position(page).innerText());
+    await pass(page);
+  }
+  return seen;
+}
+
+test("a slide of 2 sentences: each sentence, then the whole slide, all hidden; then the next slide", async ({ page }) => {
+  await open(page, "Learn walk");
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.getByTestId("status")).toHaveText("Slide 1 of 3");
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
+  await expect(page.getByTestId("crumbs")).toHaveText("Slide 1 > Sentence 1");
+  expect(await walk(page, 6)).toEqual(["Sentence 1 of 2", "Sentence 1 of 2", "Sentence 2 of 2", "Sentence 2 of 2",
+    "Whole slide: all 2 sentences", "Whole slide: all 2 sentences"]);
+  await expect(page.getByTestId("status")).toHaveText("Slide 2 of 3");
+  await expect(position(page)).toHaveText("Sentence 1 of 2");
+});
+
+test("a long sentence: its clauses, then the sentence", async ({ page }) => {
+  const long = "We looked at the data very closely, and we found that most variants were rare; so we asked the families.";
+  await open(page, "Learn clauses", deck([{ title: "Data", notes: [long, "That is all."] }, { title: "End", notes: ["Thank you."] }]));
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.getByTestId("cue")).toHaveText(/^1We looked at the data very closely,$/);
+  const seen = await walk(page, 6);
+  expect(seen.slice(0, 4)).toEqual(["Sentence 1, clause 1 of 3", "Sentence 1, clause 1 of 3", "Sentence 1, clause 2 of 3",
+    "Sentence 1, clause 2 of 3"]);
+  expect(seen[4]).toBe("Sentence 1, clauses 1 to 2 of 3");
+});
+
+test("a miss zooms down to the part missed, and a pass climbs back up", async ({ page }) => {
+  await open(page, "Learn miss");
+  await page.getByRole("button", { name: "Start" }).click();
+  await walk(page, 4);
+  await expect(position(page)).toHaveText("Whole slide: all 2 sentences");
+  await expect(page.getByTestId("instruction")).toHaveText("From memory: say it from the slide.");
+  await verdict(page, { heard: "Good morning, and thank you for coming.", meaning_ok: false,
+    problems: [{ kind: "left_out", script: "Today we bake bread." }] });
+  await attempt(page);
+  await expect(page.getByTestId("verdict")).toContainText("Missed");
+  await expect(page.getByTestId("known")).toHaveText(/^Known \d+% to \d+%; the bar is 85%\.$/);
+  await page.unroute("**/api/grade");
+  await big(page, "Next").click();
+  await expect(position(page)).toHaveText("Sentence 2 of 2");
+  await expect(page.getByTestId("instruction")).not.toHaveText("Read it aloud.");
+  await pass(page);
+  await expect(position(page)).toHaveText("Whole slide: all 2 sentences");
+});
+
+test("after 2 hours a node is due and comes back first; the Progress screen shows the numbers", async ({ page }) => {
+  const s = await open(page, "Learn gap");
+  await page.getByRole("button", { name: "Start" }).click();
+  await walk(page, 3);
+  await page.getByRole("button", { name: "End session" }).click();
+  await page.getByRole("button", { name: "Progress" }).click();
+  await expect(page.getByTestId("p-session")).toHaveText("100% of 3 (the aim is 70% to 85%)");
+  await expect(page.getByTestId("p-tobar")).toHaveText("sentence: 2 (1 part)");
+  await expect(page.getByTestId("p-slides")).toHaveText("0 of 2");
+  await page.getByRole("button", { name: "Back to the start" }).click();
+  await expect(page.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
+  // two hours ago, as if
+  await page.evaluate((id) => {
+    Object.keys(localStorage).filter((k) => k.startsWith(`talk-trainer:${id}:learn:n:`)).forEach((key) => {
+      const st = JSON.parse(localStorage.getItem(key) as string);
+      localStorage.setItem(key, JSON.stringify({ ...st, at: st.at - 2 * 3600 * 1000 }));
+    });
+  }, s.talk.id);
+  await page.route("**/progress", (route) => route.abort());
+  await page.reload();
+  await expect(page.getByTestId("due")).toHaveText("1 part to go over again first: faded since you last said it.");
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.getByTestId("status")).toHaveText("Again: slide 1 of 3");
+  await expect(position(page)).toHaveText("Sentence 1 of 2");
+});
+
+test("two devices: the newer attempt wins", async ({ page, browser }) => {
+  const s = await open(page, "Learn sync");
+  await page.getByRole("button", { name: "Start" }).click();
+  await pass(page);
+  // saved online a few seconds later
+  await expect.poll(async () => Object.keys((await page.request.get(`/api/talks/${s.talk.id}/progress`).then((r) => r.json()) as
+    { items: Record<string, unknown> }).items).some((k) => k.startsWith("learn:n:s:1:0-0:")), { timeout: 10000 }).toBe(true);
+  const leaf = async (p: Page) => p.evaluate((id) => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith(`talk-trainer:${id}:learn:n:s:1:0-0:`)) as string;
+    return JSON.parse(localStorage.getItem(key) as string) as { s: number; n: number };
+  }, s.talk.id);
+  await expect.poll(async () => (await leaf(page)).n).toBe(1);
+  // the other device: the same leaf again, later
+  const other = await second(browser);
+  await other.goto(`/talks/${s.talk.id}/learn`);
+  await expect(other.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
+  await other.getByRole("button", { name: "Start" }).click();
+  await expect(position(other)).toHaveText("Sentence 1 of 2");
+  await pass(other);
+  expect((await leaf(other)).n).toBe(2);
+  // saved online a few seconds later
+  await expect.poll(async () => Object.entries((await page.request.get(`/api/talks/${s.talk.id}/progress`).then((r) => r.json()) as
+    { items: Record<string, { n: number }> }).items).find(([k]) => k.startsWith("learn:n:s:1:0-0:"))?.[1].n, { timeout: 10000 }).toBe(2);
+  // the first device opens again: the newer copy wins over its own
+  await page.reload();
+  await expect(page.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
+  await expect.poll(async () => (await leaf(page)).n).toBe(2);
+  await other.context().close();
+});
+
+async function second(browser: Browser) {
+  const context = await browser.newContext({ ...test.info().project.use, permissions: ["microphone"] });
+  const p = await context.newPage();
+  await signIn(p);
+  return p;
+}
+
+test("the old trainer links to the new one", async ({ page }) => {
+  const s = await open(page, "Learn link");
+  await page.goto(`/talks/${s.talk.id}/train`);
+  await page.getByRole("link", { name: "Try the new trainer" }).click();
+  await expect(page).toHaveURL(new RegExp(`/talks/${s.talk.id}/learn$`));
+});
