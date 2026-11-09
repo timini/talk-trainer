@@ -6,9 +6,13 @@ const NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
   + 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
 const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const para = (text) => `<a:p><a:r><a:rPr lang="en-GB"/><a:t>${esc(text)}</a:t></a:r></a:p>`;
+const para = (text) => `<a:p><a:r><a:rPr lang="en-GB" sz="3600"/><a:t>${esc(text)}</a:t></a:r></a:p>`;
+// Where each kind of shape sits (EMU), so the slides render with their text.
+const BOX = { title: [838200, 365125, 10515600, 1325563], "": [838200, 1825625, 10515600, 4351338],
+  body: [685800, 4400550, 5486400, 3600450], sldImg: [1143000, 685800, 4572000, 3429000] };
 const shape = (type, paras) => `<p:sp><p:nvSpPr><p:cNvPr id="2" name="${type}"/><p:cNvSpPr/><p:nvPr>`
-  + `${type ? `<p:ph type="${type}"/>` : ""}</p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/>`
+  + `${type ? `<p:ph type="${type}"/>` : ""}</p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="${BOX[type][0]}" y="${BOX[type][1]}"/>`
+  + `<a:ext cx="${BOX[type][2]}" cy="${BOX[type][3]}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/>`
   + `${paras.map(para).join("")}</p:txBody></p:sp>`;
 const rels = (items) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
   + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`

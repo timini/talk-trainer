@@ -1,0 +1,8 @@
+// Only the storage bindings, for the integration tests: local D1 and R2, kept in memory.
+{
+  "name": "talk-trainer-test",
+  "compatibility_date": "2026-11-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{ "binding": "DB", "database_name": "talk-trainer-test", "database_id": "test" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "talk-trainer-test" }]
+}

@@ -7,7 +7,9 @@ process.env.TZ = "Europe/London";
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
-    include: ["tests/unit/**/*.test.ts"],
+    include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    testTimeout: 20000,
+    hookTimeout: 30000,
     env: { TZ: "Europe/London" },
     coverage: {
       provider: "v8",
