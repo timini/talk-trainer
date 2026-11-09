@@ -3,6 +3,9 @@
 //
 // Request: {mode, audio (base64), mime, target (the sentence, or the slides' script), glossary (the talk's names)}.
 // Reply: the model's JSON, or {error}. With STANDINS=1 a stand-in answers instead: word for word, for tests.
+//
+// record, when given, gets each attempt Gemini judged (the request, the reply or the error, and how long Gemini
+// took), so real attempts can be replayed when the judge seems wrong (tools/debug-pull.mjs).
 
 import { CARD, MODEL, prompt, RUN } from "./judge";
 
@@ -13,6 +16,8 @@ export const RATE = 60;
 
 export type JudgeEnv = { GEMINI_KEY?: string; GEMINI_MODEL?: string; STANDINS?: string };
 type Body = { mode?: string; audio?: string; mime?: string; target?: string; glossary?: string[] };
+export type Attempt = { at: number; ms: number; model: string; mode?: string; target: string; glossary?: string[];
+  mime: string; audio: string; status: number; reply?: unknown; error?: string };
 
 // The rate limit: a count for the current minute, in this copy of the Worker.
 const counter = { minute: -1, count: 0 };
@@ -32,7 +37,8 @@ export const standin = (body: Body) => (body.mode === "run"
   : { heard: body.target, verbatim: true, missed: [], stumbles: [], clarity: 5, fluency: 5, pace: "good",
     tip: "Keep it up." });
 
-export async function judge(request: Request, env: JudgeEnv, now = Date.now()) {
+export async function judge(request: Request, env: JudgeEnv, now = Date.now(),
+  record: (a: Attempt) => void = () => {}, clock: () => number = Date.now) {
   if (!env.GEMINI_KEY && env.STANDINS !== "1") return json(503, { error: "The judge is not set up on this site." });
   if (Number(request.headers.get("Content-Length") ?? 0) > LIMIT) return json(413, { error: "The recording is too long." });
   const text = await request.text();
@@ -42,8 +48,12 @@ export async function judge(request: Request, env: JudgeEnv, now = Date.now()) {
   try { body = JSON.parse(text); } catch { return json(400, { error: "Not JSON." }); }
   if (!body.audio || !body.mime || !body.target) return json(400, { error: "audio, mime and target are needed." });
   if (env.STANDINS === "1") return json(200, standin(body));
-  const run = body.mode === "run";
-  const res = await fetch(`${API}/v1beta/models/${env.GEMINI_MODEL || MODEL}:generateContent`, {
+  const run = body.mode === "run", model = env.GEMINI_MODEL || MODEL, start = clock();
+  const seen = (status: number, out: { reply?: unknown; error?: string }) => {
+    record({ at: now, ms: clock() - start, model, mode: body.mode, target: body.target as string, glossary: body.glossary,
+      mime: body.mime as string, audio: body.audio as string, status, ...out });
+  };
+  const res = await fetch(`${API}/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "x-goog-api-key": env.GEMINI_KEY as string, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -53,11 +63,17 @@ export async function judge(request: Request, env: JudgeEnv, now = Date.now()) {
         thinkingConfig: { thinkingLevel: "low" } },
     }),
   });
-  if (!res.ok) return json(502, { error: `The judge answered ${res.status}.` });
+  if (!res.ok) {
+    seen(502, { error: `The judge answered ${res.status}.` });
+    return json(502, { error: `The judge answered ${res.status}.` });
+  }
   try {
     const reply = await res.json() as { candidates: { content: { parts: { text: string }[] } }[] };
-    return json(200, JSON.parse(reply.candidates[0].content.parts[0].text));
+    const out = JSON.parse(reply.candidates[0].content.parts[0].text);
+    seen(200, { reply: out });
+    return json(200, out);
   } catch {
+    seen(502, { error: "The judge's reply could not be read." });
     return json(502, { error: "The judge's reply could not be read." });
   }
 }
