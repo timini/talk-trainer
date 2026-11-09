@@ -1,6 +1,6 @@
 # Talk Trainer
 
-Learn a talk word for word. You upload the slide deck, with the script in the speaker notes. The app splits the
+Learn a talk by heart. You upload the slide deck, with the script in the speaker notes. The app splits the
 script into sentences and voices each one. You then say the sentences back, and a judge checks each attempt.
 Cards come back on a schedule planned to the day of the talk.
 
@@ -26,14 +26,23 @@ files, a Workflow for the background build and a container for rendering slides.
 
 Each talk is trained at `/talks/<id>/train`, planned to the talk's date (set on the talks page or on the trainer's
 first screen). Each sentence is a card. You tap to speak; the attempt is recorded (Opus, 16 kbps) and sent to
-`POST /api/grade`, where Gemini judges it word for word and is strict about restarts. The browser's speech
-recognition, where there is one, only decides when to stop: as soon as it has heard the sentence's last words, or
-after 1.2 seconds of quiet. The next card comes up at once and the judge works in the background: a strip over the
-card says how the last one went, and tapping it shows the full feedback. A card is marked when its verdict arrives;
-a missed one comes back in the session. "Wait for each verdict" in the menu makes each card wait instead. A card passes with at least 85% of its words and no number
-or must-say item wrong (`judged()` in `lib/judge.ts`). Hear it plays the sentence's clip, or a chain card's clips one
-after another. Progress is kept in localStorage and in D1 (`/api/talks/<id>/progress`), merged so the newer review
-of each card wins, and saved a few seconds after each card and when the page is closed.
+`POST /api/grade`, where Gemini judges whether the meaning came through. It does not have to be word for word.
+
+- A card fails for a point left out, a changed meaning, a wrong number, name or key term (the talk's names and the
+  must-say items), points in a different order, or a stumble (a false start, a repeat or a self-correction).
+- Small words added or dropped, contractions, a greeting or filler, synonyms and light rewording within a point are
+  fine. A pass that was not word for word says so quietly.
+- Each problem's phrase is marked as one run of words in the sentence, so a word said right elsewhere is never
+  marked (`judged()` in `lib/judge.ts`).
+- Without the judge, the page's own grade is used: 85% of the words, with small words left out not counted.
+
+The browser's speech recognition, where there is one, only decides when to stop: as soon as it has heard the
+sentence's last words, or after 1.2 seconds of quiet. The next card comes up at once and the judge works in the
+background: a strip over the card says how the last one went, and tapping it shows the full feedback. A card is
+marked when its verdict arrives; a missed one comes back in the session. "Wait for each verdict" in the menu makes
+each card wait instead. Hear it plays the sentence's clip, or a chain card's clips one after another. Progress is
+kept in localStorage and in D1 (`/api/talks/<id>/progress`), merged so the newer review of each card wins, and saved
+a few seconds after each card and when the page is closed.
 
 Keys on a laptop: Space to speak or stop, Enter for next, 1 got it, 3 missed, R to hear the sentence.
 

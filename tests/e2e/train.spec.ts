@@ -5,9 +5,13 @@ import { attempt, newTalk } from "./talk";
 // A judge that heard a restart, after a short wait.
 const restart = (page: Page) => page.route("**/api/grade", async (route) => {
   await new Promise((r) => setTimeout(r, 600));
-  await route.fulfill({ json: { heard: "Today we today we bake bread.", verbatim: true, missed: [], stumbles: ["Today we today we"],
-    clarity: 4, fluency: 2, pace: "good", tip: "Say it in one breath." } });
+  await route.fulfill({ json: { heard: "Today we today we bake bread.", meaning_ok: true,
+    problems: [{ kind: "stumble", script: "Today we", said: "Today we today we" }], clarity: 4, fluency: 2, pace: "good",
+    tip: "Say it in one breath." } });
 });
+// A judge with a set verdict.
+const verdict = (page: Page, json: Record<string, unknown>) => page.route("**/api/grade", (route) => route.fulfill({
+  json: { clarity: 5, fluency: 5, pace: "good", tip: "Good.", ...json } }));
 // The stand-in judge, but slow.
 const slow = (page: Page) => page.route("**/api/grade", async (route) => {
   await new Promise((r) => setTimeout(r, 1500));
@@ -45,7 +49,7 @@ test("a session flows on without waiting: the strip follows the verdicts and a m
   // the full feedback for it, in a sheet
   await page.getByTestId("strip").click();
   const sheet = page.getByRole("dialog", { name: "The last card" });
-  await expect(sheet).toContainText('You restarted: "Today we today we". Say it in one smooth line.');
+  await expect(sheet).toContainText("You restarted: 'Today we today we'. Say it in one smooth line.");
   await expect(sheet.locator(".tip")).toHaveText("Tip: Say it in one breath.");
   await expect(sheet.getByRole("button", { name: "Count it as got" })).toBeVisible();
   await sheet.getByRole("button", { name: "Close" }).click();
@@ -78,7 +82,7 @@ test("a missed card counted as got from its sheet does not come back", async ({ 
   await expect(page.getByTestId("status")).toHaveText("2 of 4");
 });
 
-test("with Wait for each verdict on, each card waits for its verdict", async ({ page }) => {
+test("with Wait for each verdict on, each card waits; the meaning judge passes small differences and marks only a left-out run", async ({ page }) => {
   await signIn(page);
   const s = await newTalk(page, "Wait test");
   await page.goto(`/talks/${s.talk.id}/train`);
@@ -87,27 +91,48 @@ test("with Wait for each verdict on, each card waits for its verdict", async ({ 
   await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Start today's session" }).click();
 
-  await slow(page);
+  // an added "I": the meaning came through, nothing marked
+  await verdict(page, { heard: "Good morning, and I thank you for coming.", meaning_ok: true, problems: [] });
   await attempt(page);
-  await expect(page.getByTestId("judging")).toHaveText("The Gemini judge is listening to your attempt...");
   await expect(page.getByTestId("verdict")).toContainText("Got it");
-  await expect(page.getByTestId("verdict")).toContainText("Word for word.");
+  await expect(page.getByTestId("verdict")).toContainText("The meaning came through.");
+  await expect(page.getByTestId("verdict")).toContainText("Small wording differences are fine.");
+  await expect(page.locator(".cue .miss")).toHaveCount(0);
   await expect(page.locator(".feedback .delivery")).toContainText("clarity 5 of 5, flow 5 of 5, pace good.");
   await page.unroute("**/api/grade");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
+  // a restart fails
   await restart(page);
   await attempt(page);
+  await expect(page.getByTestId("judging")).toHaveText("The Gemini judge is listening to your attempt...");
   await expect(page.getByTestId("verdict")).toContainText("Missed");
-  await expect(page.getByTestId("verdict")).toContainText('You restarted: "Today we today we". Say it in one smooth line.');
+  await expect(page.getByTestId("verdict")).toContainText("You restarted: 'Today we today we'. Say it in one smooth line.");
   await page.unroute("**/api/grade");
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("status")).toHaveText("3 of 5");
-  // a verdict on screen counts as marked when the page goes away
+  // the missed card comes back at once
+  await expect(page.getByTestId("kind")).toHaveText("Review");
+  await expect(page.getByTestId("cue")).toHaveText(/^T/);
+  await attempt(page);
+  await expect(page.getByTestId("verdict")).toContainText("Got it");
+  await page.keyboard.press("Enter");
+
+  // a left-out phrase: only its run is marked, not the same words earlier in the sentence
+  await expect(page.getByTestId("cue")).toHaveText("Mix 500 grams of flour with 350 grams of water.");
+  await verdict(page, { heard: "Mix 500 grams of flour.", meaning_ok: false,
+    problems: [{ kind: "left_out", script: "with 350 grams of water" }] });
+  await attempt(page);
+  await expect(page.getByTestId("verdict")).toContainText("Left out 'with 350 grams of water'.");
+  await expect(page.locator(".cue .miss")).toHaveText(["with", "350", "grams", "of", "water."]);
+  await page.unroute("**/api/grade");
+  await page.keyboard.press("Enter");
+
+  // it comes back too; a verdict on screen counts as marked when the page goes away
+  await expect(page.getByTestId("kind")).toHaveText("Review");
   await attempt(page);
   await expect(page.getByTestId("verdict")).toContainText("Got it");
   await page.reload();
-  await expect(page.getByTestId("today")).toHaveText("Today: 3 cards, 2 got (67%). Streak: 1 day in a row.");
+  await expect(page.getByTestId("today")).toHaveText("Today: 5 cards, 3 got (60%). Streak: 1 day in a row.");
 });
 
 test("Hear it on a chain card plays the chain's clips in order", async ({ page }) => {
