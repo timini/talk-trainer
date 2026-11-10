@@ -19,11 +19,13 @@ export default defineConfig({
     { name: "phone", use: { ...devices["Pixel 7"], ...MIC } },
   ],
   webServer: BASE ? undefined : {
-    // Local D1 with the migrations applied; builds run in the request with stand-ins for the renderer and voice.
-    command: `npx wrangler d1 migrations apply DB --local && npx next dev --port ${PORT}`,
+    // A fresh local D1 and R2 for each run (in .wrangler/e2e, apart from the one for development), with the migrations
+    // applied, so the talks the tests upload do not pile up; builds run in the request with stand-ins for the renderer
+    // and voice.
+    command: `rm -rf .wrangler/e2e && npx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e && npx next dev --port ${PORT}`,
     url: `http://localhost:${PORT}/login`,
     reuseExistingServer: !process.env.CI,
-    env: { BETA_PASSWORD: PASSWORD, STANDINS: "1", BUILD_INLINE: "1" },
+    env: { BETA_PASSWORD: PASSWORD, STANDINS: "1", BUILD_INLINE: "1", E2E_STATE: ".wrangler/e2e/v3" },
     timeout: 120000,
   },
 });
