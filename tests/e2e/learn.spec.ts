@@ -40,14 +40,15 @@ async function walk(page: Page, n: number) {
   return seen;
 }
 
+// The whole slide said well with every word hidden is a confident pass (ALPHA_GOOD), at its bar the first time.
 test("a slide of 2 sentences: each sentence, then the whole slide, all hidden; then the next slide", async ({ page }) => {
   await open(page, "Learn walk");
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page.getByTestId("status")).toHaveText("Slide 1 of 3");
   await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
   await expect(page.getByTestId("crumbs")).toHaveText("Slide 1 > Sentence 1");
-  expect(await walk(page, 6)).toEqual(["Sentence 1 of 2", "Sentence 1 of 2", "Sentence 2 of 2", "Sentence 2 of 2",
-    "Whole slide: all 2 sentences", "Whole slide: all 2 sentences"]);
+  expect(await walk(page, 5)).toEqual(["Sentence 1 of 2", "Sentence 1 of 2", "Sentence 2 of 2", "Sentence 2 of 2",
+    "Whole slide: all 2 sentences"]);
   await expect(page.getByTestId("status")).toHaveText("Slide 2 of 3");
   await expect(position(page)).toHaveText("Sentence 1 of 2");
 });
