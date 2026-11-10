@@ -129,6 +129,7 @@ describe("pick", () => {
 
 describe("after a miss, the climb goes back through the node missed (Tim, 9 November, slide 4)", () => {
   test("a group missed, its weakest sentence passed: the group next, not the slide; then the slide", () => {
+    // word for word, which goes up from the sentences (the gist starts each slide whole)
     const t4 = build([said(4, ["This talk asks when a score is enough.", "We looked at the data.", "Most variants were rare.",
       "So we asked the families."])]);
     const [s0, s1, g01, s2, s3, g23, root] = t4.order;
@@ -142,7 +143,7 @@ describe("after a miss, the climb goes back through the node missed (Tim, 9 Nove
       now += 30000;
     };
     const next = () => {
-      const p = pick(t4, get, now, "gist", Infinity, session) as NonNullable<ReturnType<typeof pick>>;
+      const p = pick(t4, get, now, "verbatim", Infinity, session) as NonNullable<ReturnType<typeof pick>>;
       return p;
     };
     // the first group and both sentences of the second known
@@ -153,14 +154,14 @@ describe("after a miss, the climb goes back through the node missed (Tim, 9 Nove
     expect([p.node.id, p.why]).toEqual([g23, "up"]);
     attempt(g23, [100, 0], 45);
     session = after(session, p, false);
-    expect(standing(t4, get, now, "gist", session).at(g23)).toBe(false);
+    expect(standing(t4, get, now, "verbatim", session).at(g23)).toBe(false);
     // down to the sentence missed, passed
     p = next();
     expect([p.node.id, p.why]).toEqual([s3, "down"]);
     attempt(s3, [100], 100);
     session = after(session, p, true);
     // back up to the group missed, not the whole slide
-    expect(standing(t4, get, now, "gist", session).ready(root)).toBe(false);
+    expect(standing(t4, get, now, "verbatim", session).ready(root)).toBe(false);
     p = next();
     expect([p.node.id, p.why]).toEqual([g23, "up"]);
     attempt(g23, [100, 100], 100);
@@ -177,21 +178,26 @@ describe("after a miss, the climb goes back through the node missed (Tim, 9 Nove
   });
 });
 
-describe("the gist passes over clauses", () => {
-  test("a long sentence is the first part; a miss on it stays on it; its clauses hide by its score", () => {
+describe("the gist starts each slide whole", () => {
+  test("the whole slide first, read aloud; a miss goes down to the sentence it fell on, and back up once it is passed", () => {
     const t2 = build([said(1, ["We looked at the data closely, and we found that most variants were rare; so we asked families.",
       "Then we wrote."])]);
-    const [c1, c2, c12, c3, s1, s2] = t2.order;
-    expect(pick(t2, () => null, NOW, "gist", Infinity, begin())?.node.id).toBe(s1);
+    const [c1, c2, c12, c3, s1, s2, root] = t2.order;
+    expect(pick(t2, () => null, NOW, "gist", Infinity, begin())?.node.id).toBe(root);
     expect(pick(t2, () => null, NOW, "verbatim", Infinity, begin())?.node.id).toBe(c1);
-    const missed = session({ last: { id: s1, pass: false }, same: 1 });
-    expect(pick(t2, from({ [s1]: st(0.3) }), NOW, "gist", Infinity, missed)?.node.id).toBe(s1);
-    // known at the gist without its clauses: on to the next sentence, then the slide
-    expect(pick(t2, from({ [s1]: st(0.6) }), NOW, "gist", Infinity, begin())?.node.id).toBe(s2);
-    expect(standing(t2, from({ [s1]: st(0.6), [s2]: st(0.6) }), NOW, "gist").ready(t2.roots.get(1) as string)).toBe(true);
+    // the slide missed on its first sentence: down to it, and it again after another miss
+    const missed = (id: string) => session({ last: { id, pass: false }, same: 1 });
+    const after1 = { [root]: st(0.3, { run: 1 }), [s1]: st(0.2, { run: 1 }), [s2]: st(0.6) };
+    expect(pick(t2, from(after1), NOW, "gist", Infinity, missed(root))?.node.id).toBe(s1);
+    expect(pick(t2, from(after1), NOW, "gist", Infinity, missed(s1))?.node.id).toBe(s1);
+    expect(standing(t2, from(after1), NOW, "gist").ready(root)).toBe(false);
+    // passed: the slide again
+    expect(pick(t2, from({ ...after1, [s1]: st(0.6) }), NOW, "gist", Infinity, begin())?.node.id).toBe(root);
     expect(standing(t2, from({}), NOW, "gist").ready(c12)).toBe(false);
-    const est = new Map([[c1, 0.2], [c2, 0.9], [c12, 0], [c3, 0.2], [s1, 0.7]]);
+    // a part passed over hides by the node over it, up to the node attempted
+    const est = new Map([[c1, 0.2], [c2, 0.9], [c12, 0], [c3, 0.2], [s1, 0.7], [s2, 0.3], [root, 0.45]]);
     expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "gist", null).values()]).toEqual([0.5, 0.5, 0.5]);
+    expect([...hiding(t2, t2.nodes.get(root) as Node, est, "gist", null).values()]).toEqual([0.35, 0.5, 0.35, 0.35]);
     expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "verbatim", null).values()]).toEqual([0, 1, 0]);
   });
 });

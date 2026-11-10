@@ -63,7 +63,8 @@ describe("hiding", () => {
 
   test("each leaf by its own estimate, moved by the pace; a whole slide word for word all hidden", () => {
     const est = new Map([[a, 0.55], [b, 0.3], [root, 0.4]]);
-    expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.5, 0.1]);
+    // the gist starts the slide whole: a sentence passed over hides by the slide when that is higher (0.4 for b)
+    expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.5, 0.25]);
     expect([...hiding(tree, node(root), est, "verbatim", null).values()]).toEqual([1, 1]);
     expect([...hiding(tree, node(a), est, "verbatim", null).values()]).toEqual([0.5]);
     expect([...hiding(tree, node(a), est, "verbatim", 0.5).values()]).toEqual([0.25]);

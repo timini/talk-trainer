@@ -218,6 +218,7 @@ describe("not counted", () => {
 describe("recount, Show me and I know this one", () => {
   test("Count it as got rescored at 85, every leaf alike, the same log entry; and back", async () => {
     const e = make();
+    e.setAim("verbatim");
     e.start();
     const id = e.node!.id;
     grades.push({ body: { heard: "Good morning", meaning_ok: false, problems: [{ kind: "left_out", script: "thank you for coming" }], clarity: 5, fluency: 5 } });
@@ -266,7 +267,7 @@ describe("recount, Show me and I know this one", () => {
     const e = make();
     expect(e.troubles()).toEqual([]);
     e.start();
-    expect(e.troubles()).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    expect(e.troubles()).toEqual(new Array(11).fill(0));
   });
 
   test("Hear it plays the clips of what is to be said", () => {
@@ -275,7 +276,8 @@ describe("recount, Show me and I know this one", () => {
     e.start();
     e.hear();
     e.hear();
-    expect(played).toEqual([["/clip/39"], ["/clip/39"]]);
+    // the gist starts with the whole slide: both its sentences
+    expect(played).toEqual([["/clip/39", "/clip/20"], ["/clip/39", "/clip/20"]]);
   });
 });
 

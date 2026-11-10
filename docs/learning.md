@@ -161,11 +161,12 @@ One rule, in order:
 | Word for word | 0.75 | 0.85, and every word hidden |
 | Gist | 0.5 | 0.8, at most half hidden |
 
-**The gist passes over the clauses.** At the gist a sentence is the smallest part practised: its clauses are not
-tried on their own, and each clause hides by its sentence's score. The gist asks for the meaning, which a sentence
-carries whole, and every join between sentences is still practised. With the lower bar for its parts (0.5), this
-roughly halves the gist's attempts (below). `GIST_GROUP` can also pass over the groups of 2 sentences, for a little
-more; it is off, as the step from one sentence to two is the hardest in the data.
+**The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
+then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed
+(the misses fall on them), until they are passed again; then the slide comes back. A clause is never practised on its
+own at the gist (`GIST_CLAUSES`), and a missed pair of sentences goes straight to its sentences (`GIST_GROUP` 2). Each
+part passed over hides by the score of the node over it, when that is higher. The gist asks for the meaning, which a
+slide carries whole; word for word still climbs from the clauses up.
 
 **Pacing for desirable difficulty.** Practice teaches best when most attempts succeed with effort (Bjork's desirable
 difficulties; Wilson and others, 2019, put the best rate near 85%). The data's 53% was too hard. The scheduler keeps
@@ -268,6 +269,48 @@ to 12 sentences), and 243 to 340 for the talk of 7 slides. Each step on its own:
 sentences and 38 for 9; the bar 0.5 then 14 and 30. The gist now runs a little above the 70 to 85% band (up to 93% for
 2 sentences), where the pacing hides more.
 
+### Tim's budget (`tests/sim/budget.ts`)
+
+Tim has about 10 hours from Tuesday 10 to Friday 13 November (3, 3, 2.5 and 1.5 hours, in blocks of 45 minutes with
+nights between), about 1100 attempts at the 95 to 110 an hour his sessions ran at, and gives the talk on Saturday 14.
+The talk has 86 slides, 301 sentences and 4508 words, in 6 sections of 4, 10, 34, 19, 15 and 4 slides.
+
+**The learner refitted** to his first 36 attempts with /learn (9 and 10 November): under 15 words passed 89%, 15 to 30
+words 73%, 30 to 60 words 38%, 60 or more 25%; sentences 86%, groups 50%, slides 60%, bridges 33%. The 9 November
+learner passed long attempts far too often, as a few shown words carried it across each join. The refit: a join leans
+little on the words shown around it (it is read with the chance (1 - h) ^ 4, h the share hidden), a new join between
+sentences is known 0.4, and after a slip the place is found again at the next hidden leaf only 20% of the time
+(trailing off, as in the data). With each sentence known, half hidden, it passes 90% for one sentence, 60% for two
+(a long sentence alone is 89%, so the 15 to 30 word bucket is about 73%), 38% for four and 24% for seven.
+
+**The budget run**, from nothing learned, the mean of 5 runs. Slides at the gist bar, bridges and sections at theirs by
+Friday night; slides started; the share of the talk's words in slides at the bar; the expected pass rate on Saturday
+morning over every slide said from memory with nothing shown (and over the slides at the bar alone); attempts; the
+pass rate of each 45 minute block.
+
+| Settings | Slides at bar | Bridges | Sections | Started | Words | Saturday (at bar) | Attempts | Blocks |
+|---|---|---|---|---|---|---|---|---|
+| From the sentences up (before) | 8 | 12 | 1 | 16 | 13% | 17% (99%) | 1009 | 76 to 98% |
+| Pairs passed over | 10 | 12 | 2 | 17 | 16% | 18% (99%) | 998 | 78 to 96% |
+| Slide bar 0.7 | 8 | 12 | 1 | 15 | 13% | 16% (97%) | 1033 | 72 to 97% |
+| No section run-throughs | 9 | 6 | 0 | 15 | 14% | 15% (95%) | 1030 | 76 to 97% |
+| Breadth first (every slide's sentences first) | 0 | 0 | 0 | 34 | 0% | 0% | 1211 | 58 to 82% |
+| Whole slides first | 11 | 13 | 2 | 22 | 17% | 22% (99%) | 940 | 81 to 92% |
+| Whole slides first, slide bar 0.7 | 11 | 13 | 2 | 23 | 16% | 20% (97%) | 968 | 74 to 89% |
+| **Whole slides first, pairs passed over (chosen)** | **13** | **14** | **2** | **23** | **20%** | **24% (98%)** | **931** | **76 to 96%** |
+
+**Nothing covers the whole talk** in this budget, from nothing learned: the best reaches 13 of 86 slides at the gist
+bar and starts 23. Covering all of it would take about 4 to 5 times the budget under this learner. A slide that reaches
+its bar is very likely to hold on Saturday (about 98%), so depth on fewer slides beats a thin pass over all of them
+(breadth first left no slide at its bar). Tim is not starting from nothing: the old trainer's sentence scores carry
+over for the slides he has practised, so the real figure should be better; the Progress screen will tell after
+Tuesday.
+
+**What to put first**, with Today's goal (the last slide to work on today, from slide 1): the opening, sections 1 and 2
+(slides 1 to 14), first; then the close, section 6 (slides 83 to 86), as the last words land hardest; then section 3
+in order. The goal only runs from slide 1, so the close needs reading from the script until there is a way to choose a
+section.
+
 What the simulation changed from the first design:
 
 - **Fading.** Halving the score every interval wiped a day's work overnight: a node with a 10 minute interval was at 0
@@ -278,8 +321,8 @@ What the simulation changed from the first design:
   its bar, and the slide could not be tried again until it was relearned.
 - **A node must be tried once** to count as at its bar; otherwise bridges were skipped, as their two slides already
   made them look known.
-- **The gist** passes over clauses, and its node bar is 0.5 (from 0.6), to fit Tim's timeline (about 100 attempts an
-  hour, the talk on Saturday).
+- **The gist** starts each slide whole, passes over clauses and pairs, and its node bar is 0.5 (from 0.6), to fit Tim's
+  budget (above).
 - **A node just missed is not at its bar**, and nothing over a part just missed is ready (see zoom up).
 - **`SAME` 3** (from 4): with 4, one node was picked 7 times in a row in a talk of 7 slides.
 

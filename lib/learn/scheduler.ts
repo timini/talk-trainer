@@ -47,7 +47,7 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   const stuck = (id: string) => (get(id)?.run ?? 0) >= STUCK;
   const margin = rate !== null && rate > PACE_HIGH ? -EASE : 0;
   // a node's parts and where a miss goes down to, through the parts passed over at this aim
-  const skip = (id: string) => skipped(node(id), aim);
+  const skip = (id: string) => skipped(node(id), aim, get(id));
   const through = (ids: string[]): string[] => ids.flatMap((k) => (skip(k) ? through(node(k).kids) : [k]));
   const parts = (id: string) => through(node(id).kids);
   const down = (id: string) => through(node(id).down);

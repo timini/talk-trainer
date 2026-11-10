@@ -42,9 +42,31 @@ export const slide = (n: number, k: number, rand: () => number): Input => ({
   }),
 });
 
+// How a learner learns: read, the chance of reading a shown word aloud right; join0, a new join between sentences;
+// S0, how long a new memory lasts (halving time); grow, how much a retrieval after a gap makes it last longer; per,
+// the words a leaf's recall is for (a leaf of 2 * per words is recalled with the chance squared; 0: any length alike);
+// back, after a slip, the chance of finding the place again at the next hidden leaf (1: a slip never trails on);
+// cue, how much a join leans on the words shown around it: it is read with the chance (1 - h) ^ cue, h the share
+// hidden (1: as much as a word does; 2 or more: a few words shown help a join little).
+export type Fit = { read: number; join0: number; S0: number; grow: number; per: number; back: number; cue: number };
+export const FIT_9_NOV: Fit = { read: READ, join0: 0.5, S0: 180 * MIN, grow: 1.5, per: 0, back: 1, cue: 1 };
+// Refitted to Tim's 36 attempts with /learn on 9 and 10 November, half hidden at the gist with each sentence known
+// (passing alone about 86%): under 15 words 89%, 15 to 30 words 73%, 30 to 60 words 38%, 60 or more 25%. This learner
+// gives 90%, 60% (two sentences; a long sentence alone is 89%, so the bucket is about 73%), 38% and 24%.
+export const FIT_10_NOV: Fit = { read: READ, join0: 0.4, S0: 180 * MIN, grow: 1.5, per: 0, back: 0.2, cue: 4 };
+
 export class Learner {
   private mem = new Map<string, Mem>();
-  constructor(private rand: () => number, private join0 = 0.5, private S0 = 180 * MIN, private grow = 1.5) {}
+  private join0: number;
+  private S0: number;
+  private grow: number;
+  constructor(private rand: () => number, join0: number | Fit = 0.5, S0 = 180 * MIN, grow = 1.5, private fit?: Fit) {
+    const f = typeof join0 === "number" ? { ...FIT_9_NOV, join0, S0, grow } : join0;
+    this.fit = f;
+    this.join0 = f.join0;
+    this.S0 = f.S0;
+    this.grow = f.grow;
+  }
   private get(key: string, start: number, now: number): Mem {
     let x = this.mem.get(key);
     if (!x) { x = { m: start, S: this.S0, at: now }; this.mem.set(key, x); }
@@ -60,20 +82,28 @@ export class Learner {
     x.at = now;
   }
   // Say the leaves of a node with these shares hidden: each leaf's score. A leaf's first word after another leaf goes
-  // through the join between them; clauses of one sentence join more easily than sentences.
-  say(tree: Tree, leaves: string[], hide: Map<string, number>, now: number): Map<string, number> {
-    const out = new Map<string, number>();
+  // through the join between them; clauses of one sentence join more easily than sentences. learn: false to test
+  // without practising (Saturday).
+  say(tree: Tree, leaves: string[], hide: Map<string, number>, now: number, learn = true): Map<string, number> {
+    const out = new Map<string, number>(), f = this.fit as Fit;
+    const keep = (x: Mem) => (learn ? x : { ...x });
+    let lost = false;
     leaves.forEach((l, i) => {
-      const h = hide.get(l) as number, leaf = this.get(l, 0, now);
-      let ok = this.rand() < (1 - h) * READ + h * this.recall(leaf, now);
+      const h = hide.get(l) as number, leaf = keep(this.get(l, 0, now)), words = (tree.nodes.get(l) as Node).words;
+      const recall = this.recall(leaf, now) ** (f.per ? words / f.per : 1);
+      let ok = this.rand() < (1 - h) * f.read + h * recall;
       if (i > 0) {
         const a = tree.nodes.get(leaves[i - 1]) as Node, b = tree.nodes.get(l) as Node;
         const inner = a.slides[0] === b.slides[0] && a.first === b.first;
-        const j = this.get(`${leaves[i - 1]}>${l}`, inner ? 0.85 : this.join0, now);
-        const joined = this.rand() < (1 - h) * READ + h * this.recall(j, now);
+        const j = keep(this.get(`${leaves[i - 1]}>${l}`, inner ? 0.85 : this.join0, now));
+        const shown = (1 - h) ** f.cue;
+        const joined = this.rand() < shown * f.read + (1 - shown) * this.recall(j, now);
         this.learn(j, joined, h, now);
         ok = ok && joined;
       }
+      // lost the place: trailing off, unless the place is found again or the words are shown
+      if (lost && f.back < 1 && this.rand() >= (1 - h) + h * f.back) ok = false;
+      lost = !ok;
       this.learn(leaf, ok, h, now);
       out.set(l, ok ? (this.rand() < 0.85 ? 100 : 75) : Math.round(this.rand() * 40));
     });

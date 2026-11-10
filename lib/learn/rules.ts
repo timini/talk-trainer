@@ -66,15 +66,19 @@ export const BARS: Record<Aim, { node: number; top: number }> = {
   gist: { node: 0.5, top: 0.8 },
 };
 
-// The gist, to save attempts (Tim, 10 November: about 100 attempts an hour, the talk on Saturday): it does not
-// practise the clauses of a sentence on their own (GIST_CLAUSES false; a clause hides by its sentence's score), nor
-// groups of GIST_GROUP sentences or fewer that are not a whole slide (0: every group is practised). The gist asks for
-// the meaning, which a sentence carries whole; the joins between sentences, where the data shows the misses, are all
-// still practised. Simulation, median attempts to a slide at the gist bar with clauses practised (and the node bar
-// 0.6): 4 sentences 35, 9 sentences 82; without them, 19 and 38; with the bar 0.5 as well, 14 and 30. Skipping pairs
-// too (GIST_GROUP 2) gave 14 and 26, but skips the step from one sentence to two, the hardest in the data.
+// The gist, to fit Tim's budget (about 1100 attempts over 10 hours, Tuesday 10 to Friday 13 November; the talk on
+// Saturday). GIST_TOP: each slide starts whole, read aloud first, and its sentences and groups are practised only where
+// an attempt at the slide missed, until they are passed again. GIST_CLAUSES false: the clauses of a sentence are never
+// practised on their own (a clause hides by its sentence's score). GIST_GROUP: groups of this many sentences or fewer
+// that are not a whole slide are passed over even after a miss, which then goes straight to the sentences.
+// Simulation (tests/sim/budget.test.ts, the learner refitted to Tim's first attempts with /learn, from nothing learned,
+// the mean of 5 runs): from the sentences up, 8 of 86 slides at the gist bar by Friday night, 16 started, an expected
+// Saturday pass rate over the whole talk of 17%; whole slides first, 11 at the bar, 22 started, 22%; and with pairs
+// passed over (chosen), 13, 23 and 24%. A slide at its bar passes on Saturday about 99% of the time. Breadth first
+// (every slide's sentences before any slide), a slide bar of 0.7, and no section run-throughs all did worse.
+export const GIST_TOP = true;
 export const GIST_CLAUSES = false;
-export const GIST_GROUP = 0;
+export const GIST_GROUP = 2;
 
 // Pacing for desirable difficulty: the pass rate of the last PACE_OF counted attempts of the session (once there are
 // PACE_MIN) is kept between PACE_LOW and PACE_HIGH. Above it, a node is ready to try once its parts are within EASE
