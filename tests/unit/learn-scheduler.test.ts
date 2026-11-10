@@ -66,6 +66,10 @@ describe("pick", () => {
     expect(go({ ...known, t: st(0.9) })).toBeNull();
   });
 
+  test("a range given as a test of the slide: only those slides", () => {
+    expect(pick(tree, from({}), NOW, "verbatim", (n) => n === 3, begin())?.node.slides).toEqual([3]);
+  });
+
   test("today's goal: no new slide past it, and nothing that reaches past it", () => {
     expect(go({ [a]: st(0.8), [b]: st(0.8), [one]: st(0.9) }, begin(), "verbatim", 1)).toBeNull();
     expect(go({ ...known, [bridge23]: st(0.1, { passes: 0 }) }, begin(), "verbatim", 2)).toBeNull();

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
+import { type Range, rangeLine } from "@/lib/learn/store";
 import { countdown } from "@/lib/schedule";
 import { redactBits } from "@/lib/text";
 import { deliveryLine, plural, savedLine, type Script, verdict } from "@/lib/train";
@@ -87,11 +88,11 @@ function Learn({ engine: e }: { engine: Engine }) {
         {e.screen === "progress" && <Progress e={e} />}
         {e.screen === "done" && (
           <section className="stack" data-testid="goal-reached">
-            <h1>{`Goal reached: slides 1 to ${Math.min(e.goal, e.slides.length)}${e.aim === "gist" ? " at the gist" : " word for word"}`}</h1>
+            <h1>{`Done for now: ${rangeLine(e.range)}${e.aim === "gist" ? " at the gist" : " word for word"}`}</h1>
             <p>Nothing up to there is due now. What you know fades over time and comes back with some text showing.</p>
-            {e.goal < e.slides.length && (
-              <button type="button" className="big primary" onClick={() => { e.setGoal(e.goal + 10); e.start(); }}>
-                {`Carry on to slide ${Math.min(e.goal + 10, e.slides.length)}`}</button>)}
+            {e.range.length === 1 && e.range[0][1] < e.slides.length && (
+              <button type="button" className="big primary" onClick={() => { e.setRange([[e.range[0][0], e.range[0][1] + 10]]); e.start(); }}>
+                {`Carry on to slide ${Math.min(e.range[0][1] + 10, e.slides.length)}`}</button>)}
             <button type="button" className="big" onClick={() => e.show("home")}>Back to the start</button>
           </section>
         )}
@@ -115,10 +116,22 @@ function Home({ e }: { e: Engine }) {
         <label><input type="radio" name="aim" checked={e.aim === "verbatim"} onChange={() => e.setAim("verbatim")} />
           {" "}Word for word: each slide said with every word hidden</label>
       </div>
-      <label className="goal">Today, up to slide{" "}
-        <input type="number" min={1} max={e.slides.length} value={e.goal} aria-label="Up to slide"
-          onChange={(ev) => e.setGoal(Number(ev.target.value))} />
-        {` of ${e.slides.length}`}</label>
+      <div className="goal" role="group" aria-label="Slides to practise">
+        <p data-testid="range">{`Practising ${rangeLine(e.range)}`}</p>
+        <label>From slide{" "}
+          <input type="number" min={1} max={e.slides.length} value={e.range[0][0]} aria-label="From slide"
+            onChange={(ev) => e.setRange([[Number(ev.target.value), e.range.at(-1)![1]]])} /></label>
+        {" "}<label>to slide{" "}
+          <input type="number" min={1} max={e.slides.length} value={e.range.at(-1)![1]} aria-label="To slide"
+            onChange={(ev) => e.setRange([[e.range[0][0], Number(ev.target.value)]])} /></label>
+        {` of ${e.slides.length}`}
+        <div className="sections">
+          <button type="button" className="small" onClick={() => e.setRange([[1, e.slides.length]])}>The whole talk</button>
+          {e.ends && <button type="button" className="small" onClick={() => e.setRange(e.ends as Range)}>Opening and close</button>}
+          {e.sections.map((x) => (
+            <button key={x.from} type="button" className="small" onClick={() => e.setRange([[x.from, x.to]])}>{x.name}</button>))}
+        </div>
+      </div>
       <button type="button" className="big primary" onClick={() => e.start()}>Start</button>
       <div className="hprog">
         {sum.due > 0 && <p data-testid="due">{`${plural(sum.due, "part")} to go over again first: faded since you last said ${sum.due === 1 ? "it" : "them"}.`}</p>}

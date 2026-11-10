@@ -7,12 +7,12 @@
 // run-through is said slide by slide: a recording for each slide, Next slide between them, judged as they go.
 
 import { byHand, outcome, run as runRecord, type Result } from "@/lib/learn/attempt";
-import { crumbs, instruction, position } from "@/lib/learn/label";
+import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { metrics, slidesAt, weakest } from "@/lib/learn/metrics";
 import { cues, estimates, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
 import type { Aim } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
-import { type Entry, type Log, logged, logKey, migrate, nodeKey, type Setting, SETTINGS } from "@/lib/learn/store";
+import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
 import type { Verdict } from "@/lib/judge";
 import { merge, streak, ymd } from "@/lib/schedule";
@@ -124,10 +124,17 @@ export class Engine {
   private put(name: keyof typeof SETTINGS, v: unknown) { this.set(SETTINGS[name], { v, at: this.deps.now() }); this.pushSoon(); this.emit(); }
   get aim(): Aim { return this.setting<Aim>("aim", "train:aim", "gist") === "verbatim" ? "verbatim" : "gist"; }
   setAim(aim: Aim) { this.put("aim", aim); }
-  get goal() { return this.setting<number>("goal", "train:goal", 14); }
-  setGoal(n: number) {
-    if (!Number.isFinite(n) || n < 1) return;
-    this.put("goal", Math.min(Math.round(n), this.slides.length));
+  // The slides to work on: a range, or from before there were ranges the last slide (from slide 1), 14 at first.
+  get range(): Range {
+    const r = this.get<Setting<Range> | null>(SETTINGS.range, null)?.v;
+    return tidy(r ?? [[1, this.setting<number>("goal", "train:goal", 14)]], this.slides.length);
+  }
+  setRange(r: Range) { this.put("range", tidy(r, this.slides.length)); }
+  // The talk's sections, and the opening and close (the first and last of them).
+  get sections() { return sections(this.slides, this.tree); }
+  get ends(): Range | null {
+    const s = this.sections;
+    return s.length > 1 ? [[s[0].from, s[0].to], [s[s.length - 1].from, s[s.length - 1].to]] : null;
   }
   get micOn() { return this.deps.canRecord && !this.blocked && this.setting<boolean>("mic", "train:mic", true); }
   setMic(on: boolean) { this.blocked = false; this.put("mic", on); }
@@ -150,8 +157,8 @@ export class Engine {
     return streak(Object.entries(this.items()).filter(([k, v]) => k.startsWith("learn:log:") && (v as Log).list.length)
       .map(([k]) => k.slice("learn:log:".length)), this.deps.now());
   }
-  // The first slide in talk order not yet started, within the goal.
-  get next() { return this.slides.find((s) => s.n <= this.goal && s.sentences.length && !this.tree.order.some((id) => this.tree.nodes.get(id)?.slides.includes(s.n) && this.state(id))) ?? null; }
+  // The first slide in talk order not yet started, within the range.
+  get next() { return this.slides.find((s) => inRange(this.range)(s.n) && s.sentences.length && !this.tree.order.some((id) => this.tree.nodes.get(id)?.slides.includes(s.n) && this.state(id))) ?? null; }
 
   show(screen: Screen) {
     this.halt();
@@ -162,11 +169,11 @@ export class Engine {
     this.go();
     this.show(this.item ? "session" : "done");
   }
-  // The next thing to say, or the done screen when there is nothing left within the goal.
+  // The next thing to say, or the done screen when there is nothing left within the range.
   go() {
     this.halt();
     const now = this.deps.now();
-    this.item = pick(this.tree, this.state, now, this.aim, this.goal, this.session);
+    this.item = pick(this.tree, this.state, now, this.aim, inRange(this.range), this.session);
     const est = estimates(this.tree, this.state, now);
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session)) : new Map();
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,

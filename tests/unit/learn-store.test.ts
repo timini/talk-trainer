@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { FIRST, GROW } from "@/lib/learn/rules";
-import { type Entry, logged, logKey, migrate, nodeKey, pick, SETTINGS, SYNCED } from "@/lib/learn/store";
+import { type Entry, inRange, logged, logKey, migrate, nodeKey, pick, rangeLine, SETTINGS, SYNCED, tidy } from "@/lib/learn/store";
 import { build } from "@/lib/learn/tree";
 
 const entry = (id: string, at: number, m = at, points: number | null = 90): Entry => ({ id, at, node: "s:1:0-0:x", slide: 1,
@@ -12,6 +12,18 @@ describe("keys", () => {
     expect([nodeKey("s:1:0-0:x"), logKey("2026-11-10"), SETTINGS.aim]).toEqual(["learn:n:s:1:0-0:x", "learn:log:2026-11-10", "learn:set:aim"]);
     expect(["learn:n:a", "flow:s:1:1:a", "flow:w:1:0:1", "flow:1:1", "train:days"].map((k) => SYNCED.test(k)))
       .toEqual([true, true, true, false, false]);
+  });
+});
+
+describe("the range of slides", () => {
+  test("spans kept within the talk and in order; in words; which slides are in it", () => {
+    expect(tidy([[83, 86], [4, 1]], 86)).toEqual([[1, 4], [83, 86]]);
+    expect(tidy([[0, 99.6]], 86)).toEqual([[1, 86]]);
+    expect(tidy([], 5)).toEqual([[1, 5]]);
+    expect([rangeLine([[1, 4], [83, 86]]), rangeLine([[5, 5]]), rangeLine([[5, 5], [7, 7]])]).toEqual(
+      ["slides 1 to 4 and 83 to 86", "slide 5", "slides 5 and 7"]);
+    const r = inRange([[1, 4], [83, 86]]);
+    expect([1, 4, 5, 82, 83, 86, 87].map(r)).toEqual([true, true, false, false, true, true, false]);
   });
 });
 

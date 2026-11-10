@@ -320,18 +320,47 @@ describe("a run-through", () => {
 });
 
 describe("settings, sync and migration", () => {
-  test("the old trainer's settings until set here; the goal kept within the talk", () => {
+  test("the old trainer's settings until set here; its goal becomes a range from slide 1, kept within the talk", () => {
     storage.setItem(`${P}train:aim`, JSON.stringify("verbatim"));
     storage.setItem(`${P}train:goal`, JSON.stringify(1));
     const e = make();
-    expect([e.aim, e.goal, e.micOn]).toEqual(["verbatim", 1, true]);
+    expect([e.aim, e.range, e.micOn]).toEqual(["verbatim", [[1, 1]], true]);
     e.setAim("gist");
-    e.setGoal(40);
-    e.setGoal(Number.NaN);
+    e.setRange([[40, 2]]);
     e.setMic(false);
-    expect([e.aim, e.goal, e.micOn]).toEqual(["gist", 2, false]);
+    expect([e.aim, e.range, e.micOn]).toEqual(["gist", [[2, 2]], false]);
+    expect(e.next?.n).toBe(2);
+    // not a number: the whole talk
+    e.setRange([[Number.NaN, 1]]);
+    expect(e.range).toEqual([[1, 2]]);
     expect(JSON.parse(storage.getItem(`${P}learn:set:aim`)!)).toEqual({ v: "gist", at: clock });
-    expect(e.next?.n).toBe(1);
+    // the goal set in the new trainer before ranges
+    storage.removeItem(`${P}learn:set:range`);
+    storage.setItem(`${P}learn:set:goal`, JSON.stringify({ v: 2, at: 1 }));
+    expect(e.range).toEqual([[1, 2]]);
+  });
+
+  test("only the slides in the range: a due node outside it waits; sections and the opening and close", () => {
+    const e = make();
+    expect([e.sections, e.ends]).toEqual([[], null]);
+    e.setRange([[2, 2]]);
+    e.start();
+    expect(e.node?.slides).toEqual([2]);
+    // slide 1 known, then faded: not picked while the range is slide 2
+    e.tree.order.filter((id) => e.tree.nodes.get(id)!.slides[0] === 1).forEach((id) => e.set(nodeKey(id),
+      { s: 0.9, at: clock - 30 * 3600000, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 }));
+    e.go();
+    expect(e.node?.slides).toEqual([2]);
+    e.setRange([[1, 2]]);
+    e.go();
+    expect([e.node?.slides, e.item?.why]).toEqual([[1], "due"]);
+    const four = new Engine({ ...SCRIPT, slides: [1, 2, 3, 4].map((n) => ({ n, title: `S${n}`, image: null, section: n < 3 ? "Start" : n === 3 ? "Middle" : "End",
+      sentences: [sentence(1, `Slide ${n} says this.`)] })) }, deps());
+    expect(four.sections).toEqual([{ name: "Start", from: 1, to: 2 }, { name: "Middle", from: 3, to: 3 }, { name: "End", from: 4, to: 4 }]);
+    expect(four.ends).toEqual([[1, 2], [4, 4]]);
+    four.setRange(four.ends!);
+    four.start();
+    expect(four.node?.slides).toEqual([1]);
   });
 
   test("pull: merged with the online copy (the newer wins), the old scores carried over once, then saved", async () => {

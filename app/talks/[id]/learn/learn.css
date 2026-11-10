@@ -16,3 +16,6 @@
 .trial { display: block; margin: 0.6rem auto 0; }
 .actions .note { margin: 0 auto 0.5rem; text-align: center; font-weight: bold; color: #df007d; }
 .trio { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.6rem; }
+.goal .sections { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin: 0.5rem 0; }
+.goal .small { min-height: 2.5rem; padding: 0 0.8rem; border: 2px solid #cdf4fe; border-radius: 0.6rem; background: #fff;
+  color: #005eb8; font-weight: bold; font-size: 0.9rem; }

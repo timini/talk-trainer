@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { crumbs, instruction, position } from "@/lib/learn/label";
+import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { build, type Input, type Node } from "@/lib/learn/tree";
 
 const said = (n: number, texts: string[]): Input => ({ n, sentences: texts.map((text) => ({ text })) });
@@ -34,6 +34,16 @@ describe("position and the path to it", () => {
     const named = build([{ ...said(1, ["One."]), section: "Opening" }, said(2, ["Two."]), { ...said(3, ["Three."]), section: "Close" }, said(4, ["Four."])]);
     expect(position(named, named.nodes.get("sec:1") as Node)).toBe("Run-through: Opening, slides 1 to 2");
   });
+});
+
+test("the sections to choose from: the deck's own, else the run-through groups, else none", () => {
+    const deckOwn = [{ n: 1, section: "Opening" }, { n: 2, section: null }, { n: 3, section: "Data" }, { n: 4 }, { n: 5, section: "" }];
+    expect(sections([{ n: 1 }, { n: 2, section: "Data" }], tree)).toEqual([{ name: "Slides 1 to 1", from: 1, to: 1 }, { name: "Data", from: 2, to: 2 }]);
+    expect(sections(deckOwn, tree)).toEqual([{ name: "Opening", from: 1, to: 2 }, { name: "Data", from: 3, to: 5 }]);
+    const big = build(Array.from({ length: 8 }, (_, k) => said(k + 1, ["Hello there."])));
+    expect(sections(Array.from({ length: 8 }, (_, k) => ({ n: k + 1 })), big)).toEqual([{ name: "Slides 1 to 5", from: 1, to: 5 },
+      { name: "Slides 6 to 8", from: 6, to: 8 }]);
+    expect(sections([{ n: 1 }, { n: 2 }], tree)).toEqual([]);
 });
 
 test("what the card asks for", () => {

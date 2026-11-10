@@ -152,7 +152,12 @@ One rule, in order:
    jumps over it to the whole slide. (Tim, 9 November, slide 4: a group of 54 words was missed, its last sentence
    passed, and the next card was the whole slide of 128 words, because the group's estimate from its parts was above
    its bar.)
-4. Else **the first leaf of the next new slide**, within today's goal (the last slide to work on today).
+4. Else **the first leaf of the next new slide**, within the slides chosen to practise.
+
+**The slides to practise** are a range: from one slide to another, one of the talk's sections by its name (the deck's
+own, or the run-through groups), the whole talk, or the opening and close (the first and last sections). Nothing
+outside the range is picked, so a part that fades outside it waits until the range takes it in again. Before ranges
+there was a goal, the last slide to work on (from slide 1); it becomes the range from slide 1 to it.
 
 **The bars** (the score at which a node counts as known):
 
@@ -203,7 +208,8 @@ the pass rate of the last 10 counted attempts of the session between 70% and 85%
 Kept in the browser's localStorage under `talk-trainer:<talk id>:` and online in D1, per talk:
 
 - `learn:n:<node id>`: a node's state, with a leaf's trouble.
-- `learn:set:aim`, `learn:set:goal`, `learn:set:mic`: the settings, each `{ v, at }`.
+- `learn:set:aim`, `learn:set:range`, `learn:set:mic`: the settings, each `{ v, at }`; the range is a list of spans
+  `[from, to]`. `learn:set:goal`, from before ranges, is read once if there is no range.
 - `learn:log:<day>`: the day's attempts, for the metrics, `{ at, list }`.
 
 **Merge, on the client and the server:** for every `learn:` key the newer `at` wins, and the logs are joined by
@@ -306,10 +312,8 @@ its bar is very likely to hold on Saturday (about 98%), so depth on fewer slides
 over for the slides he has practised, so the real figure should be better; the Progress screen will tell after
 Tuesday.
 
-**What to put first**, with Today's goal (the last slide to work on today, from slide 1): the opening, sections 1 and 2
-(slides 1 to 14), first; then the close, section 6 (slides 83 to 86), as the last words land hardest; then section 3
-in order. The goal only runs from slide 1, so the close needs reading from the script until there is a way to choose a
-section.
+**What to put first**, with the range of slides on the home screen: Opening and close (sections 1 and 6) first, as the
+first and last words land hardest; then section 2 (slides 5 to 14); then section 3 in order.
 
 What the simulation changed from the first design:
 

@@ -49,6 +49,21 @@ export const crumbs = (tree: Tree, node: Node): string[] => {
   return out;
 };
 
+// The talk's sections, for choosing what to practise: the deck's own (consecutive slides with the same name; a slide
+// with none stays in the section before), or else the run-through groups of the tree, named by their slides.
+export const sections = (slides: { n: number; section?: string | null }[], tree: Tree) => {
+  const out: { name: string; from: number; to: number }[] = [];
+  if (slides.some((s) => s.section)) {
+    slides.forEach((s, k) => {
+      if (k === 0 || (s.section && s.section !== out[out.length - 1].name)) out.push({ name: s.section ?? "", from: s.n, to: s.n });
+      out[out.length - 1].to = s.n;
+    });
+    return out.map((x) => ({ ...x, name: x.name || `Slides ${x.from} to ${x.to}` }));
+  }
+  return tree.order.filter((id) => id.startsWith("sec:")).map((id) => tree.nodes.get(id) as Node)
+    .map((x) => ({ name: `Slides ${x.slides[0]} to ${x.slides.at(-1)}`, from: x.slides[0], to: x.slides.at(-1) as number }));
+};
+
 // What the card asks for, by the share hidden.
 export const instruction = (share: number, run = false) => (run ? "From memory: say each slide, then tap Next slide."
   : share === 0 ? "Read it aloud."

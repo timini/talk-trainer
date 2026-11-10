@@ -12,7 +12,20 @@ import type { Node, Tree } from "./tree";
 
 export const nodeKey = (id: string) => `learn:n:${id}`;
 export const logKey = (day: string) => `learn:log:${day}`;
-export const SETTINGS = { aim: "learn:set:aim", goal: "learn:set:goal", mic: "learn:set:mic", migrated: "learn:set:migrated" };
+export const SETTINGS = { aim: "learn:set:aim", goal: "learn:set:goal", range: "learn:set:range", mic: "learn:set:mic",
+  migrated: "learn:set:migrated" };
+
+// The slides to work on: spans of slide numbers, from and to, both included ("Opening and close" is two).
+export type Range = [number, number][];
+export const inRange = (r: Range) => (n: number) => r.some(([a, b]) => n >= a && n <= b);
+// A range kept within a talk of total slides, each span in order; an empty one is the whole talk.
+export const tidy = (r: Range, total: number): Range => {
+  const out = r.map(([a, b]) => [Math.min(a, b), Math.max(a, b)].map((x) => Math.min(total, Math.max(1, Math.round(x)))) as [number, number])
+    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b)).sort((x, y) => x[0] - y[0]);
+  return out.length ? out : [[1, total]];
+};
+// A range in words: "slides 1 to 4 and 83 to 86", "slide 5".
+export const rangeLine = (r: Range) => `${r.length === 1 && r[0][0] === r[0][1] ? "slide" : "slides"} ${r.map(([a, b]) => (a === b ? `${a}` : `${a} to ${b}`)).join(" and ")}`;
 export type Setting<T> = { v: T; at: number };
 
 // One attempt, for the metrics (lib/learn/metrics.ts). kind and height: the node's; words: its size; before: its

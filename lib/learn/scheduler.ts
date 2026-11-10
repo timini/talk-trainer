@@ -5,7 +5,7 @@
 //    bridge goes down to its two sentences).
 // 3. Else zoom up: the first node, in talk order, that is not at its bar while its parts all are. A leaf of a slide
 //    already started has no parts, so it is ready.
-// 4. Else the first leaf of the next new slide within today's goal.
+// 4. Else the first leaf of the next new slide within today's range of slides.
 // Pacing keeps the session's pass rate between PACE_LOW and PACE_HIGH: above it a node is ready once its parts are
 // within EASE of their bars; below it a miss zooms down two levels. A node missed STUCK times running needs its parts
 // LIFT above their bars before it is tried again, and they are practised until they are. A node picked SAME times in
@@ -68,12 +68,15 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
 // In talk order, a slide's own nodes come before the bridge after it, then the section, then the talk.
 const RANK: Partial<Record<Node["kind"], number>> = { bridge: 1, section: 2, talk: 3 };
 
-export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number, session: Session): Pick | null => {
+// goal: the slides to work on now, the last one (from slide 1) or a test of a slide's number; nothing outside it is
+// picked, so a due node outside it waits.
+export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number | ((n: number) => boolean), session: Session): Pick | null => {
+  const within = typeof goal === "number" ? (n: number) => n <= goal : goal;
   const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const started = new Set<number>();
   for (const id of tree.order) if (get(id)) node(id).slides.forEach((n) => started.add(n));
-  const live = tree.order.filter((id) => !passed(id) && node(id).slides.every((n) => n <= goal && started.has(n)));
+  const live = tree.order.filter((id) => !passed(id) && node(id).slides.every((n) => within(n) && started.has(n)));
   const last = session.last, skip = last && session.same >= SAME ? last.id : null;
   const make = (id: string, why: Why): Pick => ({ node: node(id), why, est: est.get(id) as number, bar: bar(id) });
   const lowest = (ids: string[]) => ids.slice().sort((a, b) => (est.get(a) as number) - (est.get(b) as number))[0];
@@ -106,7 +109,7 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
     const up = live.filter((id) => ok(id) && !due(id) && (ready(id) || lifted.has(id))).sort(cmp)[0];
     if (up) return make(up, "up");
     // 4. the next new slide
-    const fresh = [...tree.roots.keys()].find((n) => n <= goal && !started.has(n));
+    const fresh = [...tree.roots.keys()].find((n) => within(n) && !started.has(n));
     if (fresh !== undefined) return make(tree.order.find((id) => node(id).slides[0] === fresh && !passed(id)) as string, "new");
     return review ? make(review, "due") : null;
   };

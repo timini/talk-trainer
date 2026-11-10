@@ -184,6 +184,26 @@ async function second(browser: Browser) {
   return p;
 }
 
+test("the slides to practise: a range, a section by its name, or the opening and close", async ({ page }) => {
+  const say = (n: number) => [`Slide ${n} says its first thing.`, `Then slide ${n} says more.`];
+  await open(page, "Learn sections", deck([{ title: "One", notes: say(1), section: "Opening" }, { title: "Two", notes: say(2) },
+    { title: "Three", notes: say(3), section: "Middle" }, { title: "Four", notes: say(4), section: "Close" }]));
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByTestId("range")).toHaveText("Practising slide 4");
+  await page.getByRole("button", { name: "Opening and close" }).click();
+  await expect(page.getByTestId("range")).toHaveText("Practising slides 1 to 2 and 4");
+  await page.getByLabel("From slide").fill("2");
+  await expect(page.getByTestId("range")).toHaveText("Practising slides 2 to 4");
+  await page.getByLabel("To slide").fill("3");
+  await expect(page.getByTestId("range")).toHaveText("Practising slides 2 to 3");
+  await page.getByRole("button", { name: "Middle" }).click();
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.getByTestId("status")).toHaveText("Slide 3 of 4");
+  // kept
+  await page.reload();
+  await expect(page.getByTestId("range")).toHaveText("Practising slide 3");
+});
+
 test("the old trainer links to the new one", async ({ page }) => {
   const s = await open(page, "Learn link");
   await page.goto(`/talks/${s.talk.id}/train`);
