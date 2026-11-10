@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { hiding, type State } from "@/lib/learn/model";
+import { estimates, hiding, record, type State } from "@/lib/learn/model";
 import { FIRST, PACE_OF, REVIEWS } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Session, standing } from "@/lib/learn/scheduler";
 import { build, type Input, type Node } from "@/lib/learn/tree";
@@ -124,6 +124,56 @@ describe("pick", () => {
     expect(pick(t10, from(all), NOW, "verbatim", Infinity, begin())?.node.id).toBe("sec:1");
     expect(pick(t10, from({ ...all, "sec:1": st(0.9) }), NOW, "verbatim", Infinity, begin())?.node.id).toBe("sec:2");
     expect(pick(t10, from({ ...all, "sec:1": st(0.9), "sec:2": st(0.9) }), NOW, "verbatim", Infinity, begin())?.node.id).toBe("t");
+  });
+});
+
+describe("after a miss, the climb goes back through the node missed (Tim, 9 November, slide 4)", () => {
+  test("a group missed, its weakest sentence passed: the group next, not the slide; then the slide", () => {
+    const t4 = build([said(4, ["This talk asks when a score is enough.", "We looked at the data.", "Most variants were rare.",
+      "So we asked the families."])]);
+    const [s0, s1, g01, s2, s3, g23, root] = t4.order;
+    const states = new Map<string, State>();
+    const get = (id: string) => states.get(id) ?? null;
+    let now = NOW, session = begin();
+    const attempt = (id: string, leaves: number[], points: number) => {
+      const est = estimates(t4, get, now), n = t4.nodes.get(id) as Node;
+      const scores = new Map(n.leaves.map((l, k) => [l, leaves[k]]));
+      record(t4, get, n, scores, points, now, new Map(n.leaves.map((l) => [l, 0.5])), est).forEach((v, k) => states.set(k, v));
+      now += 30000;
+    };
+    const next = () => {
+      const p = pick(t4, get, now, "gist", Infinity, session) as NonNullable<ReturnType<typeof pick>>;
+      return p;
+    };
+    // the first group and both sentences of the second known
+    for (const id of [s0, s1, s2, s3]) { attempt(id, [100], 100); attempt(id, [100], 100); }
+    attempt(g01, [100, 100], 100);
+    // the second group, up: missed on its last sentence
+    let p = next();
+    expect([p.node.id, p.why]).toEqual([g23, "up"]);
+    attempt(g23, [100, 0], 45);
+    session = after(session, p, false);
+    expect(standing(t4, get, now, "gist", session).at(g23)).toBe(false);
+    // down to the sentence missed, passed
+    p = next();
+    expect([p.node.id, p.why]).toEqual([s3, "down"]);
+    attempt(s3, [100], 100);
+    session = after(session, p, true);
+    // back up to the group missed, not the whole slide
+    expect(standing(t4, get, now, "gist", session).ready(root)).toBe(false);
+    p = next();
+    expect([p.node.id, p.why]).toEqual([g23, "up"]);
+    attempt(g23, [100, 100], 100);
+    session = after(session, p, true);
+    expect(next().node.id).toBe(root);
+  });
+
+  test("nothing over a part whose last attempt missed is ready, even when its own score is still at the bar", () => {
+    const missed = { [a]: st(0.8), [b]: st(0.7, { run: 1 }) };
+    expect(standing(tree, from({ ...missed }), NOW, "gist").at(b)).toBe(false);
+    expect(standing(tree, from({ ...missed }), NOW, "gist").ready(one)).toBe(false);
+    // a part missed deeper down: the talk waits too
+    expect(standing(tree, from({ ...known, [b]: st(0.9, { run: 1 }) }), NOW, "gist").ready("t")).toBe(false);
   });
 });
 

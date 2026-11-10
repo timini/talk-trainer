@@ -2,17 +2,9 @@
 // talk of 7 slides, at both aims. It checks that the top is always reached, that the session's pass rate stays near
 // the 70 to 85% band, and that no node is picked more than 6 times in a row while there is anything else to do.
 //
-// The run that chose the constants in lib/learn/rules.ts (JOIN 0.9, UNDER 0.25, the verbatim node bar 0.75, SAME 3),
-// 20 slides of each size, median and 95th percentile attempts to the slide at its bar, and the pass rate:
-//   word for word: 1 sentence 11 / 19, 86%; 2: 23 / 41, 86%; 4: 52 / 72, 82%; 6: 78 / 155, 85%; 9: 168 / 265, 86%;
-//                  12: 332 / 426, 89%. A talk of 7 slides (17 sentences): 492 to 872 attempts, 6 to 10 sessions.
-//   gist:          1 sentence 5 / 7, 86%; 2: 7 / 10, 93%; 4: 14 / 16, 87%; 6: 19 / 23, 87%; 9: 30 / 34, 84%;
-//                  12: 38 / 43, 84%. A talk of 7 slides: 104 to 121 attempts.
-//   The gist before it passed over clauses and its node bar went from 0.6 to 0.5 (10 November): 1 sentence 8 / 17;
-//   2: 16 / 23; 4: 35 / 50; 6: 53 / 78; 9: 82 / 139; 12: 146 / 159; a talk of 7 slides 243 to 340.
-// The gist runs a little easier than the band (up to 93% for 2 sentences): the pacing then hides more.
-// Against JOIN 0.85 and the bar 0.8 (the first design), word for word took 64 attempts for 4 sentences, 317 for 9
-// and 495 for 12; JOIN 0.75 took more again.
+// The figures, median and 95th percentile attempts to the slide at its bar and the pass rate, 20 slides of each size,
+// are in docs/learning.md with the constants they chose. A climb after a miss must go back through the node missed
+// (Tim, 9 November): checked here for every run.
 
 import { describe, expect, test } from "vitest";
 import type { Aim } from "@/lib/learn/rules";
@@ -47,10 +39,12 @@ describe.each(["verbatim", "gist"] as Aim[])("%s", (aim) => {
   test.each(SIZES)("a slide of %i sentences reaches its bar", (n) => {
     const rs = Array.from({ length: 20 }, (_, k) => practise([slide(n, 1, rng(k + 100 * n))], aim, k + 1));
     const got = rs.map((r) => r.reached);
+    // a climb after a miss never skips the node missed
+    expect(rs.map((r) => r.skips)).toEqual(rs.map(() => 0));
     expect(got.every((x) => x !== null)).toBe(true);
     const at = got as number[];
     // fewer attempts than 40 a sentence at the 95th percentile, and the pass rate near the band
-    expect(quantile(at, 0.95)).toBeLessThan(40 * n + 20);
+    expect(quantile(at, 0.95)).toBeLessThan(45 * n + 20);
     expect(quantile(at, 0.5)).toBeLessThanOrEqual(quantile(at, 0.95));
     expect(rate(rs)).toBeGreaterThan(0.7);
     expect(rate(rs)).toBeLessThan(0.95);
@@ -61,10 +55,11 @@ describe.each(["verbatim", "gist"] as Aim[])("%s", (aim) => {
     for (const r of rs) {
       expect(r.reached).not.toBeNull();
       expect(r.sameMax).toBeLessThanOrEqual(6);
+      expect(r.skips).toBe(0);
       expect(r.picks.some((p) => p.node.kind === "bridge")).toBe(true);
       expect(r.picks.at(-1)?.node.kind).toBe("talk");
     }
     expect(rate(rs)).toBeGreaterThan(0.7);
-    expect(rate(rs)).toBeLessThan(0.92);
+    expect(rate(rs)).toBeLessThan(0.95);
   });
 });

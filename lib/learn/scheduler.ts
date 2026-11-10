@@ -11,7 +11,7 @@
 // LIFT above their bars before it is tried again, and they are practised until they are. A node picked SAME times in
 // a row is passed over once.
 
-import { barOf, estimates, skipped, type States } from "./model";
+import { barOf, estimates, fade, skipped, type States } from "./model";
 import { type Aim, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK } from "./rules";
 import type { Node, Tree } from "./tree";
 
@@ -33,11 +33,12 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   const est = estimates(tree, get, now), rate = pace(session);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const bar = (id: string) => barOf(node(id), aim);
-  // at its bar: attempted, and its estimate at the bar; word for word, a slide also needs its last attempt with every
-  // word hidden
+  // at its bar: attempted, its last attempt not a miss, and its own faded score at the bar (not the estimate from its
+  // parts: a node just missed is not known, however well its parts are, nor however high its score still is); word for
+  // word, a slide also needs its last attempt with every word hidden
   const at = (id: string, margin = 0) => {
     const st = get(id);
-    return !!st && (est.get(id) as number) >= bar(id) + margin && !(aim === "verbatim" && node(id).kind === "slide" && st.hid < 1);
+    return !!st && st.run === 0 && fade(st, now) >= bar(id) + margin && !(aim === "verbatim" && node(id).kind === "slide" && st.hid < 1);
   };
   const due = (id: string) => {
     const st = get(id);
@@ -50,9 +51,22 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   const through = (ids: string[]): string[] => ids.flatMap((k) => (skip(k) ? through(node(k).kids) : [k]));
   const parts = (id: string) => through(node(id).kids);
   const down = (id: string) => through(node(id).down);
-  const ready = (id: string) => !skip(id) && !at(id) && parts(id).every((k) => at(k, stuck(id) ? LIFT : margin));
+  // a part anywhere under a node whose last attempt missed (passing over the parts not practised at this aim): the node
+  // waits for it, so a climb never passes over a miss
+  const below = new Map<string, boolean>();
+  const missedBelow = (id: string): boolean => {
+    const have = below.get(id);
+    if (have !== undefined) return have;
+    const v = parts(id).some((k) => (get(k)?.run ?? 0) > 0 || missedBelow(k));
+    below.set(id, v);
+    return v;
+  };
+  const ready = (id: string) => !skip(id) && !at(id) && !missedBelow(id) && parts(id).every((k) => at(k, stuck(id) ? LIFT : margin));
   return { est, rate, bar, at, due, stuck, ready, skip, parts, down };
 };
+
+// In talk order, a slide's own nodes come before the bridge after it, then the section, then the talk.
+const RANK: Partial<Record<Node["kind"], number>> = { bridge: 1, section: 2, talk: 3 };
 
 export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number, session: Session): Pick | null => {
   const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session);
@@ -83,7 +97,7 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
     const lifted = new Set(live.filter(stuck).flatMap((id) => parts(id).filter((k) => !at(k, LIFT))));
     const order = (id: string) => {
       const n = node(id);
-      return [Math.max(...n.slides), n.kind === "bridge" ? 1 : n.kind === "section" ? 2 : n.kind === "talk" ? 3 : 0, n.to, n.height];
+      return [Math.max(...n.slides), RANK[n.kind] ?? 0, n.to, n.height];
     };
     const cmp = (a: string, b: string) => {
       const x = order(a), y = order(b);

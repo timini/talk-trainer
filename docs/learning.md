@@ -145,7 +145,13 @@ One rule, in order:
 2. Else, if the last attempt missed, **zoom down**: the part of the missed node with the lowest estimate. A leaf is
    tried again. A bridge goes down to its two sentences, a run-through to its slides and bridges.
 3. Else **zoom up**: the first node, in talk order, that is not at its bar while its parts all are. A node comes after
-   its parts, so a slide is learned sentence 1, sentence 2, the pair, sentence 3, and so on.
+   its parts, so a slide is learned sentence 1, sentence 2, the pair, sentence 3, and so on. "At its bar" is the node's
+   own score, once it has been tried, and its last attempt was not a miss; the estimate from its parts only sets where
+   its score starts and how much is hidden. A node is not ready while any part under it missed on its last attempt. So
+   after a miss and a pass lower down, the climb goes back through the node missed, one level at a time, and never
+   jumps over it to the whole slide. (Tim, 9 November, slide 4: a group of 54 words was missed, its last sentence
+   passed, and the next card was the whole slide of 128 words, because the group's estimate from its parts was above
+   its bar.)
 4. Else **the first leaf of the next new slide**, within today's goal (the last slide to work on today).
 
 **The bars** (the score at which a node counts as known):
@@ -244,15 +250,18 @@ Attempts to reach the slide's bar (median and 95th percentile) and the pass rate
 
 | Sentences | Word for word | Gist |
 |---|---|---|
-| 1 | 11 / 19, 86% | 5 / 7, 86% |
-| 2 | 23 / 41, 86% | 7 / 10, 93% |
-| 4 | 52 / 72, 82% | 14 / 16, 87% |
-| 6 | 78 / 155, 85% | 19 / 23, 87% |
-| 9 | 168 / 265, 86% | 30 / 34, 84% |
-| 12 | 332 / 426, 89% | 38 / 43, 84% |
+| 1 | 11 / 22, 86% | 5 / 7, 86% |
+| 2 | 30 / 42, 84% | 8 / 11, 91% |
+| 4 | 55 / 77, 84% | 17 / 21, 84% |
+| 6 | 82 / 167, 86% | 27 / 35, 83% |
+| 9 | 177 / 348, 88% | 39 / 48, 85% |
+| 12 | 337 / 487, 90% | 50 / 57, 85% |
 
-A talk of 7 slides (17 sentences) to its run-through: 492 to 872 attempts word for word (6 to 10 sessions of 30 minutes),
-104 to 121 for the gist.
+A talk of 7 slides (17 sentences) to its run-through: 664 to 1035 attempts word for word (8 to 12 sessions of 30
+minutes), 117 to 145 for the gist. The simulation also checks that a climb after a miss never passes over the node
+missed. Making the climb go back through it cost a few attempts: before, the gist took 14 for 4 sentences and 30 for 9,
+and word for word 52 and 168, with the climb sometimes skipping a missed node (19 to 30 times in 20 slides at the
+gist).
 
 The gist before it passed over clauses, with its node bar at 0.6: 8, 16, 35, 53, 82 and 146 attempts (medians, for 1
 to 12 sentences), and 243 to 340 for the talk of 7 slides. Each step on its own: passing over clauses gave 19 for 4
@@ -271,6 +280,7 @@ What the simulation changed from the first design:
   made them look known.
 - **The gist** passes over clauses, and its node bar is 0.5 (from 0.6), to fit Tim's timeline (about 100 attempts an
   hour, the talk on Saturday).
+- **A node just missed is not at its bar**, and nothing over a part just missed is ready (see zoom up).
 - **`SAME` 3** (from 4): with 4, one node was picked 7 times in a row in a talk of 7 slides.
 
 The learner is a model, so these numbers are a guide to the shape, not a promise of minutes. The real numbers come

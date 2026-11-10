@@ -82,7 +82,7 @@ export class Learner {
 }
 
 export type Run = { attempts: number; reached: number | null; passes: number; counted: number; sameMax: number;
-  sessions: number; picks: Pick[]; log: { sentences: number; words: number; hid: number; pass: boolean }[] };
+  sessions: number; picks: Pick[]; skips: number; log: { sentences: number; words: number; hid: number; pass: boolean }[] };
 
 // Practise a talk until its top node (the talk, or the one slide) is at its bar: sessions of 30 minutes, with gaps
 // of 3 hours and 14 hours in turn, at most 40 sessions.
@@ -93,6 +93,10 @@ export const practise = (slides: Input[], aim: Aim, seed: number, join0 = 0.5): 
   const top = tree.talk ?? (tree.roots.get(slides[0].n) as string);
   let now = Date.UTC(2026, 10, 9, 8), attempts = 0, passes = 0, counted = 0, sameMax = 0, sessions = 0;
   const picks: Pick[] = [], log: Run["log"] = [];
+  // a climb after a miss that skips the missed node: a node over it tried (to go up) before it
+  let missed: Node | null = null, skips = 0;
+  const over = (p: Node, x: Node) => p !== x && (p.under.includes(x.id) || ((p.kind === "section" || p.kind === "talk")
+    && x.slides.every((n) => p.slides.includes(n))));
   for (; sessions < 40; sessions += 1) {
     let session = begin();
     const end = now + 30 * MIN;
@@ -121,19 +125,22 @@ export const practise = (slides: Input[], aim: Aim, seed: number, join0 = 0.5): 
         now += (15 + 0.4 * node.words) * 1000;
         record(tree, get, node, leaves, points, now, hide, est).forEach((v, k) => states.set(k, v));
       }
+      if (missed && p.why === "up" && over(node, missed)) skips += 1;
+      if (missed && (node === missed || !(missed.slides.some((n) => node.slides.includes(n))))) missed = null;
       picks.push(p);
       attempts += 1;
       counted += 1;
       if (points >= 60) passes += 1;
       session = after(session, p, points >= 60);
+      if (points < 60) missed = node;
       sameMax = Math.max(sameMax, session.same);
       if (standing(tree, get, now, aim).at(top)) {
-        return { attempts, reached: attempts, passes, counted, sameMax, sessions: sessions + 1, picks, log };
+        return { attempts, reached: attempts, passes, counted, sameMax, sessions: sessions + 1, picks, skips, log };
       }
     }
     now = end + (sessions % 2 ? 14 : 3) * HOUR;
   }
-  return { attempts, reached: null, passes, counted, sameMax, sessions, picks, log };
+  return { attempts, reached: null, passes, counted, sameMax, sessions, picks, skips, log };
 };
 
 // A node's score from its leaves' scores, by their words.
