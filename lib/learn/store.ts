@@ -7,8 +7,9 @@
 // at until 10 November: the one with more attempts wins).
 
 import { hidden, type State } from "./model";
+import * as rules from "./rules";
 import { type Aim, FIRST, GROW } from "./rules";
-import type { Node, Tree } from "./tree";
+import { hash, type Node, type Tree } from "./tree";
 
 export const nodeKey = (id: string) => `learn:n:${id}`;
 export const logKey = (day: string) => `learn:log:${day}`;
@@ -32,9 +33,17 @@ export type Setting<T> = { v: T; at: number };
 // estimate before the attempt; hidden: the share of its words hidden; points: the score (null when not counted);
 // pass: 60 or more (null when not counted); ms: how long the judge took; gap: the time since the node was last tried
 // (null: never); m: when this entry was last changed (a recount changes it).
+// An attempt logged. why: the scheduler's reason, or "known" for "I know this one" (points and pass null). For fitting
+// the learner later (docs/learning.md, "Tim's first sessions"): v, the version of the rules (RULES); leaves, each
+// leaf's score in leaf order; probs, the judge's problems by kind; slides, on a run-through, each slide's points;
+// shown, Show me used; speak, the time recorded (ms); wait, from the card shown to the first recording (ms); ms, the
+// judge's time.
 export type Entry = { id: string; at: number; node: string; slide: number; kind: string; height: number; words: number;
   before: number; bar: number; after: number | null; hidden: number; points: number | null; pass: boolean | null; ms: number;
-  gap: number | null; why: string; m: number };
+  gap: number | null; why: string; m: number; v?: string; leaves?: number[]; probs?: Record<string, number>;
+  slides?: [number, number][]; shown?: boolean; speak?: number; wait?: number | null };
+// The version of the rules: a hash of every value in lib/learn/rules.ts.
+export const RULES = hash(JSON.stringify(rules));
 export type Log = { at: number; list: Entry[] };
 
 // The day's log with an attempt added, or changed when it is there already.

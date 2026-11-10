@@ -54,6 +54,13 @@ export const FIT_9_NOV: Fit = { read: READ, join0: 0.5, S0: 180 * MIN, grow: 1.5
 // (passing alone about 86%): under 15 words 89%, 15 to 30 words 73%, 30 to 60 words 38%, 60 or more 25%. This learner
 // gives 90%, 60% (two sentences; a long sentence alone is 89%, so the bucket is about 73%), 38% and 24%.
 export const FIT_10_NOV: Fit = { read: READ, join0: 0.4, S0: 180 * MIN, grow: 1.5, per: 0, back: 0.2, cue: 4 };
+// Fitted to Tim's first 167 attempts with /learn (9 and 10 November) by replaying his four sessions on the shape of
+// his talk (tests/sim/budget.ts): a grid of 648 learners scored on the pass rates by kind and by length, first
+// attempts, attempts after more than 3 hours, and the slides started and at the bar. A memory lasts longer (8 hours
+// before spacing) and a spaced success grows it more (3 times): he passed 86% after a night. The best few fits are
+// close; they differ most in the joins, which the log cannot tell apart while the pacing holds the pass rate in its
+// band (docs/learning.md, "Tim's first sessions").
+export const FIT_11_NOV: Fit = { read: READ, join0: 0.55, S0: 8 * HOUR, grow: 3, per: 0, back: 0.2, cue: 4 };
 
 export class Learner {
   private mem = new Map<string, Mem>();

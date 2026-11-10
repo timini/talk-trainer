@@ -78,7 +78,9 @@ pairing until they are built again.
 Each node keeps `{ s, at, interval, n, passes, lastPass, run, hid }`.
 
 **The score `s`** is an exponentially weighted moving average of the node's attempt scores. Each attempt moves it
-`ALPHA` (0.5) of the way to that attempt's score, so the last 3 attempts carry about 88% of the weight.
+`ALPHA` (0.5) of the way to that attempt's score, so the last 3 attempts carry about 88% of the weight. A confident
+pass, 85 or more with at least `SURE` (45%) of its words hidden, moves it `ALPHA_GOOD` (0.9) of the way instead, so a
+part said well is not asked again and again (see "Tim's first sessions").
 
 **Scores flow down.** The judge's problems are placed on the leaves (below), and every node under the attempted one is
 scored by its own leaves. These move only `UNDER` (0.25) of the
@@ -88,8 +90,8 @@ way: where a problem falls is a guess, so it is weaker evidence than an attempt 
 mean of its parts' estimates times `JOIN` (0.9). The penalty is for joining, which the data says is harder than the
 parts (finding 5). A node still has to be tried once before it counts as at its bar.
 
-**Spacing.** Each node has an interval: `FIRST` (10 minutes) at first, `GROW` (2.5) times longer after a pass, back to
-10 minutes after a miss. A pass grows the interval only if it came at least one interval after the last pass, so three
+**Spacing.** Each node has an interval: `FIRST` (20 minutes) at first, `GROW` (4) times longer after a pass, back to
+20 minutes after a miss (10 minutes and 2.5 until 10 November; see "Tim's first sessions"). A pass grows the interval only if it came at least one interval after the last pass, so three
 passes in ten minutes count as one. This is expanding retrieval (the Leitner system, SM-2): reviews are spaced out as
 the memory gets stronger, which is what builds retention after a gap (finding 4).
 
@@ -224,8 +226,11 @@ over. The old keys stay for the old page.
 ## Learning rates (`metrics.ts`, and the Progress screen)
 
 Each attempt is logged with the node, its kind and height, its size in words, the estimate before, the share hidden,
-the score, whether it passed, how long the judge took, and the gap since the node was last tried. The judge's log in
-KV gets the same fields. The Progress screen shows:
+the score, whether it passed, how long the judge took, and the gap since the node was last tried. Since 10 November,
+for fitting the learner directly, it also has the version of the rules (`v`, a hash of `rules.ts`), each leaf's score,
+the judge's problems by kind, each slide's points on a run-through, whether Show me was used, the time spoken and the
+wait before speaking. "I know this one" is logged too, with `why: "known"` and no score; the metrics leave it out.
+The judge's log in KV gets the place in the tree as well, kept 14 days with the audio. The Progress screen shows:
 
 - slides at their aim;
 - the pass rate this session, against the 70 to 85% target;
@@ -276,6 +281,9 @@ sentences and 38 for 9; the bar 0.5 then 14 and 30. The gist now runs a little a
 2 sentences), where the pacing hides more.
 
 ### Tim's budget (`tests/sim/budget.ts`)
+
+These figures are from before his first sessions; the budget now replays them, under the fitted learner (see "Tim's
+first sessions").
 
 Tim has about 10 hours from Tuesday 10 to Friday 13 November (3, 3, 2.5 and 1.5 hours, in blocks of 45 minutes with
 nights between), about 1100 attempts at the 95 to 110 an hour his sessions ran at, and gives the talk on Saturday 14.
@@ -332,3 +340,66 @@ What the simulation changed from the first design:
 
 The learner is a model, so these numbers are a guide to the shape, not a promise of minutes. The real numbers come
 from the Progress screen after Tim's first sessions.
+
+### Tim's first sessions (10 November)
+
+Tim's log on 9 and 10 November: 167 attempts in four sessions, about 1.75 hours, on slides 1 to 7. 93 of them were
+with the gist fitted to his budget. The talk is now v41: 81 slides, 274 sentences, 4092 words.
+
+**What matched the simulation.**
+- The pass rate held in its band: 74%, 83%, 84% and 100% by session.
+- 7 slides were started; the simulation said 7 to 10.
+- About 90 attempts an hour, against the 95 to 110 assumed.
+
+**What did not.**
+- Long attempts were far easier for him than for the 10 November learner. Half hidden, attempts of 60 words or more
+  passed 81% (22 of 27); the learner gives 25%. Bridges passed 82%, against 33%. The transcripts show near word for
+  word recall, so the judge is not lenient.
+- Memory lasted longer: 18 of 21 attempts after a night passed (86%), where the learner halves a memory in 3 hours.
+- The pass rate alone cannot tell learners apart. The pacing holds it in its band whatever the learner, by showing
+  more or going down. Re-run on this version, even the 10 November learner passes 80 to 84%.
+- Much of the practice confirmed what he knew. Slide 2 took 24 attempts, 23 of them passes; slide 3, 9 and 9. At the
+  gist the hiding sat at its 50% cap on 80% of attempts, so a slide climbed by repetition. Slide 4, the longest and
+  changed by v41 midway, took 69 of the 167.
+
+**The fitted learner** (`FIT_11_NOV`). The simulation replays his four sessions on the shape of the v41 talk, then the
+hours left. A grid of 648 learners was scored against his log: the pass rates by kind and by length, first attempts,
+attempts after more than 3 hours, and the slides started and at the bar. The best: a memory lasts 8 hours before
+spacing (from 3) and a spaced success grows it 3 times (from 1.5), with new joins at 0.55. The top fits are close
+and differ most in the joins, so every setting was checked against three: the best, the next (memory 24 hours, joins
+leaning less on the words shown, slower learning), and the 10 November learner.
+
+**The settings search.** The measure: the expected Saturday score over the whole talk, each slide said with nothing
+shown, weighted by its words, a slide never started counting 0; then the slides at the gist bar by Friday night, and
+the slides started. Each cell is the best fit, the next and the 10 November learner, the mean of 3 runs (a scratch
+copy of the engine with every setting open).
+
+| Settings | Saturday score | Slides at bar | Started |
+|---|---|---|---|
+| Before | 0.39, 0.37, 0.27 | 21, 19, 13 | 33, 32, 23 |
+| A new slide every 5 picks | 0.33, 0.31, 0.23 | 17, 15, 8 | 81, 81, 81 |
+| A new slide every 12 picks | 0.35, 0.34, 0.23 | 18, 18, 11 | 56, 56, 59 |
+| A node rests 20 minutes after a pass | 0.33, 0.34, 0.20 | 16, 18, 9 | 37, 40, 25 |
+| `ALPHA_GOOD` 0.9 | 0.47, 0.42, 0.28 | 26, 20, 13 | 40, 36, 25 |
+| `GROW` 4, `FIRST` 20 minutes | 0.47, 0.41, 0.28 | 29, 28, 18 | 39, 36, 25 |
+| **Both (chosen)** | **0.53, 0.45, 0.26** | **37, 32, 17** | **45, 39, 26** |
+| Both, and a new slide every 15 picks | 0.48, 0.45, 0.23 | 36, 33, 13 | 52, 49, 50 |
+
+Also tried, with little change: the gist hiding cap at 0.8, `ALPHA` 0.7, the slide bar 0.7 or 0.75, `REVIEWS` 2, 3 or
+10, `FADE` 0.2, `UNDER` 0.5, `GROW` 5, `FIRST` 30 minutes.
+
+What it shows:
+- **More exposure to later slides sooner makes Saturday worse** under every learner. A slide seen a few times and
+  not brought to its bar does not hold, and the time comes from slides that would have.
+- **The time went on confirming known slides, not on the order.** Trusting a confident pass and spacing further
+  reaches later slides sooner by itself: 45 started instead of 33, 37 at the bar instead of 21, at the same pass rate.
+- **The cost, if he forgets faster than his log says.** Under the 10 November learner the chosen settings are about
+  even on the Saturday score (0.26 against 0.28). The slides at the bar hold less well, 80% on Saturday against 94%,
+  since a pass is trusted longer. His 86% after a night is the evidence against that learner.
+
+In the repo's budget run (`tests/sim/budget.ts`, the mean of 5) the chosen settings give, under `FIT_11_NOV`, a
+Saturday score of 0.53, 41 slides at the bar and 44 started (0.40, 31 and 34 before); under the 10 November learner
+0.26, 23 and 26 (0.28, 20 and 24).
+
+**Next, from the new log fields:** fit the joins and the recall of each leaf from each leaf's score; check retention
+from the run-throughs' slides, said with every word hidden; and separate the versions of the rules by `v`.

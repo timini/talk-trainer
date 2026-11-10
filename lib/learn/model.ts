@@ -9,8 +9,8 @@
 
 import { placed } from "./align";
 import type { Problem } from "../judge";
-import { ALPHA, type Aim, BARS, CUE, FADE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
-  GIST_CLAUSES, GIST_GROUP, GIST_TOP, PACE_HIGH, PACE_LOW, SHIFT, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
+import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
+  GIST_CLAUSES, GIST_GROUP, GIST_TOP, GOOD, PACE_HIGH, PACE_LOW, SHIFT, SURE, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
 import type { Node, Tree } from "./tree";
 
 // s: the score; at: the last attempt; interval (ms); n: attempts; passes: attempts of NEARLY or more; lastPass: when
@@ -45,7 +45,8 @@ export const estimates = (tree: Tree, get: States, now: number) => {
 export const barOf = (node: Node, aim: Aim) => (node.top ? BARS[aim].top : BARS[aim].node);
 
 // A node after an attempt scored points (0 to 100). base: its estimate before; hid: the share of its words hidden;
-// alpha: how far the score moves (ALPHA for the node attempted, UNDER for the parts under it).
+// alpha: how far the score moves (ALPHA for the node attempted, ALPHA_GOOD after a confident pass, UNDER for the
+// parts under it).
 export const update = (st: State | null, base: number, points: number, now: number, hid: number, alpha = ALPHA): State => {
   const pass = points >= NEARLY;
   const spaced = !!st && st.lastPass > 0 && now - st.lastPass >= st.interval;
@@ -137,7 +138,8 @@ export const record = (tree: Tree, get: States, node: Node, leafScores: Map<stri
     const x = tree.nodes.get(id) as Node, leaves = x.leaves.length ? x.leaves : [id];
     const ws = leaves.map((l) => (tree.nodes.get(l) as Node).words), all = ws.reduce((a, b) => a + b, 0);
     const hid = leaves.reduce((a, l, k) => a + (hide.get(l) ?? 1) * ws[k], 0) / all;
-    const st = get(id), next = update(st, est.get(id) as number, p, now, Math.round(hid * 100) / 100, id === node.id ? ALPHA : UNDER);
+    const h = Math.round(hid * 100) / 100, alpha = id !== node.id ? UNDER : p >= GOOD && h >= SURE ? ALPHA_GOOD : ALPHA;
+    const st = get(id), next = update(st, est.get(id) as number, p, now, h, alpha);
     const add = trouble?.get(id);
     if (add) next.trouble = troubled(st, now, add);
     else if (st?.trouble) next.trouble = st.trouble;

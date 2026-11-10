@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { base64, type Deps, Engine, type Recording } from "@/app/talks/[id]/learn/engine";
 import type { State } from "@/lib/learn/model";
-import { nodeKey } from "@/lib/learn/store";
+import { nodeKey, RULES } from "@/lib/learn/store";
 import type { Script } from "@/lib/train";
 
 const sentence = (i: number, text: string, must: string[] = []) => ({ i, text, hash: `h${i}${text.length}`, clip: `/clip/${text.length}`, must_say: must });
@@ -261,6 +261,27 @@ describe("recount, Show me and I know this one", () => {
     e.knowIt();
     expect(state(e, b)).toMatchObject({ s: 0.9, hid: 1 });
     expect(e.node?.id).not.toBe(b);
+    // both logged: the attempt with Show me used, then "I know this one", not counted
+    expect(e.log().map((x) => [x.node, x.why, x.pass, x.shown])).toEqual([[a, expect.any(String), true, true], [b, "known", null, false]]);
+  });
+
+  test("each attempt logs what a later fit needs: the rules, each leaf's score, the problems, the time spoken and waited", async () => {
+    const e = make();
+    e.setAim("verbatim");
+    e.start();
+    const id = e.node!.id;
+    grades.push({ body: { heard: "Good morning.", meaning_ok: false, clarity: 5, fluency: 4, pace: "good", tip: "",
+      problems: [{ kind: "left_out", script: "and thank you for coming.", said: "" }, { kind: "stumble", script: "Good morning", said: "Good mor- morning" }] } });
+    clock += 4000;
+    await e.speak();
+    clock += 3000;
+    e.stop();
+    await flush();
+    const [x] = e.log();
+    expect(x).toMatchObject({ node: id, v: RULES, probs: { left_out: 1, stumble: 1 }, wait: 4000, speak: 3000, shown: false });
+    expect(x.leaves).toHaveLength(e.tree.nodes.get(id)!.leaves.length);
+    expect(x.leaves!.every((v) => v >= 0 && v <= 100)).toBe(true);
+    expect(RULES).toMatch(/^[0-9a-z]+$/);
   });
 
   test("no trouble yet: every word 0; nothing on screen: none", () => {
@@ -305,6 +326,9 @@ describe("a run-through", () => {
     e.recount(true);
     expect([e.points, e.counted]).toEqual([85, true]);
     expect(state(e, "t")).toMatchObject({ n: 1, run: 0, passes: 1 });
+    // logged once, with each slide's points as the judge gave them
+    expect(e.log()).toHaveLength(1);
+    expect(e.log()[0]).toMatchObject({ node: "t", points: 85, slides: [[1, 100], [2, 0]] });
   });
 
   test("marked by hand without the microphone", () => {

@@ -18,6 +18,13 @@ export const SECTION = 5;
 // Simulation: UNDER 0.25 against 0.5 took 63 attempts to learn a slide of 4 sentences word for word instead of 73.
 export const ALPHA = 0.5;
 export const UNDER = 0.25;
+// A confident pass (GOOD or more, with at least SURE of its words hidden) moves the node attempted ALPHA_GOOD of the
+// way instead, so a part said well is not asked again and again (10 November: slide 2 took 24 attempts, 23 of them
+// passes). Simulation (tests/sim/budget.test.ts, the learner fitted to Tim's first sessions): with GROW 4 and FIRST 20
+// minutes below, an expected Saturday score over the whole talk of 0.53 instead of 0.39, 37 slides at the gist bar
+// instead of 21 and 45 started instead of 33, at the same pass rate.
+export const ALPHA_GOOD = 0.9;
+export const SURE = 0.45;
 // A node is known at least as well as the mean of its parts times JOIN: joining parts is harder than the parts (9
 // November: in 34 of 55 missed multi-sentence attempts every sentence was at 0.6 or more). A node still has to be
 // tried once before it counts as at its bar. Simulation: JOIN 0.9 took 52 attempts for 4 sentences and 166 for 9;
@@ -28,9 +35,11 @@ export const JOIN = 0.9;
 // last pass, and goes back to FIRST after a miss. A node is trusted for its interval; after it the score fades as
 // (1 + t / interval) ^ -FADE, t the time past the interval: a power law, the shape of forgetting curves. A node is due
 // once it has faded below its bar. Simulation: halving every interval instead wiped a day's work overnight (a node
-// with a 10 minute interval was at 0 after 3 hours), so every session started again from reading aloud.
-export const FIRST = 10 * MIN;
-export const GROW = 2.5;
+// with a 10 minute interval was at 0 after 3 hours), so every session started again from reading aloud. FIRST 20
+// minutes and GROW 4 (from 10 and 2.5): Tim passed 86% after a night (10 November), so a pass can be trusted longer;
+// a miss still goes back to FIRST.
+export const FIRST = 20 * MIN;
+export const GROW = 4;
 export const FADE = 0.3;
 
 // An attempt's score out of 100 (lib/score.ts): GOOD (85) or more is got; NEARLY (60) to 84 counts as a pass for the

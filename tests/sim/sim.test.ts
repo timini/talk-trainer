@@ -50,11 +50,14 @@ describe.each(["verbatim", "gist"] as Aim[])("%s", (aim) => {
     expect(rate(rs)).toBeLessThan(0.95);
   });
 
-  test("a talk of 7 slides reaches the talk run-through, through its bridges, never 6 picks of one node in a row", () => {
+  // At most 7 picks of one node in a row: with intervals of 20 minutes growing 4 times, the last new clause of the last
+  // slide can be the only thing left to practise, so it is not passed over (SAME passes over a node only if there is
+  // anything else).
+  test("a talk of 7 slides reaches the talk run-through, through its bridges, never 8 picks of one node in a row", () => {
     const rs = Array.from({ length: 5 }, (_, k) => practise([2, 3, 1, 4, 2, 3, 2].map((n, i) => slide(n, i + 1, rng(k * 10 + i))), aim, k + 7));
     for (const r of rs) {
       expect(r.reached).not.toBeNull();
-      expect(r.sameMax).toBeLessThanOrEqual(6);
+      expect(r.sameMax).toBeLessThanOrEqual(7);
       expect(r.skips).toBe(0);
       expect(r.picks.some((p) => p.node.kind === "bridge")).toBe(true);
       expect(r.picks.at(-1)?.node.kind).toBe("talk");

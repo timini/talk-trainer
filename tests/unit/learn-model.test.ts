@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { barOf, cues, troubleOf, estimates, fade, hidden, hiding, known, opening, place, record, scores, type State, terms, update }
   from "@/lib/learn/model";
-import { ALPHA, FIRST, GROW, JOIN, UNDER } from "@/lib/learn/rules";
+import { ALPHA, ALPHA_GOOD, FIRST, GROW, JOIN, SURE, UNDER } from "@/lib/learn/rules";
 import { build, type Input, type Node } from "@/lib/learn/tree";
 
 const MIN = 60000;
@@ -28,12 +28,13 @@ describe("the score and its fading", () => {
     const soon = update(first, 0.5, 100, 1000 + 5 * MIN, 0.4);
     expect(soon).toMatchObject({ s: 0.75, interval: FIRST, passes: 2, lastPass: 1000 + 5 * MIN, hid: 0.4 });
     // a full interval after the last pass: it grows
-    const later = update(soon, 0.75, 70, 1000 + 15 * MIN, 1);
+    const t = 1000 + 5 * MIN + FIRST;
+    const later = update(soon, 0.75, 70, t, 1);
     expect(later).toMatchObject({ s: 0.725, interval: FIRST * GROW, passes: 3, n: 3 });
     // a miss: back to the first interval, the misses run on, the last pass kept
-    const miss = update(later, 0.725, 30, 1000 + 20 * MIN, 1);
-    expect(miss).toMatchObject({ interval: FIRST, passes: 3, run: 1, lastPass: 1000 + 15 * MIN });
-    expect(update(miss, 0.5, 0, 1000 + 21 * MIN, 1).run).toBe(2);
+    const miss = update(later, 0.725, 30, t + 5 * MIN, 1);
+    expect(miss).toMatchObject({ interval: FIRST, passes: 3, run: 1, lastPass: t });
+    expect(update(miss, 0.5, 0, t + 6 * MIN, 1).run).toBe(2);
     expect(update(null, 0, 40, 5, 0)).toMatchObject({ run: 1, lastPass: 0, passes: 0 });
     expect(update(null, 0.4, 100, 5, 0, 0.25).s).toBeCloseTo(0.55);
   });
@@ -107,6 +108,18 @@ describe("an attempt", () => {
     // the node's share hidden is its leaves', by their words (7 and 4)
     expect(out.get(root)?.hid).toBe(0.32);
     expect(out.get(a)?.hid).toBe(0.5);
+  });
+
+  test("a confident pass (GOOD or more, at least SURE hidden) moves the node ALPHA_GOOD; its parts still UNDER", () => {
+    const get = () => null, est = estimates(tree, get, 1000), base = est.get(root) as number;
+    const at = (points: number, h: number) => record(tree, get, node(root), new Map([[a, points], [b, points]]), points, 1000,
+      new Map([[a, h], [b, h]]), est);
+    const sure = at(90, SURE);
+    expect(sure.get(root)?.s).toBeCloseTo((1 - ALPHA_GOOD) * base + ALPHA_GOOD * 0.9);
+    expect(sure.get(a)?.s).toBeCloseTo(UNDER * 0.9);
+    // a Nearly pass, or a good one with most of it shown: ALPHA
+    expect(at(80, 1).get(root)?.s).toBeCloseTo((1 - ALPHA) * base + ALPHA * 0.8);
+    expect(at(90, 0.3).get(root)?.s).toBeCloseTo((1 - ALPHA) * base + ALPHA * 0.9);
   });
 
   test("trouble: words hit go up, the rest keep 0.6 of theirs, it fades as the score does; kept when not given", () => {

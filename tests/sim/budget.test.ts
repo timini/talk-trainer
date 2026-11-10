@@ -1,11 +1,11 @@
-// Tim's budget for the AMP talk (tests/sim/budget.ts): about 1100 attempts over 10 hours, Tuesday 10 to Friday 13
-// November, against the learner refitted to his first attempts with /learn. The figures that chose the gist settings in
+// Tim's budget for the AMP talk (tests/sim/budget.ts): his sessions so far, then the hours left to Friday 13 November,
+// against the learner fitted to his first sessions with /learn (FIT_11_NOV). The figures that chose the settings in
 // lib/learn/rules.ts are in docs/learning.md; this checks the chosen settings still give them, roughly.
 
 import { describe, expect, test } from "vitest";
 import { build } from "@/lib/learn/tree";
 import { budget } from "./budget";
-import { FIT_10_NOV, Learner, rng } from "./learner";
+import { FIT_10_NOV, FIT_11_NOV, Learner, rng } from "./learner";
 
 describe("the learner refitted to Tim's attempts with /learn (9 and 10 November)", () => {
   test("half hidden, sentences known: 1 sentence about 90%, 2 about 60%, 4 about 38%, 7 about 24%", () => {
@@ -26,17 +26,44 @@ describe("the learner refitted to Tim's attempts with /learn (9 and 10 November)
   });
 });
 
-describe("Tim's budget at the gist", () => {
-  test("within the hours, the pass rate in the band, slides at the bar known on Saturday", () => {
+describe("the learner fitted to Tim's first sessions (FIT_11_NOV)", () => {
+  // his log, 9 and 10 November: 167 attempts in about 1.75 hours, 7 slides started, 4 at the gist bar and 3 just under;
+  // slides passed 82%, sentences 93%, bridges 79%; 86% after more than 3 hours
+  test("replaying his sessions gives about what his log shows", () => {
     for (const seed of [1, 2]) {
-      const r = budget("gist", seed, FIT_10_NOV);
+      const h = budget("gist", seed, FIT_11_NOV).history;
+      expect(h.attempts).toBeGreaterThan(140);
+      expect(h.attempts).toBeLessThan(200);
+      expect(h.started).toBeGreaterThanOrEqual(6);
+      expect(h.started).toBeLessThanOrEqual(12);
+      expect(h.slides).toBeGreaterThanOrEqual(4);
+      expect(h.slides).toBeLessThanOrEqual(11);
+      expect(Math.abs(h.byKind.slide - 0.82)).toBeLessThan(0.12);
+      expect(Math.abs(h.byKind.sentence - 0.93)).toBeLessThan(0.12);
+      expect(Math.abs(h.byKind.bridge - 0.79)).toBeLessThan(0.15);
+      expect(h.night).toBeGreaterThan(0.75);
+    }
+  });
+});
+
+// With the settings before 10 November (ALPHA_GOOD as ALPHA, FIRST 10 minutes, GROW 2.5) the same run gave, the mean
+// of 5: under FIT_11_NOV a Saturday score of 0.40, 31 slides at the bar and 34 started; under FIT_10_NOV 0.28, 20 and 24.
+describe("Tim's budget at the gist", () => {
+  test("under the fitted learner: within the hours, the pass rate held, more of the talk known on Saturday", () => {
+    for (const seed of [1, 2]) {
+      const r = budget("gist", seed, FIT_11_NOV);
       expect(r.attempts).toBeGreaterThan(850);
       expect(r.attempts).toBeLessThan(1100);
-      r.blocks.forEach((x) => { expect(x).toBeGreaterThan(0.65); expect(x).toBeLessThan(0.99); });
-      expect(r.slides).toBeGreaterThanOrEqual(10);
-      expect(r.started).toBeGreaterThanOrEqual(20);
+      r.blocks.forEach((x) => { expect(x).toBeGreaterThan(0.6); expect(x).toBeLessThanOrEqual(1); });
+      expect(r.saturday).toBeGreaterThan(0.45);
+      expect(r.slides).toBeGreaterThanOrEqual(35);
+      expect(r.started).toBeGreaterThanOrEqual(40);
       expect(r.known).toBeGreaterThan(0.9);
-      expect(r.saturday).toBeGreaterThan(0.2);
     }
+  });
+  test("under the 10 November learner, which forgets faster: little worse than before", () => {
+    const r = budget("gist", 1, FIT_10_NOV);
+    expect(r.saturday).toBeGreaterThan(0.23);
+    expect(r.slides).toBeGreaterThanOrEqual(18);
   });
 });

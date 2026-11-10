@@ -12,7 +12,7 @@ import { metrics, slidesAt, weakest } from "@/lib/learn/metrics";
 import { cues, estimates, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
 import type { Aim } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
-import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
+import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
 import type { Verdict } from "@/lib/judge";
 import { merge, streak, ymd } from "@/lib/schedule";
@@ -80,6 +80,15 @@ export class Engine {
   private quiet: (() => void) | null = null;
   // how long the judge took on the last attempt
   private ms = 0;
+  // for the log: when the card was shown and the recording started, the time recorded, the wait before the first
+  // recording, the judge's problems by kind, each leaf's score, and a run-through's slides
+  private cardAt = 0;
+  private recAt = 0;
+  private spoke = 0;
+  private waited: number | null = null;
+  private probs: Record<string, number> | null = null;
+  private leafScores: number[] | null = null;
+  private runSlides: [number, number][] | null = null;
 
   constructor(readonly script: Script, private readonly deps: Deps) {
     this.tree = build(script.slides);
@@ -180,6 +189,7 @@ export class Engine {
       at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();
     this.trouble = null;
+    Object.assign(this, { cardAt: now, spoke: 0, waited: null, probs: null, leafScores: null, runSlides: null });
     this.said = new Map();
     this.saidDone = new Map();
     if (!this.item && this.screen === "session") this.screen = "done";
@@ -255,6 +265,7 @@ export class Engine {
   knowIt() {
     if (!this.item || this.phase !== "ready") return;
     known(this.tree, this.state, this.item.node, this.deps.now()).forEach((v, k) => this.set(nodeKey(k), v));
+    this.logAttempt(this.item, null, this.deps.now(), this.gap(this.item.node, this.deps.now()), "known");
     this.pushSoon();
     this.go();
   }
@@ -280,6 +291,8 @@ export class Engine {
       const rec = await this.deps.record();
       if (this.phase !== "listening" || this.item !== item) { rec.cancel(); return; }
       this.rec = rec;
+      this.recAt = this.deps.now();
+      if (this.waited === null) this.waited = this.recAt - this.cardAt;
       this.cap = setTimeout(() => this.space(), LONGEST);
       this.emit();
     } catch {
@@ -294,6 +307,7 @@ export class Engine {
     const rec = this.rec;
     this.rec = null;
     clearTimeout(this.cap);
+    if (rec) this.spoke += this.deps.now() - this.recAt;
     return rec ? rec.stop() : null;
   }
 
@@ -354,6 +368,8 @@ export class Engine {
     const now = this.deps.now(), est = estimates(this.tree, this.state, now), gap = this.gap(item.node, now);
     this.before.forEach((v, k) => (v === null ? this.remove(nodeKey(k)) : this.set(nodeKey(k), v)));
     const states = runRecord(this.tree, this.state, item.node, all, now, est);
+    // the judge's scores, kept through a recount
+    this.runSlides ??= [...all].map(([n, x]) => [n, Math.round(x.points)]);
     this.before = new Map([...states.keys()].map((k) => [k, this.state(k)]));
     this.write(states);
     const points = Math.round([...all.values()].reduce((a, x) => a + x.points, 0) / all.size);
@@ -384,6 +400,7 @@ export class Engine {
     try {
       const v = await this.judge(item.node, blob);
       if (this.item !== item) return;
+      this.probs = (v.problems ?? []).reduce<Record<string, number>>((a, x) => ({ ...a, [x.kind]: (a[x.kind] ?? 0) + 1 }), {});
       const o = outcome(this.tree, item.node, v, this.mustOf(item.node));
       if (!o.counted) {
         this.session = after(this.session, item, null);
@@ -416,6 +433,7 @@ export class Engine {
     this.write(states);
     this.points = points;
     this.counted = points >= 60;
+    this.leafScores ??= item.node.leaves.map((l) => leaves.get(l) ?? 0);
     this.logAttempt(item, points, now, gap);
   }
   private write(states: Map<string, State>) {
@@ -423,12 +441,14 @@ export class Engine {
     this.pushSoon();
   }
   // The attempt in the day's log, and the session's pace. A recount changes the same entry.
-  private logAttempt(item: Pick, points: number | null, now: number, gap: number | null) {
+  private logAttempt(item: Pick, points: number | null, now: number, gap: number | null, why: string = item.why) {
     const n = item.node, after1 = points === null ? null : estimates(this.tree, this.state, now).get(n.id) as number;
     const prev = this.entry;
     const e: Entry = { id: prev?.id ?? `${now.toString(36)}-${hash(n.id)}`, at: prev?.at ?? now, node: n.id, slide: n.slides[0],
       kind: n.kind, height: n.height, words: n.words, before: item.est, bar: item.bar, after: after1, hidden: this.share,
-      points, pass: points === null ? null : points >= 60, ms: this.ms, gap: prev ? prev.gap : gap, why: item.why, m: now };
+      points, pass: points === null ? null : points >= 60, ms: this.ms, gap: prev ? prev.gap : gap, why, m: now, v: RULES,
+      ...(this.leafScores && points !== null ? { leaves: this.leafScores } : {}), ...(this.probs ? { probs: this.probs } : {}),
+      ...(this.runSlides ? { slides: this.runSlides } : {}), shown: this.shown, speak: this.spoke, wait: this.waited };
     if (!prev && points !== null) this.session = after(this.session, item, points >= 60);
     else if (points !== null) this.session = { ...this.session, recent: [...this.session.recent.slice(0, -1), points >= 60],
       last: { id: n.id, pass: points >= 60 } };

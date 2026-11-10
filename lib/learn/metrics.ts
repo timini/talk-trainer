@@ -48,7 +48,7 @@ export const metrics = (entries: Entry[], since: number) => {
   const session = rate(entries.filter((x) => x.at >= since));
   // each node's attempts until the first that left it at its bar
   const byNode = new Map<string, Entry[]>();
-  entries.forEach((x) => byNode.set(x.node, [...(byNode.get(x.node) ?? []), x]));
+  entries.filter((x) => x.why !== "known").forEach((x) => byNode.set(x.node, [...(byNode.get(x.node) ?? []), x]));
   const reached = new Map<string, number[]>();
   const slow: { node: string; slide: number; kind: string; attempts: number; reached: boolean }[] = [];
   byNode.forEach((xs, node) => {

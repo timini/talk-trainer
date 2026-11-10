@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { byHand, outcome, run } from "@/lib/learn/attempt";
 import { estimates, type State } from "@/lib/learn/model";
+import { ALPHA_GOOD } from "@/lib/learn/rules";
 import { build, type Input, type Node } from "@/lib/learn/tree";
 
 const said = (n: number, texts: string[]): Input => ({ n, sentences: texts.map((text) => ({ text })) });
@@ -111,6 +112,7 @@ describe("a run-through", () => {
     expect(out.has("sec:1") && out.has("sec:2") && out.has("t")).toBe(true);
     // section 1: slides 100 x4 and 0, bridges 50 and 100 x3: mean 78
     expect(out.get("sec:1")?.passes).toBe(1);
-    expect(out.get("sec:2")?.s).toBeCloseTo(0.5 * (estimates(t8, () => null, 5).get("sec:2") as number) + 0.5);
+    // section 2: every slide and bridge at 100, said with every word hidden: a confident pass
+    expect(out.get("sec:2")?.s).toBeCloseTo((1 - ALPHA_GOOD) * (estimates(t8, () => null, 5).get("sec:2") as number) + ALPHA_GOOD);
   });
 });
