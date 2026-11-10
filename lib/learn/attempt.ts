@@ -1,6 +1,8 @@
 // An attempt's result (docs/learning.md). The judge's verdict (lib/judge.ts) is scored out of 100 (lib/score.ts), and
-// its problems placed on the node's leaves. An attempt is not counted when almost nothing was heard (a tap too soon
-// or the microphone) or when it started at another part of the slide (a wrong place, not forgetting). Nearly (60 to
+// its problems placed on the node's leaves. An attempt is not counted when nothing was heard (no words, or a fluency
+// and clarity of 1 with under EMPTY words: a tap too soon or the microphone) or when it started at another part of
+// the slide (a wrong place, not forgetting). An attempt that starts right but stops early is a miss, the rest left
+// out: on 9 November Tim said 5 of a slide's 128 words, it was thrown away as not heard, and marked got. Nearly (60 to
 // 84) counts as a pass for the interval and moves the score by its true value. "Count it as got" or "missed", and
 // marking yourself without the microphone, score the attempt RECOUNT.got or RECOUNT.missed, every leaf alike.
 //
@@ -9,12 +11,12 @@
 // in a run-through it was not said. Each bridge between two slides said scores the mean of its leaves, each section
 // all of whose slides were said scores the mean of its slides, and the run-through itself the mean of all of them.
 
-import { grade } from "../grade";
 import { judged, type Verdict } from "../judge";
+import { grade, normalise } from "../grade";
 import { empty, start } from "../score";
 import { sentences } from "../text";
 import { place, record, type State, type States } from "./model";
-import { RECOUNT } from "./rules";
+import { EMPTY, NEARLY, RECOUNT } from "./rules";
 import type { Node, Tree } from "./tree";
 
 export type Result = ReturnType<typeof judged>;
@@ -35,8 +37,15 @@ export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[]): Out
     const opening = (i: number) => texts[i].split(/\s+/).slice(0, 4).join(" ").replace(/[.,;:]+$/, "");
     return { counted: false, why: `That started at '${opening(begun)}'. This one starts at '${opening(from)}...'.` };
   }
-  if (empty(v, node.text)) return { counted: false, why: "I didn't catch that." };
-  const result = judged(grade(sentences(node.text), "", must), v);
+  const said = normalise(v.heard ?? "").length;
+  if (!said || (v.fluency === 1 && v.clarity === 1 && said < EMPTY)) return { counted: false, why: "I didn't catch that." };
+  let result = judged(grade(sentences(node.text), "", must), v);
+  // stopped early: whatever the judge said, the words after those heard were left out
+  if (empty(v, node.text) && result.score >= NEARLY) {
+    const rest = node.text.split(/\s+/).slice(said).join(" ");
+    result = judged(grade(sentences(node.text), "", must),
+      { ...v, meaning_ok: false, problems: [...(v.problems ?? []), { kind: "left_out", script: rest }] });
+  }
   // the words missed, as placed by alignment, not only where the judge's quote matched exactly
   const at = place(tree, node, result.problems);
   let w = 0;

@@ -220,7 +220,8 @@ function Card({ e }: { e: Engine }) {
           <p className="position" data-testid="position">{e.position}</p>
           {e.crumbs.length > 1 && <p className="crumbs" data-testid="crumbs">{e.crumbs.join(" > ")}</p>}
           {words !== null && <div className={`cue${share > 0 && phase !== "judged" && phase !== "shown" ? " letters" : ""}`} data-testid="cue">{words}</div>}
-          {phase === "listening" && <p className="heard">{e.isRun ? "Listening. Tap Next slide when you move on." : "Listening. Tap when you have finished."}</p>}
+          {phase === "listening" && <p className="heard" data-testid="listening">{!e.recording ? "Starting the microphone..."
+            : e.isRun ? "Listening. Tap Next slide when you move on." : "Listening. Tap when you have finished."}</p>}
           {phase === "checking" && <p className="heard" data-testid="checking">Checking...</p>}
           {phase === "judged" && e.points !== null && (
             <div className={`verdict ${e.counted ? "good" : "bad"}`} data-testid="verdict">
@@ -240,8 +241,9 @@ function Card({ e }: { e: Engine }) {
               {label("Tip", j.tip)}
             </div>
           )}
-          {e.note && <p className="note" role="status">{e.note}</p>}
           <div className="actions">
+            {/* in the bar pinned at the bottom, so a long slide never pushes it out of sight */}
+            {e.note && <p className="note" role="status">{e.note}</p>}
             <div className="minor">
               {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
               {phase === "judged" && e.counted === false && (
@@ -259,10 +261,16 @@ function Card({ e }: { e: Engine }) {
                 {e.at < node.slides.length - 1 ? "Next slide" : "Tap to stop"}</button>)}
             {phase === "checking" && <button type="button" className="big primary" disabled>Checking...</button>}
             {phase === "judged" && <button type="button" className="big primary" onClick={() => e.go()}>Next</button>}
-            {phase === "failed" && (
+            {phase === "uncounted" && (
               <div className="pair">
                 <button type="button" className="big primary" onClick={() => e.retry()}>Try again</button>
+                <button type="button" className="big" onClick={() => e.showMe()}>Show me</button>
+              </div>)}
+            {phase === "failed" && (
+              <div className="trio">
+                <button type="button" className="big primary" onClick={() => e.retry()}>Try again</button>
                 <button type="button" className="big good" onClick={() => e.mark(true)}>Got it</button>
+                <button type="button" className="big bad" onClick={() => e.mark(false)}>Missed</button>
               </div>)}
             {phase === "shown" && (
               <div className="pair">

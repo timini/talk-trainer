@@ -1,7 +1,7 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { deck } from "../support/deck.mjs";
 import { signIn } from "./signin";
-import { attempt, newTalk, type Script } from "./talk";
+import { newTalk, type Script } from "./talk";
 
 // The new trainer, /learn, with the stand-in judge (every attempt got) unless a test sets a verdict.
 const verdict = (page: Page, json: Record<string, unknown>) => page.route("**/api/grade", (route) => route.fulfill({
@@ -16,6 +16,13 @@ async function open(page: Page, title: string, data?: Uint8Array): Promise<Scrip
   await expect(page.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
   await page.getByLabel(/Word for word/).check();
   return s;
+}
+// Say an attempt: tap to speak, wait until the microphone is recording, a moment more, then tap to stop.
+async function attempt(page: Page) {
+  await page.getByRole("button", { name: "Tap to speak" }).click();
+  await expect(page.getByTestId("listening")).toHaveText(/^Listening/);
+  await page.waitForTimeout(400);
+  await big(page, "Tap to stop").click();
 }
 // Say the card on screen with the stand-in judge, then Next.
 async function pass(page: Page) {
@@ -80,6 +87,38 @@ test("a miss zooms down to the part missed, and a pass climbs back up", async ({
   await page.getByRole("button", { name: "End session" }).click();
   await page.getByRole("button", { name: "Progress" }).click();
   await expect(page.getByTestId("p-weakest")).toHaveText("slide 1: 'Today we bake bread.'");
+});
+
+test("nothing heard: not counted, the reason by the buttons, Try again or Show me, no Got it", async ({ page }) => {
+  await open(page, "Learn empty");
+  await page.getByRole("button", { name: "Start" }).click();
+  await verdict(page, { heard: "", meaning_ok: false, problems: [], clarity: 1, fluency: 1 });
+  await attempt(page);
+  const note = page.locator(".actions").getByRole("status");
+  await expect(note).toHaveText("I didn't catch that. Try again, or tap Show me to read it first.");
+  await expect(note).toBeInViewport();
+  await expect(big(page, "Try again")).toBeVisible();
+  await expect(big(page, "Show me")).toBeVisible();
+  await expect(big(page, "Got it")).toHaveCount(0);
+  await expect(page.getByTestId("verdict")).toHaveCount(0);
+  await page.unroute("**/api/grade");
+  await big(page, "Show me").click();
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
+  await pass(page);
+});
+
+test("started right but stopped early: Missed, and down to a part", async ({ page }) => {
+  await open(page, "Learn early");
+  await page.getByRole("button", { name: "Start" }).click();
+  await walk(page, 4);
+  await expect(position(page)).toHaveText("Whole slide: all 2 sentences");
+  // the judge passed it, but only 2 of 11 words were said
+  await verdict(page, { heard: "Good morning", meaning_ok: true, problems: [] });
+  await attempt(page);
+  await expect(page.getByTestId("verdict")).toContainText("Missed");
+  await page.unroute("**/api/grade");
+  await big(page, "Next").click();
+  await expect(position(page)).toHaveText(/^Sentence \d of 2$/);
 });
 
 test("after 2 hours a node is due and comes back first; the Progress screen shows the numbers", async ({ page }) => {

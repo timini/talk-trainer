@@ -11,7 +11,8 @@ test("upload a deck and watch its build finish", async ({ page }) => {
 
   const row = page.getByTestId("talk").filter({ hasText: title });
   await expect(row.locator(".status")).toHaveText("Ready: 3 slides, 4 sentences", { timeout: 30000 });
-  await expect(row).toContainText("Slides with no notes (no script): 3");
+  // each row loads its own status; with the many talks the tests leave in local D1 this can take a while
+  await expect(row).toContainText("Slides with no notes (no script): 3", { timeout: 30000 });
 
   // the slide images are served behind the sign-in
   const { talks } = await (await page.request.get("/api/talks")).json() as { talks: { id: string; title: string }[] };

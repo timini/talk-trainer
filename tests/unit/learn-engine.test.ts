@@ -134,8 +134,11 @@ describe("not counted", () => {
     e.start();
     grades.push({ body: { heard: "", meaning_ok: false, problems: [], clarity: 1, fluency: 1 } });
     await say(e);
-    expect(e.phase).toBe("failed");
-    expect(e.note).toBe("I didn't catch that. Try again, or mark yourself.");
+    expect(e.phase).toBe("uncounted");
+    expect(e.note).toBe("I didn't catch that. Try again, or tap Show me to read it first.");
+    // not counted: it cannot be marked got
+    e.mark(true);
+    expect(e.phase).toBe("uncounted");
     expect(state(e, e.node!.id)).toBeNull();
     expect(e.log()[0]).toMatchObject({ points: null, pass: null });
     expect(e.session).toMatchObject({ recent: [], same: 1 });
@@ -146,13 +149,14 @@ describe("not counted", () => {
     e.stop();
     await flush();
     expect(e.note).toMatch(/^That started at 'Today we bake bread'/);
+    expect(e.phase).toBe("uncounted");
     // the judge failing: mark yourself
     grades.push({ status: 502, body: { error: "The judge answered 500." } });
     e.retry();
     await flush();
     e.stop();
     await flush();
-    expect(e.note).toBe("The judge answered 500. Try again, or mark yourself.");
+    expect([e.phase, e.note]).toEqual(["failed", "The judge answered 500. Try again, or mark yourself."]);
     grades.push({ status: 500, body: "not json" });
     e.retry();
     await flush();
@@ -162,6 +166,37 @@ describe("not counted", () => {
     e.mark(true);
     expect(e.log().filter((x) => x.points !== null)).toHaveLength(1);
     expect(e.log().at(-1)).toMatchObject({ points: 85 });
+  });
+
+  test("not counted, then Show me: the words to read, and on from there", async () => {
+    const e = make();
+    e.start();
+    grades.push({ body: { heard: "", meaning_ok: false, problems: [], clarity: 1, fluency: 1 } });
+    await say(e);
+    e.showMe();
+    expect([e.phase, e.shown, e.share, e.note]).toEqual(["ready", true, 0, ""]);
+    await say(e);
+    expect([e.phase, e.counted]).toEqual(["judged", true]);
+    // Show me does nothing once judged
+    e.showMe();
+    expect(e.phase).toBe("judged");
+  });
+
+  test("started right but stopped early: a miss, which goes down", async () => {
+    const e = make();
+    e.setAim("verbatim");
+    e.start();
+    const [a, b, root] = e.tree.order;
+    const known: State = { s: 0.8, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 0.85 };
+    e.set(nodeKey(a), known);
+    e.set(nodeKey(b), known);
+    e.go();
+    expect(e.node?.id).toBe(root);
+    grades.push({ body: { heard: "Good morning", meaning_ok: true, problems: [], clarity: 5, fluency: 5 } });
+    await say(e);
+    expect([e.phase, e.counted]).toEqual(["judged", false]);
+    e.go();
+    expect(e.item?.why).toBe("down");
   });
 
   test("stopped before the microphone was ready; the microphone blocked", async () => {

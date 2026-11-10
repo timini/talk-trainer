@@ -36,9 +36,12 @@ describe("outcome", () => {
   test("not counted: started at another part, or almost nothing heard", () => {
     expect(outcome(tree, node(a), heard("Today we bake bread."), [])).toEqual({ counted: false,
       why: "That started at 'Today we bake bread'. This one starts at 'Good morning, and thank...'." });
-    expect(outcome(tree, node(b), { ...heard("Today we bake bread."), fluency: 1, clarity: 1 }, [])).toEqual({ counted: false,
+    // nothing heard: no words, or a fluency and clarity of 1 with under 3 words
+    expect(outcome(tree, node(b), { ...heard("Today we"), fluency: 1, clarity: 1 }, [])).toEqual({ counted: false,
       why: "I didn't catch that." });
-    expect(outcome(tree, node(b), { fluency: 1, clarity: 1 }, []).counted).toBe(false);
+    expect(outcome(tree, node(b), { fluency: 5, clarity: 5 }, []).counted).toBe(false);
+    expect(outcome(tree, node(b), { ...heard("  "), fluency: 5, clarity: 5 }, []).counted).toBe(false);
+    expect(outcome(tree, node(b), { ...heard("Today we bake bread."), fluency: 1, clarity: 1 }, []).counted).toBe(true);
     // what was heard starts nowhere in the slide: judged as it is
     const o = outcome(tree, node(b), heard("Yesterday we bought cake.", [{ kind: "changed", script: "Today we bake bread." }]), []);
     expect(o.counted && o.points).toBe(0);
@@ -46,6 +49,21 @@ describe("outcome", () => {
     const bridge = node(tree.order.find((id) => id.startsWith("b:1:")) as string);
     expect(outcome(tree, bridge, heard("Today we bake bread. Mix the flour well."), []).counted).toBe(true);
     expect(outcome(tree, bridge, heard("Good morning, and thank you for coming."), []).counted).toBe(false);
+  });
+
+  test("started right but stopped early: a miss, the rest left out, not 'not heard' (Tim, 9 November)", () => {
+    // the judge passed it: the rest is left out all the same
+    const o = outcome(tree, node(one), heard("Good morning"), []);
+    expect(o.counted).toBe(true);
+    expect(o.counted && o.points).toBeLessThan(60);
+    expect(o.counted && o.result.parts.flatMap((p) => p.words.filter((w) => !w.ok).map((w) => w.w))).toEqual(
+      ["and", "thank", "you", "for", "coming.", "Today", "we", "bake", "bread."]);
+    expect(o.counted && [...o.leaves.values()]).toEqual([0, 0]);
+    const bare = outcome(tree, node(one), { heard: "Good morning", meaning_ok: true, fluency: 5, clarity: 5 }, []);
+    expect(bare.counted && bare.points).toBeLessThan(60);
+    // the judge already missed it: its own problems stand
+    const m = outcome(tree, node(one), heard("Good morning", [{ kind: "left_out", script: "Today we bake bread." }]), []);
+    expect(m.counted && m.points).toBe(45);
   });
 
   test("by hand: every leaf alike, 85 or 50", () => {

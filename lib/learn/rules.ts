@@ -38,6 +38,8 @@ export const FADE = 0.3;
 export { GOOD, NEARLY };
 // "Count it as got" or "Count it as missed", and marking yourself, score the attempt one of these.
 export const RECOUNT = { got: 85, missed: 50 };
+// An attempt is not counted as heard only with no words, or with a fluency and clarity of 1 and fewer than EMPTY words.
+export const EMPTY = 3;
 // "I know this one": the node and its parts to this score.
 export const KNOWN = 0.9;
 

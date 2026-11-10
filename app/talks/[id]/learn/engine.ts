@@ -20,8 +20,9 @@ import type { Script, Sync } from "@/lib/train";
 
 export type Screen = "home" | "session" | "done" | "progress";
 // ready: nothing said yet; listening: recording; checking: the judge has the attempt; judged: the verdict is in;
-// shown: the words are shown, to mark yourself; failed: the judge could not answer, or the attempt was not counted.
-export type Phase = "ready" | "listening" | "checking" | "judged" | "shown" | "failed";
+// shown: the words are shown, to mark yourself; failed: the judge could not answer, so mark yourself; uncounted:
+// nothing was heard or it started in the wrong place, so try again (no marking yourself: it was not said).
+export type Phase = "ready" | "listening" | "checking" | "judged" | "shown" | "failed" | "uncounted";
 
 // A recording under way: stop it for its sound, or throw it away.
 export type Recording = { stop(): Promise<Blob>; cancel(): void };
@@ -239,7 +240,11 @@ export class Engine {
   }
 
   // "Show me": every word, for this attempt. "I know this one": the node and its parts known.
-  showMe() { if (this.item && this.phase === "ready") { this.shown = true; this.emit(); } }
+  showMe() {
+    if (!this.item || (this.phase !== "ready" && this.phase !== "uncounted")) return;
+    Object.assign(this, { shown: true, phase: "ready", note: "" });
+    this.emit();
+  }
   knowIt() {
     if (!this.item || this.phase !== "ready") return;
     known(this.tree, this.state, this.item.node, this.deps.now()).forEach((v, k) => this.set(nodeKey(k), v));
@@ -269,12 +274,15 @@ export class Engine {
       if (this.phase !== "listening" || this.item !== item) { rec.cancel(); return; }
       this.rec = rec;
       this.cap = setTimeout(() => this.space(), LONGEST);
+      this.emit();
     } catch {
       Object.assign(this, { blocked: true, phase: "ready",
         note: "The microphone is blocked, so mark yourself: say it, tap Show the words, then Got it or Missed." });
       this.emit();
     }
   }
+  // Whether the microphone is recording (it takes a moment to start).
+  get recording() { return this.rec !== null; }
   private async take(): Promise<Blob | null> {
     const rec = this.rec;
     this.rec = null;
@@ -373,7 +381,10 @@ export class Engine {
       if (!o.counted) {
         this.session = after(this.session, item, null);
         this.logAttempt(item, null, this.deps.now(), this.gap(item.node, this.deps.now()));
-        throw new Error(o.why);
+        // not counted: try again or read it first, never mark it got
+        Object.assign(this, { phase: "uncounted", note: `${o.why} Try again, or tap Show me to read it first.` });
+        this.emit();
+        return;
       }
       this.result = o.result;
       this.trouble = o.trouble;
@@ -453,7 +464,7 @@ export class Engine {
     this.go();
   }
   retry() {
-    if (this.phase !== "failed") return;
+    if (this.phase !== "failed" && this.phase !== "uncounted") return;
     Object.assign(this, { phase: "ready", note: "", at: 0 });
     this.said = new Map();
     this.saidDone = new Map();
