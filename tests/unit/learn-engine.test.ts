@@ -646,6 +646,41 @@ describe("looking counts", () => {
   });
 });
 
+describe("pause", () => {
+  test("getting familiar: Pause throws the recording away and keeps the slide; Resume records it again", async () => {
+    const e = make();
+    e.setAim("familiar");
+    const one = e.tree.roots.get(1) as string;
+    e.start();
+    await flush();
+    e.pause();
+    e.pause();
+    expect([e.paused, e.phase, e.recording, e.node?.id]).toEqual([true, "ready", false, one]);
+    // the Right arrow resumes rather than moving on
+    e.advance();
+    await flush();
+    expect([e.paused, e.phase, e.recording, e.node?.id]).toEqual([false, "listening", true, one]);
+    await e.resume();
+    expect(e.log()).toEqual([]);
+    // only in getting familiar, during a session
+    e.setAim("gist");
+    e.pause();
+    expect(e.paused).toBe(false);
+  });
+
+  test("offline: Resume without recording; moving on clears the pause", async () => {
+    const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
+    e.setAim("familiar");
+    e.start();
+    e.pause();
+    await e.resume();
+    expect([e.paused, e.phase]).toEqual([false, "ready"]);
+    e.pause();
+    e.go();
+    expect(e.paused).toBe(false);
+  });
+});
+
 describe("give up", () => {
   test("getting familiar: 0, nothing sent, and the slide comes back after the next one", async () => {
     const e = make();

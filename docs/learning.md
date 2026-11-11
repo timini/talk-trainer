@@ -242,6 +242,8 @@ not the delivery. So:
 - **Give up** (the button, or G; Tim: "for when I just don't know the slide"): the attempt counts as 0, a miss, and
   nothing goes to the judge. Getting familiar, the slide hides less and comes back after the next one, once a
   session; elsewhere the miss goes down to its parts. Logged `why: "gave up"`.
+- **Pause** (the button, or P; Tim: to stop and write a review note): the recording is thrown away and the slide stays
+  on screen; Resume (or the Right arrow) records it again. Nothing is logged.
 
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed

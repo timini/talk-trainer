@@ -240,7 +240,7 @@ export class Engine {
     this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session));
     const est = estimates(this.tree, this.state, now);
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session), this.state(this.item.node.id)) : new Map();
-    Object.assign(this, { peeking: false, peeks: 0, peekMs: 0 });
+    Object.assign(this, { peeking: false, peeks: 0, peekMs: 0, paused: false });
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
       at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();
@@ -401,6 +401,7 @@ export class Engine {
   // verdict.
   advance() {
     if (this.screen !== "session") return;
+    if (this.paused) { void this.resume(); return; }
     if (this.flow) void this.nextCard();
     else if (this.offline && this.phase === "ready") this.nextOffline();
     else if (this.phase === "judged") this.go();
@@ -412,6 +413,22 @@ export class Engine {
     const points = peekPoints(this.peeked);
     this.count(item, points, new Map(item.node.leaves.map((l) => [l, points])), undefined, "offline");
     this.go();
+  }
+
+  // Pause (Tim, 11 Nov: to stop and write a review note): the recording is thrown away and the slide stays on screen;
+  // Resume records it again from the start.
+  paused = false;
+  pause() {
+    if (!this.flow || this.screen !== "session" || !this.item || this.paused) return;
+    this.halt();
+    this.paused = true;
+    this.emit();
+  }
+  async resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    this.emit();
+    if (this.micOn) await this.speak();
   }
 
   // Give up (Tim, 11 Nov): the attempt counts as 0, a miss, and nothing goes to the judge. Getting familiar, the slide

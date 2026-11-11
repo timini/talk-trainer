@@ -43,6 +43,7 @@ function Learn({ engine: e }: { engine: Engine }) {
     const keys: Record<string, () => void> = {
       " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(), Enter: () => e.space(),
       g: () => void e.giveUp(), G: () => void e.giveUp(),
+      p: () => (e.paused ? void e.resume() : e.pause()), P: () => (e.paused ? void e.resume() : e.pause()),
       1: () => e.mark(true), 3: () => e.mark(false), r: () => e.hear(), R: () => e.hear(), Escape: () => setMenu(false),
     };
     const down = (ev: KeyboardEvent) => {
@@ -260,6 +261,7 @@ function Card({ e }: { e: Engine }) {
           <p className="position" data-testid="position">{e.position}</p>
           {e.crumbs.length > 1 && <p className="crumbs" data-testid="crumbs">{e.crumbs.join(" > ")}</p>}
           {words !== null && <div className={`cue${share > 0 && phase !== "judged" && phase !== "shown" ? " letters" : ""}`} data-testid="cue">{words}</div>}
+          {e.paused && <p className="heard" data-testid="paused">Paused. Resume to read this slide again.</p>}
           {phase === "listening" && <p className="heard" data-testid="listening">{!e.recording ? "Starting the microphone..."
             : e.isRun || e.flow ? "Listening. Tap Next slide when you move on." : "Listening. Tap when you have finished."}</p>}
           {phase === "checking" && <p className="heard" data-testid="checking">Checking...</p>}
@@ -287,12 +289,16 @@ function Card({ e }: { e: Engine }) {
               <div className="minor">
                 {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
                 <button type="button" className="small" onClick={() => void e.giveUp()}>Give up</button>
+                {e.flow && !e.paused && <button type="button" className="small" onClick={() => e.pause()}>Pause</button>}
               </div>
-              <div className="pair">
-                <Peek e={e} />
-                <button type="button" className={`big primary${phase === "listening" ? " on" : ""}`} onClick={() => e.advance()}>
-                  {e.flow ? "Next slide" : "Next"}</button>
-              </div>
+              {e.paused ? (
+                <button type="button" className="big primary" onClick={() => void e.resume()}>Resume</button>
+              ) : (
+                <div className="pair">
+                  <Peek e={e} />
+                  <button type="button" className={`big primary${phase === "listening" ? " on" : ""}`} onClick={() => e.advance()}>
+                    {e.flow ? "Next slide" : "Next"}</button>
+                </div>)}
             </div>
           ) : <div className="actions">
             {/* in the bar pinned at the bottom, so a long slide never pushes it out of sight */}
@@ -333,7 +339,7 @@ function Card({ e }: { e: Engine }) {
                 <button type="button" className="big bad" onClick={() => e.mark(false)}>Missed</button>
               </div>)}
           </div>}
-          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide, G to give up. R to hear it."
+          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide, P to pause, G to give up. R to hear it."
             : "Keys: Enter to speak or stop, Right arrow to go on, hold Space to peek, G to give up. R to hear it."}</p>
         </div>
       </div>
