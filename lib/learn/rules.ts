@@ -69,11 +69,19 @@ export const CUE = 3;
 // attempt. Simulation: the word for word node bar 0.75 took 52 attempts for 4 sentences and 166 for 9; 0.8, 64 and
 // 317, with the same pass rate. The gist node bar 0.5 (from 0.6) took 14 attempts for 4 sentences and 30 for 9,
 // against 19 and 38, with the slide still at 0.8; see GIST_CLAUSES.
-export type Aim = "gist" | "verbatim";
+export type Aim = "familiar" | "gist" | "verbatim";
 export const BARS: Record<Aim, { node: number; top: number }> = {
   verbatim: { node: 0.75, top: 0.85 },
   gist: { node: 0.5, top: 0.8 },
+  familiar: { node: 0.4, top: 0.6 },
 };
+
+// Get familiar (Tim, 11 November): breadth first over the talk, to read every slide well before learning any. Only
+// whole slides are practised; the next new slide comes before reviews and before trying a slide again, and a miss
+// moves on instead of going down. At most FAMILIAR_HIDE is hidden, and an attempt never lifts a node's score above
+// FAMILIAR_CAP (or above where it was), so reading a slide aloud does not count toward the gist's bar of 0.8.
+export const FAMILIAR_HIDE = 0.3;
+export const FAMILIAR_CAP = 0.65;
 
 // The gist, to fit Tim's budget (about 1100 attempts over 10 hours, Tuesday 10 to Friday 13 November; the talk on
 // Saturday). GIST_TOP: each slide starts whole, read aloud first, and its sentences and groups are practised only where

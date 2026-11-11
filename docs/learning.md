@@ -6,8 +6,9 @@ nowhere else.
 
 ## The aim
 
-Tim learns a talk to one of two aims.
+Tim learns a talk to one of three aims.
 
+- **Get familiar:** every slide read aloud well, the whole talk before any slide again, with at most 30% hidden.
 - **Word for word:** every slide said with all of its words hidden.
 - **Get the gist:** every slide said with the meaning right, at a score of about 80, with at most half of it hidden.
 
@@ -167,6 +168,15 @@ there was a goal, the last slide to work on (from slide 1); it becomes the range
 |---|---|---|
 | Word for word | 0.75 | 0.85, and every word hidden |
 | Gist | 0.5 | 0.8, at most half hidden |
+| Get familiar | (not practised) | 0.6, at most 30% hidden |
+
+**Getting familiar goes breadth first** (Tim, 11 November): to read the whole talk well before learning any slide.
+Only whole slides are practised: no clauses, sentences, groups, bridges or run-throughs. The next new slide in the range
+comes first, before due reviews and before a slide is tried again, and a miss moves on to the next slide instead of
+going down. Once every slide in the range has started, it is due reviews, then the slides not yet at 0.6 in talk
+order. At most `FAMILIAR_HIDE` (30%) is hidden. An attempt never lifts a node's score above `FAMILIAR_CAP` (0.65), or
+above where it was if that is higher, so reading a slide aloud never counts toward the gist's slide bar of 0.8. A
+slide read well twice, the second time with some words hidden, is at its bar.
 
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed

@@ -9,7 +9,7 @@
 
 import { placed } from "./align";
 import type { Problem } from "../judge";
-import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
+import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_HIDE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
   GIST_CLAUSES, GIST_GROUP, GIST_TOP, GOOD, PACE_HIGH, PACE_LOW, SHIFT, SURE, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
 import type { Node, Tree } from "./tree";
 
@@ -59,10 +59,10 @@ export const update = (st: State | null, base: number, points: number, now: numb
 };
 
 // The share of a leaf's words hidden at its score, in steps of HIDE_STEP: none below HIDE_FROM, all from
-// HIDE_FROM + HIDE_SPAN. The gist hides at most GIST_HIDE.
+// HIDE_FROM + HIDE_SPAN. The gist hides at most GIST_HIDE, getting familiar at most FAMILIAR_HIDE.
 export const hidden = (s: number, aim: Aim) => {
   const x = Math.min(1, Math.max(0, (s - HIDE_FROM) / HIDE_SPAN));
-  return Math.min(Math.round(Math.floor(x / HIDE_STEP + 1e-9) * HIDE_STEP * 100) / 100, aim === "gist" ? GIST_HIDE : 1);
+  return Math.min(Math.round(Math.floor(x / HIDE_STEP + 1e-9) * HIDE_STEP * 100) / 100, aim === "gist" ? GIST_HIDE : aim === "familiar" ? FAMILIAR_HIDE : 1);
 };
 
 // Each leaf's share hidden on an attempt at a node, from its estimate. rate: the session's pass rate (null: too few
@@ -84,8 +84,9 @@ export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Ai
 // of GIST_GROUP sentences or fewer that are not a whole slide. With GIST_TOP the gist starts each slide whole, so its
 // sentences and groups are passed over too, except a part whose last attempt missed (the slide's misses fall on it),
 // until it is passed again.
+// Getting familiar practises whole slides only.
 const PARTS = new Set<Node["kind"]>(["clause", "clauses", "sentence", "group"]);
-export const skipped = (n: Node, aim: Aim, st: State | null = null) => aim === "gist"
+export const skipped = (n: Node, aim: Aim, st: State | null = null) => aim === "familiar" ? n.kind !== "slide" : aim === "gist"
   && ((GIST_TOP && (st?.run ?? 0) === 0 && PARTS.has(n.kind)) || (!GIST_CLAUSES && (n.kind === "clause" || n.kind === "clauses"))
     || (n.kind === "group" && n.last - n.first + 1 <= GIST_GROUP));
 
@@ -147,6 +148,10 @@ export const record = (tree: Tree, get: States, node: Node, leafScores: Map<stri
   }
   return out;
 };
+
+// Getting familiar: no node's score goes above FAMILIAR_CAP, or above where it was if that is higher.
+export const familiar = (states: Map<string, State>, get: States) =>
+  new Map([...states].map(([id, st]) => [id, { ...st, s: Math.min(st.s, Math.max(get(id)?.s ?? 0, FAMILIAR_CAP)) }]));
 
 // "I know this one": the node and every part under it to KNOWN, passed now.
 export const known = (tree: Tree, get: States, node: Node, now: number): Map<string, State> =>

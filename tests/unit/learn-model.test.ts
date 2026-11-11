@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { barOf, cues, troubleOf, estimates, fade, hidden, hiding, known, opening, place, record, scores, type State, terms, update }
+import { barOf, cues, familiar, troubleOf, estimates, fade, hidden, hiding, known, opening, place, record, scores, type State, terms, update }
   from "@/lib/learn/model";
 import { ALPHA, ALPHA_GOOD, FIRST, GROW, JOIN, SURE, UNDER } from "@/lib/learn/rules";
 import { build, type Input, type Node } from "@/lib/learn/tree";
@@ -52,6 +52,14 @@ describe("the score and its fading", () => {
   test("the bars", () => {
     expect([barOf(node(a), "verbatim"), barOf(node(root), "verbatim"), barOf(node(a), "gist"), barOf(node(root), "gist")])
       .toEqual([0.75, 0.85, 0.5, 0.8]);
+    expect([barOf(node(a), "familiar"), barOf(node(root), "familiar")]).toEqual([0.4, 0.6]);
+  });
+
+  test("getting familiar lifts no score above 0.65, or above where it was", () => {
+    const got = new Map([[a, st({ s: 0.9 })], [b, st({ s: 0.9 })], [root, st({ s: 0.5 })]]);
+    const out = familiar(got, (id) => (id === b ? st({ s: 0.8 }) : null));
+    expect([a, b, root].map((id) => out.get(id)?.s)).toEqual([0.65, 0.8, 0.5]);
+    expect(out.get(a)).toMatchObject({ interval: FIRST, n: 1 });
   });
 });
 
@@ -60,6 +68,7 @@ describe("hiding", () => {
     expect([0, 0.2, 0.3, 0.55, 0.89, 0.9, 1].map((s) => hidden(s, "verbatim"))).toEqual([0, 0, 0.1, 0.5, 0.95, 1, 1]);
     expect(hidden(0.9, "gist")).toBe(0.5);
     expect(hidden(0.3, "gist")).toBe(0.1);
+    expect([0.3, 0.9].map((s) => hidden(s, "familiar"))).toEqual([0.1, 0.3]);
   });
 
   test("each leaf by its own estimate, moved by the pace; a whole slide word for word all hidden", () => {
@@ -67,6 +76,7 @@ describe("hiding", () => {
     // the gist starts the slide whole: a sentence passed over hides by the slide when that is higher (0.4 for b)
     expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.5, 0.25]);
     expect([...hiding(tree, node(root), est, "verbatim", null).values()]).toEqual([1, 1]);
+    expect([...hiding(tree, node(root), est, "familiar", null).values()]).toEqual([0.3, 0.25]);
     expect([...hiding(tree, node(a), est, "verbatim", null).values()]).toEqual([0.5]);
     expect([...hiding(tree, node(a), est, "verbatim", 0.5).values()]).toEqual([0.25]);
     expect([...hiding(tree, node(a), est, "verbatim", 0.9).values()]).toEqual([0.7]);

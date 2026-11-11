@@ -15,7 +15,7 @@ const NOW = 1e12;
 const st = (s: number, over: Partial<State> = {}): State => ({ s, at: NOW, interval: FIRST, n: 1, passes: 1, lastPass: NOW, run: 0, hid: 1, ...over });
 const from = (states: Record<string, State>) => (id: string) => states[id] ?? null;
 const session = (over: Partial<Session> = {}): Session => ({ ...begin(), ...over });
-const go = (states: Record<string, State>, s: Session = begin(), aim: "gist" | "verbatim" = "verbatim", goal = Infinity, now = NOW) => {
+const go = (states: Record<string, State>, s: Session = begin(), aim: "familiar" | "gist" | "verbatim" = "verbatim", goal = Infinity, now = NOW) => {
   const p = pick(tree, from(states), now, aim, goal, s);
   return p && [p.node.id, p.why];
 };
@@ -203,6 +203,27 @@ describe("the gist starts each slide whole", () => {
     expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "gist", null).values()]).toEqual([0.5, 0.5, 0.5]);
     expect([...hiding(t2, t2.nodes.get(root) as Node, est, "gist", null).values()]).toEqual([0.35, 0.5, 0.35, 0.35]);
     expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "verbatim", null).values()]).toEqual([0, 1, 0]);
+  });
+});
+
+describe("getting familiar goes breadth first, whole slides only", () => {
+  const old = (s: number, over: Partial<State> = {}) => st(s, { at: NOW - 10 * FIRST, lastPass: NOW - 10 * FIRST, ...over });
+  test("every new slide before any slide again, and a miss moves on", () => {
+    expect(go({}, begin(), "familiar")).toEqual([one, "new"]);
+    // slide 1 missed: on to slide 2, not down to its sentences
+    const missed = session({ last: { id: one, pass: false }, same: 1 });
+    expect(go({ [one]: st(0.2, { run: 1 }) }, missed, "familiar")).toEqual([two, "new"]);
+    // a due review waits for the new slides
+    expect(go({ [one]: old(0.65) }, begin(), "familiar")).toEqual([two, "new"]);
+  });
+
+  test("then due reviews, then the slides not yet at the bar, in talk order; never a part, a bridge or a run-through", () => {
+    expect(go({ [one]: old(0.65), [two]: st(0.3, { run: 1 }), [three]: st(0.65) }, begin(), "familiar")).toEqual([one, "due"]);
+    expect(go({ [one]: st(0.65), [two]: st(0.3, { run: 1 }), [three]: st(0.45) }, begin(), "familiar")).toEqual([two, "up"]);
+    expect(go({ [one]: st(0.65), [two]: st(0.65), [three]: st(0.65) }, begin(), "familiar")).toBeNull();
+    const s = standing(tree, from({}), NOW, "familiar");
+    expect([a, b, bridge12, "t"].map(s.skip)).toEqual([true, true, true, true]);
+    expect([s.skip(one), s.ready(one), s.parts(one)]).toEqual([false, true, []]);
   });
 });
 

@@ -343,6 +343,26 @@ describe("a run-through", () => {
   });
 });
 
+describe("getting familiar", () => {
+  test("whole slides in talk order, read aloud first; a slide said well stops at 0.65", async () => {
+    const e = make();
+    e.setAim("familiar");
+    expect(e.aim).toBe("familiar");
+    e.start();
+    const one = e.tree.roots.get(1) as string;
+    expect([e.node?.id, e.share]).toEqual([one, 0]);
+    await say(e);
+    expect(state(e, one)?.s).toBe(0.5);
+    e.go();
+    expect(e.node?.id).toBe(e.tree.roots.get(2));
+    await say(e);
+    e.go();
+    expect(e.node?.id).toBe(one);
+    await say(e);
+    expect(state(e, one)?.s).toBe(0.65);
+  });
+});
+
 describe("settings, sync and migration", () => {
   test("the old trainer's settings until set here; its goal becomes a range from slide 1, kept within the talk", () => {
     storage.setItem(`${P}train:aim`, JSON.stringify("verbatim"));

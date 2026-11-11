@@ -53,6 +53,20 @@ test("a slide of 2 sentences: each sentence, then the whole slide, all hidden; t
   await expect(position(page)).toHaveText("Sentence 1 of 2");
 });
 
+test("getting familiar: every slide whole, read aloud, the whole talk before any slide again", async ({ page }) => {
+  await open(page, "Learn familiar", deck([{ title: "One", notes: ["Good morning, and thank you.", "Today we bake."] },
+    { title: "Two", notes: ["Mix the flour."] }, { title: "Three", notes: ["Then let it rest."] }]));
+  await page.getByLabel(/Get familiar/).check();
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
+  const seen: string[] = [];
+  for (let k = 0; k < 4; k += 1) {
+    seen.push(await page.getByTestId("status").innerText());
+    await pass(page);
+  }
+  expect(seen).toEqual(["Slide 1 of 3 (familiar)", "Slide 2 of 3 (familiar)", "Slide 3 of 3 (familiar)", "Slide 1 of 3 (familiar)"]);
+});
+
 test("a long sentence: its clauses, then the sentence", async ({ page }) => {
   const long = "We looked at the data very closely, and we found that most variants were rare; so we asked the families.";
   await open(page, "Learn clauses", deck([{ title: "Data", notes: [long, "That is all."] }, { title: "End", notes: ["Thank you."] }]));

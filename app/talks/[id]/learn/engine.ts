@@ -9,7 +9,7 @@
 import { byHand, outcome, run as runRecord, type Result } from "@/lib/learn/attempt";
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { metrics, slidesAt, weakest } from "@/lib/learn/metrics";
-import { cues, estimates, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
+import { cues, estimates, familiar, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
 import type { Aim } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
@@ -131,7 +131,10 @@ export class Engine {
     return this.get<Setting<T> | null>(SETTINGS[name], null)?.v ?? this.get<T>(old, d);
   }
   private put(name: keyof typeof SETTINGS, v: unknown) { this.set(SETTINGS[name], { v, at: this.deps.now() }); this.pushSoon(); this.emit(); }
-  get aim(): Aim { return this.setting<Aim>("aim", "train:aim", "gist") === "verbatim" ? "verbatim" : "gist"; }
+  get aim(): Aim {
+    const a = this.setting<Aim>("aim", "train:aim", "gist");
+    return a === "verbatim" || a === "familiar" ? a : "gist";
+  }
   setAim(aim: Aim) { this.put("aim", aim); }
   // The slides to work on: a range, or from before there were ranges the last slide (from slide 1), 14 at first.
   get range(): Range {
@@ -428,7 +431,8 @@ export class Engine {
     this.before.forEach((v, k) => (v === null ? this.remove(nodeKey(k)) : this.set(nodeKey(k), v)));
     const est = estimates(this.tree, this.state, now), gap = this.gap(item.node, now);
     const hide = this.shown ? new Map(item.node.leaves.map((l) => [l, 0])) : this.hide;
-    const states = record(this.tree, this.state, item.node, leaves, points, now, hide, est, trouble);
+    const got = record(this.tree, this.state, item.node, leaves, points, now, hide, est, trouble);
+    const states = this.aim === "familiar" ? familiar(got, this.state) : got;
     this.before = new Map([...states.keys()].map((k) => [k, this.state(k)]));
     this.write(states);
     this.points = points;

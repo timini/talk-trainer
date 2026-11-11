@@ -9,7 +9,8 @@
 // Pacing keeps the session's pass rate between PACE_LOW and PACE_HIGH: above it a node is ready once its parts are
 // within EASE of their bars; below it a miss zooms down two levels. A node missed STUCK times running needs its parts
 // LIFT above their bars before it is tried again, and they are practised until they are. A node picked SAME times in
-// a row is passed over once.
+// a row is passed over once. Getting familiar goes breadth first: the next new slide comes first, then rule 1, then
+// rule 3, and a miss does not go down.
 
 import { barOf, estimates, fade, skipped, type States } from "./model";
 import { type Aim, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK } from "./rules";
@@ -83,6 +84,9 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
 
   const choose = (skip: string | null): Pick | null => {
     const ok = (id: string) => id !== skip;
+    const fresh = [...tree.roots.keys()].find((n) => within(n) && !started.has(n));
+    const first = (n: number) => make(tree.order.find((id) => node(id).slides[0] === n && !passed(id)) as string, "new");
+    if (aim === "familiar" && fresh !== undefined) return first(fresh);
     // 1. due, current slide first, then earlier slides, then the rest
     const dues = live.filter((id) => ok(id) && due(id));
     const here = last ? Math.max(...node(last.id).slides) : 0;
@@ -90,7 +94,7 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
       ?? lowest(dues.filter((id) => Math.max(...node(id).slides) < here)) ?? lowest(dues);
     if (review && session.reviews < REVIEWS) return make(review, "due");
     // 2. down after a miss
-    if (last && last.pass === false) {
+    if (last && last.pass === false && aim !== "familiar") {
       const missed = node(last.id);
       let down = under(missed.id).length ? lowest(under(missed.id)) : missed.id;
       if (rate !== null && rate < PACE_LOW && under(down).length) down = lowest(under(down));
@@ -109,8 +113,7 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
     const up = live.filter((id) => ok(id) && !due(id) && (ready(id) || lifted.has(id))).sort(cmp)[0];
     if (up) return make(up, "up");
     // 4. the next new slide
-    const fresh = [...tree.roots.keys()].find((n) => within(n) && !started.has(n));
-    if (fresh !== undefined) return make(tree.order.find((id) => node(id).slides[0] === fresh && !passed(id)) as string, "new");
+    if (fresh !== undefined) return first(fresh);
     return review ? make(review, "due") : null;
   };
   return choose(skip) ?? choose(null);

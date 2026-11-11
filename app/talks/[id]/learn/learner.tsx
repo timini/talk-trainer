@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
+import { type Aim, TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
 import { type Range, rangeLine } from "@/lib/learn/store";
 import { countdown } from "@/lib/schedule";
 import { redactBits } from "@/lib/text";
@@ -67,7 +67,7 @@ function Learn({ engine: e }: { engine: Engine }) {
 
   const sum = e.summary(), node = e.node;
   const status = e.screen === "session" && node
-    ? `${e.item?.why === "due" ? "Again: slide" : "Slide"} ${node.slides[e.isRun ? e.at : 0]} of ${e.slides.length}${e.aim === "gist" ? " (gist)" : ""}`
+    ? `${e.item?.why === "due" ? "Again: slide" : "Slide"} ${node.slides[e.isRun ? e.at : 0]} of ${e.slides.length}${e.aim === "verbatim" ? "" : ` (${e.aim})`}`
     : e.script.talk.title;
   return (
     <div className="trainer" data-screen={e.screen}>
@@ -88,7 +88,7 @@ function Learn({ engine: e }: { engine: Engine }) {
         {e.screen === "progress" && <Progress e={e} />}
         {e.screen === "done" && (
           <section className="stack" data-testid="goal-reached">
-            <h1>{`Done for now: ${rangeLine(e.range)}${e.aim === "gist" ? " at the gist" : " word for word"}`}</h1>
+            <h1>{`Done for now: ${rangeLine(e.range)}${AIM_DONE[e.aim]}`}</h1>
             <p>Nothing up to there is due now. What you know fades over time and comes back with some text showing.</p>
             {e.range.length === 1 && e.range[0][1] < e.slides.length && (
               <button type="button" className="big primary" onClick={() => { e.setRange([[e.range[0][0], e.range[0][1] + 10]]); e.start(); }}>
@@ -102,6 +102,8 @@ function Learn({ engine: e }: { engine: Engine }) {
   );
 }
 
+const AIM_DONE: Record<Aim, string> = { familiar: " to get familiar", gist: " at the gist", verbatim: " word for word" };
+
 function Home({ e }: { e: Engine }) {
   const now = e.now, sum = e.summary(), days = e.days, next = e.next;
   return (
@@ -111,6 +113,8 @@ function Home({ e }: { e: Engine }) {
       <p className="hstatus" data-testid="learned">{`${sum.at} of ${plural(sum.total, "slide")} at the aim`}</p>
       <div className="meter"><span style={{ width: `${(100 * sum.at) / Math.max(1, sum.total)}%` }} /></div>
       <div className="aim" role="radiogroup" aria-label="Aim">
+        <label><input type="radio" name="aim" checked={e.aim === "familiar"} onChange={() => e.setAim("familiar")} />
+          {" "}Get familiar: read every slide aloud, the whole talk before any slide again, little hidden</label>
         <label><input type="radio" name="aim" checked={e.aim === "gist"} onChange={() => e.setAim("gist")} />
           {" "}Get the gist: each slide with the meaning right, at most half hidden</label>
         <label><input type="radio" name="aim" checked={e.aim === "verbatim"} onChange={() => e.setAim("verbatim")} />
