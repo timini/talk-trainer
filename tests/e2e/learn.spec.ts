@@ -83,7 +83,7 @@ test("offline: no microphone and no judge; Peek held is the score, Right arrow i
   let graded = 0;
   await page.route("**/api/grade", (route) => { graded += 1; return route.fulfill({ json: {} }); });
   await page.getByLabel(/Get familiar/).check();
-  await page.getByLabel(/Offline: no microphone, no judge/).check();
+  await page.getByLabel(/Offline \/ silent mode/).check();
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page.getByTestId("status")).toHaveText("Slide 1 of 2 (familiar)");
   const peek = page.locator(".actions").getByRole("button", { name: "Peek" });

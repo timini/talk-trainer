@@ -361,7 +361,7 @@ function Peek({ e, small = false }: { e: Engine; small?: boolean }) {
 function Offline({ e }: { e: Engine }) {
   return <>
     <label className="toggle">
-      <input type="checkbox" checked={e.offline} onChange={(ev) => e.setOffline(ev.target.checked)} /> Offline: no microphone, no judge
+      <input type="checkbox" checked={e.offline} onChange={(ev) => e.setOffline(ev.target.checked)} /> Offline / silent mode: no microphone, no judge
     </label>
     <p className="note">Online, each attempt is recorded and sent through this site to Google&apos;s Gemini, which checks
       the meaning and the delivery. Offline nothing is recorded or sent: say it, hold Peek for any word you need, and
