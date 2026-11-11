@@ -687,6 +687,40 @@ describe("from one mode to the next", () => {
   });
 });
 
+describe("back", () => {
+  test("getting familiar: the Left arrow goes back to the slide before, recording again; not past the start", async () => {
+    const e = make();
+    e.setAim("familiar");
+    const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
+    e.start();
+    await flush();
+    expect(e.canGoBack).toBe(false);
+    await e.back();
+    expect(e.node?.id).toBe(one);
+    await e.nextCard();
+    await flush();
+    expect([e.node?.id, e.canGoBack]).toEqual([two, true]);
+    await e.back();
+    await flush();
+    expect([e.node?.id, e.phase, e.recording, e.canGoBack]).toEqual([one, "listening", true, false]);
+    // a new session starts with nothing to go back to
+    e.start();
+    expect(e.canGoBack).toBe(false);
+  });
+
+  test("at the gist: back to the card before, ready to speak", async () => {
+    const e = make();
+    e.setAim("gist");
+    e.start();
+    const first = e.node?.id;
+    await say(e);
+    e.advance();
+    expect([e.phase, e.canGoBack]).toEqual(["ready", true]);
+    await e.back();
+    expect([e.node?.id, e.phase, e.canGoBack]).toEqual([first, "ready", false]);
+  });
+});
+
 describe("pause", () => {
   test("getting familiar: Pause throws the recording away and keeps the slide; Resume records it again", async () => {
     const e = make();

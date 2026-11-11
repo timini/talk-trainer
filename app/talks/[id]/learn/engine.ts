@@ -208,6 +208,8 @@ export class Engine {
     this.emit();
   }
   start() {
+    this.history = [];
+    this.item = null;
     this.go();
     this.show(this.item ? "session" : "done");
     if (this.flow && this.item && this.micOn) void this.speak();
@@ -241,15 +243,18 @@ export class Engine {
     else if (points === null) this.passed.add(n.slides[0]);
   }
   // The next thing to say, or the done screen when there is nothing left within the range.
-  go() {
+  // back: the card to show instead of picking one (the Left arrow)
+  go(back: Pick | null = null) {
     this.halt();
     const now = this.deps.now();
+    if (this.item && !back) this.history.push(this.item);
     // a slide still with the judge is not picked again until its verdict is in, unless there is nothing else
     const within = inRange(this.range), busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
     this.passed.forEach((n) => busy.add(n));
-    const redo = this.flow ? this.redo.shift() : undefined;
+    const redo = this.flow && !back ? this.redo.shift() : undefined;
     const weak = this.weak();
-    const narrow = redo ? this.again1(redo, now) : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak);
+    const narrow = back ? this.again1(back.node.id, now) : redo ? this.again1(redo, now)
+      : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak);
     // getting familiar, with only slides still with the judge left: wait for their verdicts, not show one again
     this.waiting = !narrow && this.flow && this.pending.size > 0;
     this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session, weak));
@@ -428,6 +433,17 @@ export class Engine {
     const points = peekPoints(this.peeked);
     this.count(item, points, new Map(item.node.leaves.map((l) => [l, points])), undefined, "offline");
     this.go();
+  }
+
+  // Back (Tim, 11 Nov; the Left arrow): the card before, again; this card's recording is thrown away. Not in a
+  // run-through.
+  private history: Pick[] = [];
+  get canGoBack() { return this.screen === "session" && this.history.length > 0 && !this.isRun; }
+  async back() {
+    const prev = this.canGoBack ? this.history.pop() as Pick : null;
+    if (!prev) return;
+    this.go({ ...prev, why: prev.why });
+    if (this.flow && this.item && this.micOn) await this.speak();
   }
 
   // Pause (Tim, 11 Nov: to stop and write a review note): the recording is thrown away and the slide stays on screen;

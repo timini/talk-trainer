@@ -41,7 +41,7 @@ function Learn({ engine: e }: { engine: Engine }) {
   // it; Escape closes the menu.
   useEffect(() => {
     const keys: Record<string, () => void> = {
-      " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(), Enter: () => e.space(),
+      " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(), ArrowLeft: () => void e.back(), Enter: () => e.space(),
       g: () => void e.giveUp(), G: () => void e.giveUp(),
       p: () => (e.paused ? void e.resume() : e.pause()), P: () => (e.paused ? void e.resume() : e.pause()),
       1: () => e.mark(true), 3: () => e.mark(false), r: () => e.hear(), R: () => e.hear(), Escape: () => setMenu(false),
@@ -290,6 +290,7 @@ function Card({ e }: { e: Engine }) {
                 {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
                 <button type="button" className="small" onClick={() => void e.giveUp()}>Give up</button>
                 {e.flow && !e.paused && <button type="button" className="small" onClick={() => e.pause()}>Pause</button>}
+                {e.canGoBack && <button type="button" className="small" onClick={() => void e.back()}>Back</button>}
               </div>
               {e.paused ? (
                 <button type="button" className="big primary" onClick={() => void e.resume()}>Resume</button>
@@ -313,6 +314,7 @@ function Card({ e }: { e: Engine }) {
               {phase === "ready" && !e.isRun && <button type="button" className="small" onClick={() => e.knowIt()}>I know this one</button>}
               {(phase === "ready" || phase === "listening") && !e.isRun && (
                 <button type="button" className="small" onClick={() => void e.giveUp()}>Give up</button>)}
+              {e.canGoBack && <button type="button" className="small" onClick={() => void e.back()}>Back</button>}
             </div>
             {(phase === "ready" || phase === "listening") && !e.isRun && share > 0 && <Peek e={e} small />}
             {phase === "ready" && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
@@ -339,8 +341,8 @@ function Card({ e }: { e: Engine }) {
                 <button type="button" className="big bad" onClick={() => e.mark(false)}>Missed</button>
               </div>)}
           </div>}
-          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide, P to pause, G to give up. R to hear it."
-            : "Keys: Enter to speak or stop, Right arrow to go on, hold Space to peek, G to give up. R to hear it."}</p>
+          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide, Left arrow for the one before, P to pause, G to give up. R to hear it."
+            : "Keys: Enter to speak or stop, Right arrow to go on, Left arrow to go back, hold Space to peek, G to give up. R to hear it."}</p>
         </div>
       </div>
     </section>

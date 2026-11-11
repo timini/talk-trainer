@@ -244,6 +244,8 @@ not the delivery. So:
   session; elsewhere the miss goes down to its parts. Logged `why: "gave up"`.
 - **Pause** (the button, or P; Tim: to stop and write a review note): the recording is thrown away and the slide stays
   on screen; Resume (or the Right arrow) records it again. Nothing is logged.
+- **Back** (the button, or the Left arrow): the card before, again, in any mode but a run-through; the card on screen's
+  recording is thrown away. A new session starts with nothing to go back to.
 
 **From one mode to the next** (Tim, 11 November). Every mode reads and writes the same states, keyed by text, so a
 slide's progress carries over; a familiar reading never counts as recall at the gist (its score is capped at 0.65,
