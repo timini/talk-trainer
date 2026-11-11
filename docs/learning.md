@@ -178,6 +178,20 @@ order. At most `FAMILIAR_HIDE` (30%) is hidden. An attempt never lifts a node's 
 above where it was if that is higher, so reading a slide aloud never counts toward the gist's slide bar of 0.8. A
 slide read well twice, the second time with some words hidden, is at its bar.
 
+**One button, judged in the background** (Tim, 11 November: a verdict distracts from reading through the talk).
+Start records the first slide. Next slide stops the recording, sends it to the judge and shows the next slide at
+once, already recording. No verdict, score or tip is ever shown in this mode. Each verdict is counted on the slide it
+was for, whatever is on screen by then. A slide still with the judge is not picked again while there is another. A
+recording not heard, or a judge error, is logged with no score and changes nothing. Without the microphone, Next slide
+counts the slide as read (85, logged `why: "read"`).
+
+**The judge listens for meaning and delivery** (`prompt` mode `read` in `lib/judge.ts`). A problem is listed only
+where the meaning suffers; order, rewording and a false start put right at once are fine. The score
+(`readScore` in `lib/score.ts`) is the mean of the meaning (the problems, stumbles aside) and the delivery
+(`(clarity + fluency) × 10`). Each attempt logs both halves with the clarity, fluency, pace and tip. The Progress
+screen's "Slides to work on" lists the five slides with the lowest last score, each with the half that was lower:
+that is where the data shows, and only there.
+
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed
 (the misses fall on them), until they are passed again; then the slide comes back. A clause is never practised on its

@@ -53,18 +53,26 @@ test("a slide of 2 sentences: each sentence, then the whole slide, all hidden; t
   await expect(position(page)).toHaveText("Sentence 1 of 2");
 });
 
-test("getting familiar: every slide whole, read aloud, the whole talk before any slide again", async ({ page }) => {
+test("getting familiar: one button, the next slide, recording; judged in the background and never shown", async ({ page }) => {
   await open(page, "Learn familiar", deck([{ title: "One", notes: ["Good morning, and thank you.", "Today we bake."] },
     { title: "Two", notes: ["Mix the flour."] }, { title: "Three", notes: ["Then let it rest."] }]));
   await page.getByLabel(/Get familiar/).check();
   await page.getByRole("button", { name: "Start" }).click();
-  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud.");
+  await expect(page.getByTestId("instruction")).toHaveText("Read it aloud, then tap Next slide.");
   const seen: string[] = [];
   for (let k = 0; k < 4; k += 1) {
+    await expect(page.getByTestId("listening")).toHaveText(/^Listening/);
     seen.push(await page.getByTestId("status").innerText());
-    await pass(page);
+    await page.waitForTimeout(300);
+    await big(page, "Next slide").click();
   }
   expect(seen).toEqual(["Slide 1 of 3 (familiar)", "Slide 2 of 3 (familiar)", "Slide 3 of 3 (familiar)", "Slide 1 of 3 (familiar)"]);
+  await expect(page.getByTestId("verdict")).toHaveCount(0);
+  await expect(big(page, "Tap to speak")).toHaveCount(0);
+  // the scores are kept: Progress lists the slides read
+  await page.getByRole("button", { name: "End session" }).click();
+  await page.getByRole("button", { name: "Progress" }).click();
+  await expect(page.getByTestId("p-weakslides")).toContainText("slide 1:");
 });
 
 test("a long sentence: its clauses, then the sentence", async ({ page }) => {

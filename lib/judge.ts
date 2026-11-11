@@ -74,6 +74,31 @@ export const prompt = ({ mode, target, glossary, must }:
       style,
     ].join("\n\n");
   }
+  if (mode === "read") {
+    // Get familiar (Tim, 11 November): reading each slide aloud to an audience, so the meaning and the delivery count,
+    // not the exact words or their order.
+    return [
+      "You are coaching a speaker who is reading a slide's narration aloud from the text, as practice for delivering "
+        + "it to a conference audience. Judge two things: whether the meaning came across, and how clearly it was "
+        + "delivered. The delivery matters most.",
+      `The narration: ${target}`, names,
+      `Must be said exactly: ${must?.length ? must.join(", ") : "nothing beyond the names and numbers"}.`,
+      "List a problem only where the meaning suffers:\n"
+        + "left_out: a point of the narration was not said.\n"
+        + "changed: the meaning changed, for example \"adds little\" said as \"helps\".\n"
+        + "wrong_term: a number, a name from the list above or a must-say item was wrong or missing.\n"
+        + "stumble: only a stumble that made the meaning hard to follow. Put it as it was said in \"said\".",
+      "These are fine and are never a problem: rewording that keeps the meaning, the order of the points, small words "
+        + "added or dropped, contractions, fillers, a false start that was put right at once, and how names are spelled.",
+      "For each problem, copy into \"script\" the exact words of the narration that were affected, and put in \"said\" "
+        + "what was said instead, if anything. Set meaning_ok to true only when there are no problems.",
+      "Then judge the delivery from the sound, as a speaking coach would for a large room: clarity, from 1 (hard to "
+        + "make out) to 5 (every word clear); fluency, from 1 (stop and start) to 5 (steady to the end of each "
+        + "sentence); the pace; whether the key words and numbers were stressed. Give one short, specific tip on the "
+        + "thing that would most improve the delivery.",
+      style,
+    ].join("\n\n");
+  }
   return [
     "You are checking a speaker who is learning a conference talk so that each sentence carries the same meaning as "
       + "the script. It does not have to be word for word.",

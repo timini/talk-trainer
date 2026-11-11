@@ -8,7 +8,7 @@
 
 import { byHand, outcome, run as runRecord, type Result } from "@/lib/learn/attempt";
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
-import { metrics, slidesAt, weakest } from "@/lib/learn/metrics";
+import { metrics, slidesAt, weakest, weakSlides } from "@/lib/learn/metrics";
 import { cues, estimates, familiar, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
 import type { Aim } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
@@ -41,6 +41,10 @@ type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
 // The longest attempt: a whole slide said slowly.
 const LONGEST = 180000;
 
+// A familiar attempt as it was when Next slide was tapped: the pick, each leaf's share hidden, the share of the
+// slide hidden, the gap since it was last tried and the wait before speaking.
+type Flow = { item: Pick; hide: Map<string, number>; share: number; gap: number | null; waited: number | null };
+
 // One slide of a run-through: its outcome once judged.
 type Said = { points: number; leaves: Map<string, number>; trouble?: Map<string, number[]>; result: Result | null; why: string };
 
@@ -57,6 +61,8 @@ export class Engine {
   // how the attempt on screen was counted (null: not counted), its log entry, and the states it replaced
   counted: boolean | null = null;
   private entry: Entry | null = null;
+  // getting familiar: the slides whose attempts are still with the judge
+  readonly pending = new Set<string>();
   private before = new Map<string, State | null>();
   // the trouble the judged attempt on screen put on each leaf's words
   private trouble: Map<string, number[]> | null = null;
@@ -164,7 +170,10 @@ export class Engine {
     return Object.entries(this.items()).filter(([k]) => k.startsWith("learn:log:")).sort(([a], [b]) => (a < b ? -1 : 1))
       .flatMap(([, v]) => (v as Log).list);
   }
-  progress() { return { ...metrics(this.log(), this.since), weakest: weakest(this.tree, this.state, this.deps.now()) }; }
+  progress() {
+    const log = this.log();
+    return { ...metrics(log, this.since), weakest: weakest(this.tree, this.state, this.deps.now()), slides: weakSlides(log) };
+  }
   get days() {
     return streak(Object.entries(this.items()).filter(([k, v]) => k.startsWith("learn:log:") && (v as Log).list.length)
       .map(([k]) => k.slice("learn:log:".length)), this.deps.now());
@@ -180,12 +189,18 @@ export class Engine {
   start() {
     this.go();
     this.show(this.item ? "session" : "done");
+    if (this.flow && this.item && this.micOn) void this.speak();
   }
+  // Getting familiar: one button, the next slide; each attempt is judged in the background and never shown.
+  get flow() { return this.aim === "familiar"; }
   // The next thing to say, or the done screen when there is nothing left within the range.
   go() {
     this.halt();
     const now = this.deps.now();
-    this.item = pick(this.tree, this.state, now, this.aim, inRange(this.range), this.session);
+    // a slide still with the judge is not picked again until its verdict is in, unless there is nothing else
+    const within = inRange(this.range), busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
+    this.item = pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session)
+      ?? pick(this.tree, this.state, now, this.aim, within, this.session);
     const est = estimates(this.tree, this.state, now);
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session)) : new Map();
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
@@ -254,6 +269,7 @@ export class Engine {
   // The big button, and Space: start, speak, stop or go on to the next slide, or go on after the verdict.
   space() {
     if (this.screen !== "session") { this.start(); return; }
+    if (this.flow) { void this.nextCard(); return; }
     if (this.phase === "listening") { if (this.isRun) void this.nextSlide(); else this.stop(); }
     else if (this.phase === "ready") { if (this.micOn) void this.speak(); else this.reveal(); }
     else if (this.phase === "judged") this.go();
@@ -328,6 +344,61 @@ export class Engine {
     void this.take().then((blob) => this.ask(item, blob as Blob));
   }
 
+  // Getting familiar: this slide's recording goes to the judge in the background, and the next slide comes up,
+  // recording. Without the microphone the slide counts as read. A tap before the microphone started moves on.
+  async nextCard() {
+    const item = this.item;
+    if (!this.flow || !item) return;
+    const at = { item, hide: this.hide, share: this.share, gap: this.gap(item.node, this.deps.now()), waited: this.waited };
+    if (!this.micOn) {
+      const h = byHand(item.node, true);
+      this.countFlow(at, h.points, h.leaves, "read");
+    } else if (this.phase === "listening" && this.rec) {
+      const t0 = this.recAt, blob = this.take();
+      this.pending.add(item.node.id);
+      void blob.then((b) => this.background({ ...at, spoke: this.deps.now() - t0 }, b as Blob));
+    }
+    this.go();
+    if (this.item && this.micOn) await this.speak();
+  }
+  private async background(at: Flow & { spoke: number }, blob: Blob) {
+    const n = at.item.node, t0 = this.deps.now();
+    try {
+      const v = await this.judge(n, blob, { hidden: at.share, why: at.item.why, before: at.item.est });
+      const o = outcome(this.tree, n, v, this.mustOf(n), true);
+      if (!o.counted) this.logFlow(at, null, "", this.deps.now() - t0);
+      else {
+        this.countFlow(at, o.points, o.leaves, at.item.why, o.trouble, this.deps.now() - t0, {
+          ...o.read as { meaning: number; delivery: number }, clarity: v.clarity, fluency: v.fluency, pace: v.pace, tip: v.tip });
+      }
+    } catch {
+      this.logFlow(at, null, "failed", this.deps.now() - t0);
+    }
+    this.pending.delete(n.id);
+    this.pushSoon();
+    this.emit();
+  }
+  // A familiar attempt counted on its own slide, whatever is on screen now, and logged.
+  private countFlow(at: Flow & { spoke?: number }, points: number, leaves: Map<string, number>, why: string,
+    trouble?: Map<string, number[]>, ms = 0, read?: Entry["read"]) {
+    const now = this.deps.now(), n = at.item.node;
+    const got = record(this.tree, this.state, n, leaves, points, now, at.hide, estimates(this.tree, this.state, now), trouble);
+    this.write(familiar(got, this.state));
+    this.session = after(this.session, at.item, points >= 60);
+    this.logFlow(at, points, why, ms, read, n.leaves.map((l) => leaves.get(l) as number));
+  }
+  private logFlow(at: Flow & { spoke?: number }, points: number | null, why: string, ms: number, read?: Entry["read"],
+    leaves?: number[]) {
+    const now = this.deps.now(), n = at.item.node;
+    const e: Entry = { id: `${now.toString(36)}-${hash(n.id)}`, at: now, node: n.id, slide: n.slides[0], kind: n.kind,
+      height: n.height, words: n.words, before: at.item.est, bar: at.item.bar,
+      after: points === null ? null : estimates(this.tree, this.state, now).get(n.id) as number, hidden: at.share, points,
+      pass: points === null ? null : points >= 60, ms, gap: at.gap, why: why || at.item.why, m: now, v: RULES,
+      ...(leaves ? { leaves } : {}), ...(read ? { read } : {}), speak: at.spoke ?? 0, wait: at.waited };
+    const day = ymd(now);
+    this.set(logKey(day), logged(this.get<Log | null>(logKey(day), null), e));
+  }
+
   // A run-through: this slide's recording goes to the judge, and the next slide's starts; after the last, the
   // verdict once every slide is judged.
   async nextSlide() {
@@ -390,7 +461,7 @@ export class Engine {
     if (!blob.size) throw new Error("Nothing was recorded.");
     const audio = await base64(blob), st = this.state(n.id), t0 = this.deps.now();
     const res = await this.deps.fetch("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "card", audio, mime: blob.type.split(";")[0] || "audio/webm", target: n.text,
+      body: JSON.stringify({ mode: this.flow ? "read" : "card", audio, mime: blob.type.split(";")[0] || "audio/webm", target: n.text,
         glossary: this.script.talk.glossary, must: this.mustOf(n),
         at: { engine: "learn", node: n.id, kind: n.kind, height: n.height, words: n.words, before: this.known?.before,
           hidden: this.share, why: this.item?.why, gap: st ? this.deps.now() - st.at : null, ...extra } }) });

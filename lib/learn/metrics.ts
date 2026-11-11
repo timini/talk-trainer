@@ -36,6 +36,16 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
+// The slides to work on, from getting familiar: each slide's last attempt with a score, the lowest first, at most n,
+// with the half of the score that was lower (the meaning, or the delivery).
+export const weakSlides = (entries: Entry[], n = 5) => {
+  const last = new Map<number, Entry>();
+  entries.filter((x) => x.read && x.points !== null).forEach((x) => last.set(x.slide, x));
+  return [...last.values()].sort((a, b) => (a.points as number) - (b.points as number) || a.slide - b.slide).slice(0, n)
+    .map((x) => ({ slide: x.slide, points: x.points as number,
+      low: (x.read as NonNullable<Entry["read"]>).meaning < (x.read as NonNullable<Entry["read"]>).delivery ? "meaning" : "delivery" }));
+};
+
 // The slides at their aim now, of the slides with a script; and how many nodes are due.
 export const slidesAt = (tree: Tree, get: States, now: number, aim: Aim) => {
   const s = standing(tree, get, now, aim);

@@ -13,7 +13,7 @@
 
 import { judged, type Verdict } from "../judge";
 import { grade, normalise } from "../grade";
-import { empty, start } from "../score";
+import { empty, readScore, start } from "../score";
 import { sentences } from "../text";
 import { place, record, type State, type States } from "./model";
 import { EMPTY, NEARLY, RECOUNT } from "./rules";
@@ -21,7 +21,8 @@ import type { Node, Tree } from "./tree";
 
 export type Result = ReturnType<typeof judged>;
 export type Outcome = { counted: false; why: string }
-  | { counted: true; points: number; leaves: Map<string, number>; trouble: Map<string, number[]>; result: Result };
+  | { counted: true; points: number; leaves: Map<string, number>; trouble: Map<string, number[]>; result: Result;
+    read?: { meaning: number; delivery: number } };
 
 // The leaves of the slides a node is on, in order, and where the node starts among them.
 const where = (tree: Tree, node: Node) => {
@@ -29,8 +30,9 @@ const where = (tree: Tree, node: Node) => {
   return { texts: all.map((id) => (tree.nodes.get(id) as Node).text), from: all.indexOf(node.leaves[0]) };
 };
 
-// An attempt at a node from the judge's verdict. must: the must-say items of its text.
-export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[]): Outcome => {
+// An attempt at a node from the judge's verdict. must: the must-say items of its text. read: getting familiar, scored
+// on the meaning and the delivery (readScore) instead of the problems alone.
+export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[], read = false): Outcome => {
   const { texts, from } = where(tree, node);
   const begun = start(v.heard ?? "", texts, from);
   if (begun !== null && begun !== from) {
@@ -41,8 +43,8 @@ export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[]): Out
   if (!said || (v.fluency === 1 && v.clarity === 1 && said < EMPTY)) return { counted: false, why: "I didn't catch that." };
   let result = judged(grade(sentences(node.text), "", must), v);
   // stopped early: whatever the judge said, the words after those heard were left out
-  if (empty(v, node.text) && result.score >= NEARLY) {
-    const rest = node.text.split(/\s+/).slice(said).join(" ");
+  const rest = node.text.split(/\s+/).slice(said).join(" ");
+  if (rest && empty(v, node.text) && result.score >= NEARLY) {
     result = judged(grade(sentences(node.text), "", must),
       { ...v, meaning_ok: false, problems: [...(v.problems ?? []), { kind: "left_out", script: rest }] });
   }
@@ -54,7 +56,10 @@ export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[]): Out
     w += 1;
     return { ...x, ok: !at.missed.has(k), crit: at.crit.has(k) };
   }) }));
-  return { counted: true, points: result.score, leaves: at.leaves, trouble: at.trouble, result: { ...result, parts } };
+  const out = { counted: true as const, leaves: at.leaves, trouble: at.trouble, result: { ...result, parts } };
+  if (!read) return { ...out, points: result.score };
+  const r = readScore(result.problems, node.text, v);
+  return { ...out, points: r.points, read: { meaning: r.meaning, delivery: r.delivery } };
 };
 
 // Every leaf scored alike: a recount, or marking yourself.

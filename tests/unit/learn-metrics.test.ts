@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { metrics, slidesAt, weakest } from "@/lib/learn/metrics";
+import { metrics, slidesAt, weakest, weakSlides } from "@/lib/learn/metrics";
 import type { State } from "@/lib/learn/model";
 import { FIRST, GAP } from "@/lib/learn/rules";
 import type { Entry } from "@/lib/learn/store";
@@ -44,5 +44,17 @@ describe("metrics", () => {
     const one = tree.roots.get(1) as string, two = tree.roots.get(2) as string;
     expect(slidesAt(tree, (id) => (id === one ? st : null), 0, "verbatim")).toEqual({ at: 1, total: 2, due: 0 });
     expect(slidesAt(tree, (id) => (id === one || id === two ? st : null), 10 * FIRST, "verbatim")).toEqual({ at: 0, total: 2, due: 2 });
+  });
+});
+
+describe("weakSlides", () => {
+  test("each slide's last familiar score, lowest first, at most n, with the lower half", () => {
+    const read = (slide: number, at: number, points: number | null, meaning: number, delivery: number) =>
+      e(`s${slide}`, at, points, null, { slide, read: { meaning, delivery } });
+    const log = [read(1, 1, 40, 30, 50), read(1, 2, 90, 100, 80), read(2, 3, 70, 60, 80), read(3, 4, 70, 90, 50),
+      read(4, 5, null, 0, 0), e("x", 6, 20, null, { slide: 5 })];
+    expect(weakSlides(log)).toEqual([{ slide: 2, points: 70, low: "meaning" }, { slide: 3, points: 70, low: "delivery" },
+      { slide: 1, points: 90, low: "delivery" }]);
+    expect(weakSlides(log, 1)).toHaveLength(1);
   });
 });

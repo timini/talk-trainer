@@ -41,7 +41,9 @@ export type Setting<T> = { v: T; at: number };
 export type Entry = { id: string; at: number; node: string; slide: number; kind: string; height: number; words: number;
   before: number; bar: number; after: number | null; hidden: number; points: number | null; pass: boolean | null; ms: number;
   gap: number | null; why: string; m: number; v?: string; leaves?: number[]; probs?: Record<string, number>;
-  slides?: [number, number][]; shown?: boolean; speak?: number; wait?: number | null };
+  slides?: [number, number][]; shown?: boolean; speak?: number; wait?: number | null;
+  // getting familiar: the meaning and delivery halves of the score, and the judge's delivery ratings and tip
+  read?: { meaning: number; delivery: number; clarity?: number; fluency?: number; pace?: string; tip?: string } };
 // The version of the rules: a hash of every value in lib/learn/rules.ts.
 export const RULES = hash(JSON.stringify(rules));
 export type Log = { at: number; list: Entry[] };

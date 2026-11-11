@@ -27,12 +27,15 @@ class Store {
 type Reply = { status?: number; body: unknown };
 let clock: number, storage: Store, server: Record<string, unknown>, grades: Reply[], sent: { url: string; body: unknown }[], played: string[][];
 let micBlocked: boolean;
+// the judge's replies wait for this, so a test can keep an attempt with the judge
+let hold: Promise<void>;
 const deps = (): Deps => ({
   storage, now: () => clock, canRecord: true,
   fetch: (async (url: string, init?: RequestInit) => {
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     sent.push({ url, body });
     if (url === "/api/grade") {
+      await hold;
       const r = grades.shift() ?? { body: { heard: body.target, meaning_ok: true, problems: [], clarity: 5, fluency: 5, pace: "good", tip: "Good." } };
       return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
     }
@@ -59,6 +62,7 @@ beforeEach(() => {
   sent = [];
   played = [];
   micBlocked = false;
+  hold = Promise.resolve();
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -344,22 +348,122 @@ describe("a run-through", () => {
 });
 
 describe("getting familiar", () => {
-  test("whole slides in talk order, read aloud first; a slide said well stops at 0.65", async () => {
+  const entries = (e: Engine) => e.log();
+  const grade = () => sent.filter((x) => x.url === "/api/grade").map((x) => x.body as { mode: string; target: string });
+
+  test("Start records slide 1; Next slide shows slide 2 at once, recording, and slide 1 is judged in the background", async () => {
     const e = make();
     e.setAim("familiar");
-    expect(e.aim).toBe("familiar");
+    e.start();
+    await flush();
+    const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
+    expect([e.flow, e.node?.id, e.share, e.phase, e.recording]).toEqual([true, one, 0, "listening", true]);
+    let release = () => {};
+    hold = new Promise((r) => { release = r; });
+    await e.nextCard();
+    await flush();
+    // on to slide 2, recording, while slide 1 is still with the judge
+    expect([e.node?.id, e.phase, e.recording, [...e.pending]]).toEqual([two, "listening", true, [one]]);
+    expect(state(e, one)).toBeNull();
+    release();
+    await flush();
+    // judged as a reading: the meaning and the delivery, 100 each; counted on slide 1, never shown
+    expect(grade()[0]).toMatchObject({ mode: "read", target: "Good morning, and thank you for coming. Today we bake bread." });
+    expect(state(e, one)?.s).toBe(0.5);
+    expect([e.pending.size, e.node?.id, e.phase, e.points]).toEqual([0, two, "listening", null]);
+    expect(entries(e)[0]).toMatchObject({ node: one, points: 100, pass: true, why: "new",
+      read: { meaning: 100, delivery: 100, clarity: 5, fluency: 5, pace: "good", tip: "Good." } });
+    expect(e.progress().slides).toEqual([{ slide: 1, points: 100, low: "delivery" }]);
+  });
+
+  test("a slide still with the judge is not picked again while there is another; then it is", async () => {
+    const e = make();
+    e.setAim("familiar");
+    const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
+    e.start();
+    await flush();
+    await e.nextCard();
+    await flush();
+    await e.nextCard();
+    await flush();
+    // both read once: slide 1 again, not yet at the bar
+    expect(e.node?.id).toBe(one);
+    let release = () => {};
+    hold = new Promise((r) => { release = r; });
+    await e.nextCard();
+    await flush();
+    // slide 1 is with the judge: slide 2, not slide 1
+    expect([e.node?.id, [...e.pending]]).toEqual([two, [one]]);
+    await e.nextCard();
+    await flush();
+    // both with the judge: nothing else, so slide 1 after all
+    expect(e.node?.id).toBe(one);
+    release();
+    await flush();
+    expect(e.pending.size).toBe(0);
+  });
+
+  test("not heard, a judge error and a tap before the microphone started log no score and change nothing", async () => {
+    const e = make();
+    e.setAim("familiar");
+    const one = e.tree.roots.get(1) as string;
+    e.start();
+    await flush();
+    grades.push({ body: { heard: "", meaning_ok: false, problems: [], clarity: 1, fluency: 1 } });
+    await e.nextCard();
+    await flush();
+    grades.push({ status: 500, body: { error: "Busy." } });
+    await e.nextCard();
+    await flush();
+    expect(state(e, one)).toBeNull();
+    expect(entries(e).map((x) => [x.points, x.why])).toEqual([[null, "new"], [null, "failed"]]);
+    // tapped before the microphone started: on to the next, nothing sent
+    const n = grade().length;
+    e.start();
+    await e.nextCard();
+    await flush();
+    expect(grade().length).toBe(n);
+  });
+
+  test("a mumbled reading with the meaning right scores half; stumbles do not count", async () => {
+    const e = make();
+    e.setAim("familiar");
+    e.start();
+    await flush();
+    grades.push({ body: { heard: "Good morning, and thank you for coming. Today we bake bread.", meaning_ok: false,
+      problems: [{ kind: "stumble", script: "thank you", said: "thank thank you" }], clarity: 1, fluency: 1, pace: "too fast", tip: "Slow down." } });
+    await e.nextCard();
+    await flush();
+    expect(entries(e)[0]).toMatchObject({ points: 60, read: { meaning: 100, delivery: 20, tip: "Slow down." } });
+    expect(e.progress().slides).toEqual([{ slide: 1, points: 60, low: "delivery" }]);
+  });
+
+  test("without the microphone, Next slide counts the slide as read and moves on", async () => {
+    const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
+    e.setAim("familiar");
     e.start();
     const one = e.tree.roots.get(1) as string;
-    expect([e.node?.id, e.share]).toEqual([one, 0]);
+    expect([e.node?.id, e.phase]).toEqual([one, "ready"]);
+    await e.nextCard();
+    expect([state(e, one)?.s, e.node?.id]).toEqual([0.425, e.tree.roots.get(2)]);
+    expect(entries(e)[0]).toMatchObject({ node: one, points: 85, why: "read" });
+    expect(entries(e)[0].read).toBeUndefined();
+    // read twice each: every slide at the bar, nothing left
+    await e.nextCard();
+    await e.nextCard();
+    await e.nextCard();
+    expect(e.item).toBeNull();
+    await e.nextCard();
+    expect(grade()).toEqual([]);
+  });
+
+  test("the other modes still judge each card and show the verdict", async () => {
+    const e = make();
+    e.setAim("gist");
+    e.start();
+    expect(e.flow).toBe(false);
     await say(e);
-    expect(state(e, one)?.s).toBe(0.5);
-    e.go();
-    expect(e.node?.id).toBe(e.tree.roots.get(2));
-    await say(e);
-    e.go();
-    expect(e.node?.id).toBe(one);
-    await say(e);
-    expect(state(e, one)?.s).toBe(0.65);
+    expect([e.phase, grade()[0].mode]).toEqual(["judged", "card"]);
   });
 });
 

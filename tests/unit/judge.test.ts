@@ -117,3 +117,19 @@ describe("report", () => {
       work_on: ["Slow down on names.", "Pause at slide changes.", "Breathe.", "Finish words.", "Look up."] });
   });
 });
+
+describe("the prompt for getting familiar", () => {
+  test("meaning and delivery, the delivery first; order and rewording fine; the must-say items named", () => {
+    const text = prompt({ mode: "read", target: "We tried four of them.", glossary: ["CADD"], must: ["four"] });
+    expect(text).toMatch(/reading a slide's narration aloud/);
+    expect(text).toMatch(/The delivery matters most/);
+    expect(text).toMatch(/The narration: We tried four of them\./);
+    expect(text).toMatch(/CADD/);
+    expect(text).toMatch(/Must be said exactly: four\./);
+    expect(text).toMatch(/the order of the points/);
+    expect(text).toMatch(/clarity, from 1/);
+    expect(text).not.toMatch(/order: the points were said in a different order/);
+    expect(prompt({ mode: "read", target: "x" })).toMatch(/Must be said exactly: nothing beyond the names and numbers\.\n\nList/);
+    expect(prompt({ mode: "read", target: "x", glossary: [] })).toMatch(/spelled as they should be written: \./);
+  });
+});

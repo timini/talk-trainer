@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { band, empty, GOOD, NEARLY, real, score, start } from "@/lib/score";
+import { band, empty, GOOD, NEARLY, readScore, real, score, start } from "@/lib/score";
 
 // 20 words
 const T = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
@@ -66,4 +66,14 @@ describe("where to start", () => {
     expect(start("We bake bread here", ["We bake bread here.", "We bake bread here too."], 0)).toBe(0);
   });
 
+});
+
+describe("readScore", () => {
+  test("the meaning and the delivery count equally; stumbles are left out; a missing rating is the middle", () => {
+    expect(readScore([], T, { clarity: 5, fluency: 5 })).toEqual({ meaning: 100, delivery: 100, points: 100 });
+    expect(readScore([{ kind: "stumble", script: "two three" }], T, { clarity: 1, fluency: 1 }))
+      .toEqual({ meaning: 100, delivery: 20, points: 60 });
+    expect(readScore([{ kind: "left_out", script: "one two three four five" }], T, { clarity: 5, fluency: 5 }).meaning).toBeLessThan(100);
+    expect(readScore([], T, {})).toEqual({ meaning: 100, delivery: 60, points: 80 });
+  });
 });

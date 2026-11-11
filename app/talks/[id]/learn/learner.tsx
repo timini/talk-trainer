@@ -166,6 +166,9 @@ function Progress({ e }: { e: Engine }) {
         <dt>Retention</dt><dd data-testid="p-retention">{`${rate(m.retention)} passed after a gap of more than 30 minutes`}</dd>
         <dt>Attempts to the bar</dt>
         <dd data-testid="p-tobar">{m.toBar.length ? m.toBar.map((x) => `${x.kind}: ${x.median} (${plural(x.nodes, "part")})`).join("; ") : "none yet"}</dd>
+        <dt>Slides to work on</dt>
+        <dd data-testid="p-weakslides">{m.slides.length ? m.slides.map((x) => `slide ${x.slide}: ${x.points} (${x.low})`).join("; ")
+          : "none yet: they come from Get familiar"}</dd>
         <dt>Weakest phrases</dt>
         <dd data-testid="p-weakest">{m.weakest.length ? m.weakest.map((x) => `slide ${x.slide}: '${x.phrase}'`).join("; ") : "none yet"}</dd>
         <dt>Most attempts</dt>
@@ -237,13 +240,13 @@ function Card({ e }: { e: Engine }) {
           {slide?.image ? <img src={slide.image} alt={slide.title} /> : <div className="noimg">No slide image</div>}
         </div>
         <div className="cardcol" data-testid="card">
-          <p className="instruction" data-testid="instruction">{e.instruction}</p>
+          <p className="instruction" data-testid="instruction">{e.flow ? "Read it aloud, then tap Next slide." : e.instruction}</p>
           <p className="stitle">{slide ? `${slide.n}. ${slide.title}` : ""}</p>
           <p className="position" data-testid="position">{e.position}</p>
           {e.crumbs.length > 1 && <p className="crumbs" data-testid="crumbs">{e.crumbs.join(" > ")}</p>}
           {words !== null && <div className={`cue${share > 0 && phase !== "judged" && phase !== "shown" ? " letters" : ""}`} data-testid="cue">{words}</div>}
           {phase === "listening" && <p className="heard" data-testid="listening">{!e.recording ? "Starting the microphone..."
-            : e.isRun ? "Listening. Tap Next slide when you move on." : "Listening. Tap when you have finished."}</p>}
+            : e.isRun || e.flow ? "Listening. Tap Next slide when you move on." : "Listening. Tap when you have finished."}</p>}
           {phase === "checking" && <p className="heard" data-testid="checking">Checking...</p>}
           {phase === "judged" && e.points !== null && (
             <div className={`verdict ${e.counted ? "good" : "bad"}`} data-testid="verdict">
@@ -263,7 +266,16 @@ function Card({ e }: { e: Engine }) {
               {label("Tip", j.tip)}
             </div>
           )}
-          <div className="actions">
+          {e.flow ? (
+            <div className="actions">
+              {e.note && <p className="note" role="status">{e.note}</p>}
+              <div className="minor">
+                {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
+              </div>
+              <button type="button" className={`big primary${phase === "listening" ? " on" : ""}`} onClick={() => void e.nextCard()}>
+                Next slide</button>
+            </div>
+          ) : <div className="actions">
             {/* in the bar pinned at the bottom, so a long slide never pushes it out of sight */}
             {e.note && <p className="note" role="status">{e.note}</p>}
             <div className="minor">
@@ -299,7 +311,7 @@ function Card({ e }: { e: Engine }) {
                 <button type="button" className="big good" onClick={() => e.mark(true)}>Got it</button>
                 <button type="button" className="big bad" onClick={() => e.mark(false)}>Missed</button>
               </div>)}
-          </div>
+          </div>}
           <p className="keys">Keys: Space to speak, stop or go on. R to hear it.</p>
         </div>
       </div>

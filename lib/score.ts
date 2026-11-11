@@ -27,6 +27,14 @@ export const score = (problems: Problem[], target: string): number => {
   return Math.max(0, Math.round(100 - cost));
 };
 
+// Get familiar scores the meaning and the delivery equally: the score of the problems, stumbles aside, and
+// (clarity + fluency) times 10, so a clear, steady reading is 100. A missing rating counts as 3, the middle.
+export const readScore = (problems: Problem[], target: string, v: Verdict) => {
+  const meaning = score(problems.filter((p) => p.kind !== "stumble"), target);
+  const delivery = 10 * ((v.clarity ?? 3) + (v.fluency ?? 3));
+  return { meaning, delivery, points: Math.round((meaning + delivery) / 2) };
+};
+
 export const band = (s: number): Band => (s >= GOOD ? "good" : s >= NEARLY ? "nearly" : "missed");
 
 // Whether the judge heard almost nothing: a tap too soon or a microphone problem, not forgetting. Fluency and
