@@ -41,7 +41,8 @@ describe("the script", () => {
     expect(code).toBe(200);
     expect(s.talk).toMatchObject({ id, status: "ready", glossary: [] });
     expect(s.slides.map((x: { n: number; title: string; image: string }) => [x.n, x.title, x.image])).toEqual([
-      [1, "Bread", `/api/files/talks/${id}/slides/1.png`], [2, "End", `/api/files/talks/${id}/slides/2.png`]]);
+      [1, "Bread", expect.stringMatching(new RegExp(`^/api/files/talks/${id}/slides/1\\.png\\?v=\\d+$`))],
+      [2, "End", expect.stringMatching(new RegExp(`^/api/files/talks/${id}/slides/2\\.png\\?v=\\d+$`))]]);
     expect(s.slides[0].sentences[0]).toMatchObject({ i: 1, text: "Mix 500 grams of flour.", must_say: ["500"] });
     expect(s.slides[0].sentences[1].clip).toMatch(/^\/api\/files\/clips\/[0-9a-f]{64}\.wav$/);
     expect(s.slides[1].sentences).toEqual([]);
