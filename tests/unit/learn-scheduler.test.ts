@@ -227,6 +227,22 @@ describe("getting familiar goes breadth first, whole slides only", () => {
   });
 });
 
+describe("the gist starts on the slides getting familiar found hard", () => {
+  test("a weak slide comes first, the hardest first, at its sentences; the others start whole", () => {
+    const t3 = build([said(1, ["We bake bread.", "It rises."]), said(2, ["Mix the flour.", "Add water."]), said(3, ["Let it rest.", "Then bake."])]);
+    const root = (n: number) => t3.roots.get(n) as string, first = (n: number) => (t3.nodes.get(root(n)) as Node).kids[0];
+    // every slide read once getting familiar (so none is new)
+    const read = Object.fromEntries([1, 2, 3].map((n) => [root(n), st(0.65, { hid: 0, next: 0, peak: 0 })]));
+    const p = (weak: number[]) => pick(t3, from(read), NOW, "gist", Infinity, begin(), weak)?.node.id;
+    // no weak slides: slide 1, whole
+    expect(p([])).toBe(root(1));
+    // slides 3 then 2 were hard: slide 3 first, at its first sentence
+    expect(p([3, 2])).toBe(first(3));
+    expect(standing(t3, from(read), NOW, "gist", begin(), [3]).skip(first(3))).toBe(false);
+    expect(standing(t3, from(read), NOW, "gist", begin(), [3]).skip(first(1))).toBe(true);
+  });
+});
+
 describe("after", () => {
   test("keeps the last 10 counted passes, the last pick, the picks of it running, and the reviews since new material", () => {
     const node = (id: string) => tree.nodes.get(id) as Node;

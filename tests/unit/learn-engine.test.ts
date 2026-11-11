@@ -646,6 +646,47 @@ describe("looking counts", () => {
   });
 });
 
+describe("from one mode to the next", () => {
+  test("the log keeps the mode; the gist starts on the slides getting familiar found hard, then forgets them once tried", async () => {
+    const e = make();
+    e.setAim("familiar");
+    const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
+    e.start();
+    await flush();
+    grades.push({ body: { heard: "Good morning, and thank you for coming. Today we bake bread.", meaning_ok: true, problems: [],
+      clarity: 3, fluency: 3, pace: "good", tip: "Pause." } });
+    await e.nextCard();
+    await flush();
+    await e.nextCard();
+    await flush();
+    expect(e.log().map((x) => [x.slide, x.aim, x.offline, x.points])).toEqual([[1, "familiar", false, 80], [2, "familiar", false, 100]]);
+    expect(e.weak()).toEqual([]);
+    e.setAim("gist");
+    // slide 1 read at 80: hard; slide 2 at 100: not
+    expect(e.weak()).toEqual([1]);
+    e.go();
+    expect(e.node?.slides).toEqual([1]);
+    expect(e.node?.id).not.toBe(one);
+    await say(e);
+    expect(e.log().at(-1)).toMatchObject({ aim: "gist", offline: false });
+    // tried at the gist since: no longer first
+    expect(e.weak()).toEqual([]);
+    expect(two).toBeTruthy();
+  });
+
+  test("given up, or peeked for more than 3 s, also counts as hard; an older entry with no mode is read as familiar", () => {
+    const e = make();
+    const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
+    const entry = (slide: number, node: string, over: Record<string, unknown>) => ({ id: `${slide}${JSON.stringify(over)}`, at: clock,
+      node, slide, kind: "slide", height: 1, words: 5, before: 0, bar: 0.6, after: 0.5, hidden: 0, points: 100, pass: true, ms: 0,
+      gap: null, why: "new", m: clock, ...over });
+    e.set(`learn:log:2026-11-10`, { at: clock, list: [entry(1, one, { aim: "familiar", why: "gave up", points: 0 }),
+      entry(2, two, { read: { meaning: 100, delivery: 100 }, peekMs: 4000 })] });
+    e.setAim("verbatim");
+    expect(e.weak()).toEqual([1, 2]);
+  });
+});
+
 describe("pause", () => {
   test("getting familiar: Pause throws the recording away and keeps the slide; Resume records it again", async () => {
     const e = make();

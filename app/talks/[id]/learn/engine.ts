@@ -10,7 +10,7 @@ import { byHand, outcome, peekPoints, run as runRecord, type Result } from "@/li
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { metrics, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
 import { barOf, cues, estimates, familiar, hiding, known, record, staircase, type State, terms, troubleOf } from "@/lib/learn/model";
-import { type Aim, GOOD, RECOUNT } from "@/lib/learn/rules";
+import { type Aim, GOOD, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
@@ -214,6 +214,20 @@ export class Engine {
   }
   // Getting familiar: one button, the next slide; each attempt is judged in the background and never shown.
   get flow() { return this.aim === "familiar"; }
+  // The slides getting familiar found hard, hardest first, for the gist and word for word to start on (Tim, 11 Nov): its
+  // last reading of the slide under GOOD, given up, or more than WEAK_PEEK of Peek; and not yet tried in this mode since.
+  weak(): number[] {
+    if (this.flow) return [];
+    const last = new Map<number, Entry>(), since = new Set<number>();
+    for (const x of this.log()) {
+      const familiarEntry = x.aim === "familiar" || (x.aim === undefined && (!!x.read || x.why === "gave up"));
+      if (familiarEntry && this.tree.roots.get(x.slide) === x.node) { last.set(x.slide, x); since.delete(x.slide); }
+      else if (x.aim === this.aim) since.add(x.slide);
+    }
+    return [...last.values()].filter((x) => !since.has(x.slide)
+      && (x.why === "gave up" || (x.points !== null && x.points < GOOD) || (x.peekMs ?? 0) > WEAK_PEEK))
+      .sort((a, b) => (a.points ?? 0) - (b.points ?? 0) || a.slide - b.slide).map((x) => x.slide);
+  }
   // A slide to read again, as a pick.
   private again1(id: string, now: number): Pick {
     const node = this.tree.nodes.get(id) as Node;
@@ -234,10 +248,11 @@ export class Engine {
     const within = inRange(this.range), busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
     this.passed.forEach((n) => busy.add(n));
     const redo = this.flow ? this.redo.shift() : undefined;
-    const narrow = redo ? this.again1(redo, now) : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session);
+    const weak = this.weak();
+    const narrow = redo ? this.again1(redo, now) : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak);
     // getting familiar, with only slides still with the judge left: wait for their verdicts, not show one again
     this.waiting = !narrow && this.flow && this.pending.size > 0;
-    this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session));
+    this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session, weak));
     const est = estimates(this.tree, this.state, now);
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session), this.state(this.item.node.id)) : new Map();
     Object.assign(this, { peeking: false, peeks: 0, peekMs: 0, paused: false });
@@ -515,7 +530,7 @@ export class Engine {
       after: points === null ? null : estimates(this.tree, this.state, now).get(n.id) as number, hidden: at.share, points,
       pass: points === null ? null : points >= 60, ms, gap: at.gap, why: why || at.item.why, m: now, v: RULES,
       ...(leaves ? { leaves } : {}), ...(read ? { read } : {}), speak: at.spoke ?? 0, wait: at.waited, peeks: at.peeks,
-      peekMs: at.peekMs };
+      peekMs: at.peekMs, aim: "familiar", offline: this.offline };
     const day = ymd(now);
     this.set(logKey(day), logged(this.get<Log | null>(logKey(day), null), e));
   }
@@ -648,7 +663,7 @@ export class Engine {
       points, pass: points === null ? null : points >= 60, ms: this.ms, gap: prev ? prev.gap : gap, why, m: now, v: RULES,
       ...(this.leafScores && points !== null ? { leaves: this.leafScores } : {}), ...(this.probs ? { probs: this.probs } : {}),
       ...(this.runSlides ? { slides: this.runSlides } : {}), shown: this.shown, speak: this.spoke, wait: this.waited,
-      peeks: this.peeks, peekMs: this.peeked };
+      peeks: this.peeks, peekMs: this.peeked, aim: this.aim, offline: this.offline };
     if (!prev && points !== null) this.session = after(this.session, item, points >= 60);
     else if (points !== null) this.session = { ...this.session, recent: [...this.session.recent.slice(0, -1), points >= 60],
       last: { id: n.id, pass: points >= 60 } };

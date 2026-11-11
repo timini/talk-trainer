@@ -59,3 +59,4 @@ describe("getting familiar: hiding in steps", () => {
     expect(s.good).toBeGreaterThan(b.good);
   });
 });
+

@@ -90,8 +90,9 @@ export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Ai
 // until it is passed again.
 // Getting familiar practises whole slides only.
 const PARTS = new Set<Node["kind"]>(["clause", "clauses", "sentence", "group"]);
-export const skipped = (n: Node, aim: Aim, st: State | null = null) => aim === "familiar" ? n.kind !== "slide" : aim === "gist"
-  && ((GIST_TOP && (st?.run ?? 0) === 0 && PARTS.has(n.kind)) || (!GIST_CLAUSES && (n.kind === "clause" || n.kind === "clauses"))
+// weak: a slide getting familiar found hard; at the gist it starts at its sentences, not whole.
+export const skipped = (n: Node, aim: Aim, st: State | null = null, weak = false) => aim === "familiar" ? n.kind !== "slide" : aim === "gist"
+  && ((GIST_TOP && !weak && (st?.run ?? 0) === 0 && PARTS.has(n.kind)) || (!GIST_CLAUSES && (n.kind === "clause" || n.kind === "clauses"))
     || (n.kind === "group" && n.last - n.first + 1 <= GIST_GROUP));
 
 // The share a slide hides on its next reading, after a reading with one share hidden; the most hidden on a reading

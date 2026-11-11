@@ -245,6 +245,22 @@ not the delivery. So:
 - **Pause** (the button, or P; Tim: to stop and write a review note): the recording is thrown away and the slide stays
   on screen; Resume (or the Right arrow) records it again. Nothing is logged.
 
+**From one mode to the next** (Tim, 11 November). Every mode reads and writes the same states, keyed by text, so a
+slide's progress carries over; a familiar reading never counts as recall at the gist (its score is capped at 0.65,
+below the gist's slide bar of 0.8). Since 11 November:
+
+- **The log keeps the mode** of each attempt (`aim`, and `offline`), so how practice in one mode carries into the
+  next can be measured from Tim's own data.
+- **The gist and word for word start on the slides getting familiar found hard**, the hardest first: the slide's last
+  familiar reading under 85, given up, or with more than `WEAK_PEEK` (3 s) of Peek, and not yet tried in this mode
+  since. At the gist such a slide starts at its sentences, not whole.
+- **Not done: a cap on the jump in hiding between modes.** One good familiar reading leaves a slide at a score that maps
+  to 50% hidden on its first gist attempt. A cap of 10 to 20% past the most the slide was recalled at was tried: on
+  every slide it cut the budget simulation's expected Saturday score from over 0.45 to 0.23; on the slides getting
+  familiar had read, the first three gist attempts a day later were recalled 5% of the time with it and 1% without
+  (the fitted learner keeps little a day after reading with few words hidden). To be decided from Tim's first gist
+  session after getting familiar: his first gist attempt on each slide, its share hidden and its score.
+
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed
 (the misses fall on them), until they are passed again; then the slide comes back. A clause is never practised on its

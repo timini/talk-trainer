@@ -9,7 +9,8 @@
 // Pacing keeps the session's pass rate between PACE_LOW and PACE_HIGH: above it a node is ready once its parts are
 // within EASE of their bars; below it a miss zooms down two levels. A node missed STUCK times running needs its parts
 // LIFT above their bars before it is tried again, and they are practised until they are. A node picked SAME times in
-// a row is passed over once. Getting familiar goes breadth first: the next new slide comes first, then rule 1, then
+// a row is passed over once. The slides getting familiar found hard (weak) come before the rest of rule 3. Getting
+// familiar goes breadth first: the next new slide comes first, then rule 1, then
 // rule 3, and a miss does not go down.
 
 import { barOf, estimates, fade, skipped, type States } from "./model";
@@ -30,7 +31,9 @@ export const pace = (s: Session) => {
 };
 
 // Where each node stands now.
-export const standing = (tree: Tree, get: States, now: number, aim: Aim, session: Session = begin()) => {
+// weak: the slides getting familiar found hard, in the order to take them (lowest first); at the gist they start at
+// their sentences.
+export const standing = (tree: Tree, get: States, now: number, aim: Aim, session: Session = begin(), weak: number[] = []) => {
   const est = estimates(tree, get, now), rate = pace(session);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const bar = (id: string) => barOf(node(id), aim);
@@ -48,7 +51,8 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   const stuck = (id: string) => (get(id)?.run ?? 0) >= STUCK;
   const margin = rate !== null && rate > PACE_HIGH ? -EASE : 0;
   // a node's parts and where a miss goes down to, through the parts passed over at this aim
-  const skip = (id: string) => skipped(node(id), aim, get(id));
+  const hard = new Set(weak);
+  const skip = (id: string) => skipped(node(id), aim, get(id), hard.has(node(id).slides[0]));
   const through = (ids: string[]): string[] => ids.flatMap((k) => (skip(k) ? through(node(k).kids) : [k]));
   const parts = (id: string) => through(node(id).kids);
   const down = (id: string) => through(node(id).down);
@@ -71,9 +75,10 @@ const RANK: Partial<Record<Node["kind"], number>> = { bridge: 1, section: 2, tal
 
 // goal: the slides to work on now, the last one (from slide 1) or a test of a slide's number; nothing outside it is
 // picked, so a due node outside it waits.
-export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number | ((n: number) => boolean), session: Session): Pick | null => {
+export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number | ((n: number) => boolean), session: Session,
+  weak: number[] = []): Pick | null => {
   const within = typeof goal === "number" ? (n: number) => n <= goal : goal;
-  const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session);
+  const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session, weak);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const started = new Set<number>();
   for (const id of tree.order) if (get(id)) node(id).slides.forEach((n) => started.add(n));
@@ -110,7 +115,11 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
       const x = order(a), y = order(b);
       return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || x[3] - y[3];
     };
-    const up = live.filter((id) => ok(id) && !due(id) && (ready(id) || lifted.has(id))).sort(cmp)[0];
+    const candidates = live.filter((id) => ok(id) && !due(id) && (ready(id) || lifted.has(id))).sort(cmp);
+    // the slides getting familiar found hard come first, the hardest first (Tim, 11 Nov)
+    const hard = weak.flatMap((n) => candidates.filter((id) => node(id).slides.includes(n)).slice(0, 1))[0];
+    if (hard) return make(hard, "up");
+    const up = candidates[0];
     if (up) return make(up, "up");
     // 4. the next new slide
     if (fresh !== undefined) return first(fresh);
