@@ -44,7 +44,7 @@ const LONGEST = 180000;
 // A familiar attempt as it was when Next slide was tapped: the pick, each leaf's share hidden, the share of the
 // slide hidden, the gap since it was last tried and the wait before speaking.
 type Flow = { item: Pick; hide: Map<string, number>; share: number; gap: number | null; waited: number | null; peeks: number;
-  peekMs: number };
+  peekMs: number; onCard?: number };
 
 // One slide of a run-through: its outcome once judged.
 type Said = { points: number; leaves: Map<string, number>; trouble?: Map<string, number[]>; result: Result | null; why: string };
@@ -102,6 +102,8 @@ export class Engine {
   // for the log: when the card was shown and the recording started, the time recorded, the wait before the first
   // recording, the judge's problems by kind, each leaf's score, and a run-through's slides
   private cardAt = 0;
+  // the time on the card up to the attempt's end (ms), for the share of it spent peeking
+  onCard = 0;
   private recAt = 0;
   private spoke = 0;
   private waited: number | null = null;
@@ -265,7 +267,7 @@ export class Engine {
       at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();
     this.trouble = null;
-    Object.assign(this, { cardAt: now, spoke: 0, waited: null, probs: null, leafScores: null, runSlides: null });
+    Object.assign(this, { cardAt: now, spoke: 0, waited: null, probs: null, leafScores: null, runSlides: null, onCard: 0 });
     this.said = new Map();
     this.saidDone = new Map();
     if (!this.item && !this.waiting && this.screen === "session") this.screen = "done";
@@ -395,6 +397,7 @@ export class Engine {
   stop() {
     if (this.phase !== "listening" || this.isRun) return;
     const item = this.item as Pick;
+    this.onCard = this.deps.now() - this.cardAt;
     if (!this.rec) {
       Object.assign(this, { phase: "ready", note: "Nothing was recorded. Tap to speak again." });
       this.emit();
@@ -413,7 +416,9 @@ export class Engine {
     this.peeking = on;
     this.emit();
   }
-  private get peeked() { return this.peekMs + (this.peeking ? this.deps.now() - this.peekAt : 0); }
+  get peeked() { return this.peekMs + (this.peeking ? this.deps.now() - this.peekAt : 0); }
+  // The share of the time on the card spent peeking, once the attempt has ended (null: not yet, or no time).
+  get peekShare() { return this.onCard ? Math.min(1, this.peeked / this.onCard) : null; }
   // Offline: no microphone and no judge; each attempt is scored from Peek. The setting is the microphone's.
   get offline() { return !this.micOn; }
   setOffline(on: boolean) { this.setMic(!on); }
@@ -489,7 +494,7 @@ export class Engine {
     const item = this.item;
     if (!this.flow || !item) return;
     const at = { item, hide: this.hide, share: this.share, gap: this.gap(item.node, this.deps.now()), waited: this.waited,
-      peeks: this.peeks, peekMs: this.peeked };
+      peeks: this.peeks, peekMs: this.peeked, onCard: this.deps.now() - this.cardAt };
     if (this.offline) {
       const points = peekPoints(at.peekMs);
       this.countFlow(at, points, new Map(item.node.leaves.map((l) => [l, points])), "offline", points);
@@ -549,7 +554,7 @@ export class Engine {
       after: points === null ? null : estimates(this.tree, this.state, now).get(n.id) as number, hidden: at.share, points,
       pass: points === null ? null : points >= 60, ms, gap: at.gap, why: why || at.item.why, m: now, v: RULES,
       ...(leaves ? { leaves } : {}), ...(read ? { read } : {}), speak: at.spoke ?? 0, wait: at.waited, peeks: at.peeks,
-      peekMs: at.peekMs, aim: "familiar", offline: this.offline };
+      peekMs: at.peekMs, aim: "familiar", offline: this.offline, ...(at.onCard ? { onCard: at.onCard } : {}) };
     const day = ymd(now);
     this.set(logKey(day), logged(this.get<Log | null>(logKey(day), null), e));
   }
@@ -688,7 +693,7 @@ export class Engine {
       points, pass: points === null ? null : points >= 60, ms: this.ms, gap: prev ? prev.gap : gap, why, m: now, v: RULES,
       ...(this.leafScores && points !== null ? { leaves: this.leafScores } : {}), ...(this.probs ? { probs: this.probs } : {}),
       ...(this.runSlides ? { slides: this.runSlides } : {}), shown: this.shown, speak: this.spoke, wait: this.waited,
-      peeks: this.peeks, peekMs: this.peeked, aim: this.aim, offline: this.offline };
+      peeks: this.peeks, peekMs: this.peeked, aim: this.aim, offline: this.offline, ...(this.onCard ? { onCard: this.onCard } : {}) };
     if (!prev && points !== null) this.session = after(this.session, item, points >= 60);
     else if (points !== null) this.session = { ...this.session, recent: [...this.session.recent.slice(0, -1), points >= 60],
       last: { id: n.id, pass: points >= 60 } };

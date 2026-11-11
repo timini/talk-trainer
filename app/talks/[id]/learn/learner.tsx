@@ -270,6 +270,7 @@ function Card({ e }: { e: Engine }) {
               {v ? v.head : e.counted ? "Got it" : "Missed"}
               <small>{`Score ${e.points}. ${v ? v.detail : ""}`}</small>
               {v?.note && <small className="quiet">{v.note}</small>}
+              {e.peekShare !== null && <small data-testid="peeked">{`Peeked ${pct(e.peekShare)} of your time on this card (${(e.peeked / 1000).toFixed(1)} s of ${(e.onCard / 1000).toFixed(0)} s).`}</small>}
               {r && e.counted !== r.pass && <small className="quiet">{`Counted as ${e.counted ? "got" : "missed"}.`}</small>}
             </div>
           )}

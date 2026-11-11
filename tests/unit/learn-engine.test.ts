@@ -647,11 +647,16 @@ describe("looking counts", () => {
     // the judge heard it all, but it was read: missed
     expect([e.points, e.counted, state(e, one)?.run]).toEqual([50, false, 1]);
     e.go();
+    expect(e.peekShare).toBeNull();
     e.peek(true);
     clock += 2000;
     e.peek(false);
+    clock += 2000;
     await say(e);
     expect(e.points).toBe(80);
+    // half the time on the card was spent peeking, shown on the verdict and logged
+    expect([e.peekShare, e.onCard]).toEqual([0.5, 4000]);
+    expect(e.log().at(-1)).toMatchObject({ peekMs: 2000, onCard: 4000 });
   });
 });
 
