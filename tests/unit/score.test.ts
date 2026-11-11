@@ -77,3 +77,15 @@ describe("readScore", () => {
     expect(readScore([], T, {})).toEqual({ meaning: 100, delivery: 60, points: 80 });
   });
 });
+
+describe("where to start: a short opening sentence (Tim, 11 November)", () => {
+  test("a short first sentence is not taken for the next one, whose first words are also near the start", () => {
+    const takeaways = ["Three takeaways.", "First, look past headline benchmarks:", "check whether a predictor uses zero-shot,"];
+    expect(start("Three takeaways. First, look past headline benchmarks, check whether a predictor uses zero shot", takeaways, 0)).toBe(0);
+    expect(start("Three key takeaways. First, look past headline benchmarks: check whether", takeaways, 0)).toBe(0);
+    const opening = ["Good morning, everyone.", "Every few months, a new paper announces an AI model that reads DNA,"];
+    expect(start("Good morning everyone. Every few months a new paper announces an AI model", opening, 0)).toBe(0);
+    // starting at the second sentence is still the wrong place
+    expect(start("Every few months a new paper announces an AI model", opening, 0)).toBe(1);
+  });
+});

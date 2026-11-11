@@ -98,8 +98,13 @@ table.grid td.n { text-align: right; white-space: nowrap; }
   .menu .sheet { width: 24rem; max-height: none; border-radius: 0; }
 }
 .verdict small.quiet { opacity: 0.85; font-size: 0.85rem; }
-.learnbar { height: 0.35rem; background: #fff; }
-.learnbar span { display: block; height: 100%; background: #26913c; transition: width 0.3s; }
+/* The strip across the top of a session: one cell a slide */
+.strip { display: flex; gap: 1px; height: 0.9rem; padding: 2px; background: #fff; }
+.strip span { flex: 1; min-width: 0; background: #e3e6ea; border-radius: 1px; }
+.strip span.tried { background: color-mix(in srgb, #26913c calc(var(--k) * 100%), #f0a500); }
+.strip span.at { background: #26913c; }
+.strip span.now { outline: 2px solid #005eb8; outline-offset: 1px; z-index: 1; }
+.strip span.judging { opacity: 0.55; }
 .instruction { font-size: 1.15rem; font-weight: bold; color: #005eb8; margin: 0 0 0.25rem; }
 
 /* How well the unit on screen is known now (it fades with time) */

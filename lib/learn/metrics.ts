@@ -46,6 +46,13 @@ export const weakSlides = (entries: Entry[], n = 5) => {
       low: (x.read as NonNullable<Entry["read"]>).meaning < (x.read as NonNullable<Entry["read"]>).delivery ? "meaning" : "delivery" }));
 };
 
+// The strip across the top of a session: each slide in talk order, how well it is known (its estimate as a share of
+// its bar, at most 1), whether it was ever tried and whether it is at its bar.
+export const strip = (tree: Tree, get: States, now: number, aim: Aim) => {
+  const s = standing(tree, get, now, aim);
+  return [...tree.roots].map(([n, id]) => ({ n, known: Math.min(1, (s.est.get(id) as number) / s.bar(id)), tried: !!get(id), at: s.at(id) }));
+};
+
 // The slides at their aim now, of the slides with a script; and how many nodes are due.
 export const slidesAt = (tree: Tree, get: States, now: number, aim: Aim) => {
   const s = standing(tree, get, now, aim);

@@ -8,9 +8,9 @@
 
 import { byHand, outcome, run as runRecord, type Result } from "@/lib/learn/attempt";
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
-import { metrics, slidesAt, weakest, weakSlides } from "@/lib/learn/metrics";
-import { cues, estimates, familiar, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
-import type { Aim } from "@/lib/learn/rules";
+import { metrics, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
+import { barOf, cues, estimates, familiar, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
+import { type Aim, GOOD } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
@@ -63,6 +63,13 @@ export class Engine {
   private entry: Entry | null = null;
   // getting familiar: the slides whose attempts are still with the judge
   readonly pending = new Set<string>();
+  // getting familiar: slides to read again next (a verdict under GOOD, or not counted), each once a session; and the
+  // slides not counted twice, passed over as new while there is anything else
+  private redo: string[] = [];
+  // waiting for the judge's last verdicts before choosing the next slide
+  waiting = false;
+  private again = new Set<string>();
+  private passed = new Set<number>();
   private before = new Map<string, State | null>();
   // the trouble the judged attempt on screen put on each leaf's words
   private trouble: Map<string, number[]> | null = null;
@@ -166,6 +173,11 @@ export class Engine {
 
   // The home screen and the Progress screen.
   summary() { return slidesAt(this.tree, this.state, this.deps.now(), this.aim); }
+  // The strip across the top: each slide, how well it is known, and whether it is on screen or with the judge.
+  strip() {
+    const on = this.node?.slides ?? [], busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
+    return strip(this.tree, this.state, this.deps.now(), this.aim).map((x) => ({ ...x, now: on.includes(x.n), judging: busy.has(x.n) }));
+  }
   log(): Entry[] {
     return Object.entries(this.items()).filter(([k]) => k.startsWith("learn:log:")).sort(([a], [b]) => (a < b ? -1 : 1))
       .flatMap(([, v]) => (v as Log).list);
@@ -193,14 +205,30 @@ export class Engine {
   }
   // Getting familiar: one button, the next slide; each attempt is judged in the background and never shown.
   get flow() { return this.aim === "familiar"; }
+  // A slide to read again, as a pick.
+  private again1(id: string, now: number): Pick {
+    const node = this.tree.nodes.get(id) as Node;
+    return { node, why: "due", est: estimates(this.tree, this.state, now).get(id) as number, bar: barOf(node, this.aim) };
+  }
+  // After a familiar verdict: under GOOD, or not counted, the slide comes next, once a session; not counted again, it
+  // is passed over as new while there is anything else.
+  private after1(n: Node, points: number | null) {
+    if (points !== null && points >= GOOD) return;
+    if (!this.again.has(n.id)) { this.again.add(n.id); this.redo.push(n.id); }
+    else if (points === null) this.passed.add(n.slides[0]);
+  }
   // The next thing to say, or the done screen when there is nothing left within the range.
   go() {
     this.halt();
     const now = this.deps.now();
     // a slide still with the judge is not picked again until its verdict is in, unless there is nothing else
     const within = inRange(this.range), busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
-    this.item = pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session)
-      ?? pick(this.tree, this.state, now, this.aim, within, this.session);
+    this.passed.forEach((n) => busy.add(n));
+    const redo = this.flow ? this.redo.shift() : undefined;
+    const narrow = redo ? this.again1(redo, now) : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session);
+    // getting familiar, with only slides still with the judge left: wait for their verdicts, not show one again
+    this.waiting = !narrow && this.flow && this.pending.size > 0;
+    this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session));
     const est = estimates(this.tree, this.state, now);
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session)) : new Map();
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
@@ -210,7 +238,7 @@ export class Engine {
     Object.assign(this, { cardAt: now, spoke: 0, waited: null, probs: null, leafScores: null, runSlides: null });
     this.said = new Map();
     this.saidDone = new Map();
-    if (!this.item && this.screen === "session") this.screen = "done";
+    if (!this.item && !this.waiting && this.screen === "session") this.screen = "done";
     this.emit();
   }
 
@@ -366,23 +394,29 @@ export class Engine {
     try {
       const v = await this.judge(n, blob, { hidden: at.share, why: at.item.why, before: at.item.est });
       const o = outcome(this.tree, n, v, this.mustOf(n), true);
-      if (!o.counted) this.logFlow(at, null, "", this.deps.now() - t0);
+      if (!o.counted) { this.logFlow(at, null, "", this.deps.now() - t0); this.after1(n, null); }
       else {
         this.countFlow(at, o.points, o.leaves, at.item.why, o.trouble, this.deps.now() - t0, {
           ...o.read as { meaning: number; delivery: number }, clarity: v.clarity, fluency: v.fluency, pace: v.pace, tip: v.tip });
+        this.after1(n, o.points);
       }
     } catch {
       this.logFlow(at, null, "failed", this.deps.now() - t0);
+      this.after1(n, null);
     }
     this.pending.delete(n.id);
     this.pushSoon();
+    if (this.waiting && !this.pending.size && this.screen === "session") {
+      this.go();
+      if (this.item && this.micOn) await this.speak();
+    }
     this.emit();
   }
   // A familiar attempt counted on its own slide, whatever is on screen now, and logged.
   private countFlow(at: Flow & { spoke?: number }, points: number, leaves: Map<string, number>, why: string,
     trouble?: Map<string, number[]>, ms = 0, read?: Entry["read"]) {
     const now = this.deps.now(), n = at.item.node;
-    const got = record(this.tree, this.state, n, leaves, points, now, at.hide, estimates(this.tree, this.state, now), trouble);
+    const got = record(this.tree, this.state, n, leaves, points, now, at.hide, estimates(this.tree, this.state, now), trouble, 0);
     this.write(familiar(got, this.state));
     this.session = after(this.session, at.item, points >= 60);
     this.logFlow(at, points, why, ms, read, n.leaves.map((l) => leaves.get(l) as number));

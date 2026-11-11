@@ -52,6 +52,8 @@ export const empty = (v: Verdict, target: string): boolean => {
 // first word that is missing, and kept when at least 3 match (or all, for a shorter sentence); the best wins, the
 // expected start on a tie. null: no sentence starts it, so nothing is known. On 9 November 4 of Tim's 14 attempts at
 // one slide started at another part of it when every word was hidden, and were scored as forgotten.
+// How far into what was heard a sentence's first word may be.
+const ANCHOR = 1;
 const FILLERS = new Set(["hi", "hello", "so", "um", "uh", "er", "okay", "ok", "right", "well"]);
 const spelled = (text: string) => text.replace(/[’']m\b/gi, " am").replace(/[’']re\b/gi, " are").replace(/n[’']t\b/gi, " not")
   .replace(/[’']ve\b/gi, " have").replace(/[’']ll\b/gi, " will");
@@ -65,7 +67,10 @@ export const start = (heard: string, sentences: string[], expected: number): num
     let at = 0, n = 0;
     for (const w of first) {
       const i = window.indexOf(w, at);
-      if (i < 0) break;
+      // the sentence's first word must open what was heard (one stray word allowed): on 11 November "Three
+      // takeaways. First, look past..." was taken as starting at "First, look past", a later sentence whose first 4
+      // words were all in the window, and every attempt at the slide was thrown away as started in the wrong place
+      if (i < 0 || (n === 0 && i > ANCHOR)) break;
       n += 1;
       at = i + 1;
     }

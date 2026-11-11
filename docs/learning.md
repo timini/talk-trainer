@@ -192,6 +192,28 @@ where the meaning suffers; order, rewording and a false start put right at once 
 screen's "Slides to work on" lists the five slides with the lowest last score, each with the half that was lower:
 that is where the data shows, and only there.
 
+**Version 0.2, from Tim's first session** (11 November, 42 minutes, 107 attempts, 73 scored as readings; the first
+23 were before reading scores). Median score 90; 82% scored 85 or more, 8% under 60. Delivery was the weaker half (27
+readings at 70 or below, against 11 that lost any meaning). The judge's tips were mostly to pause (23) and to finish
+the sentence (7). About 16 seconds a slide; the judge took about 3.6 seconds, well inside that. The lowest slides (54,
+51, 73, 86, 97, 76, 107) include three Tim had already noted as confusing. The changes:
+
+- **The bounce** (slides 106 and 1, again and again). Each attempt at a slide with a short first sentence ("Three
+  takeaways.", "Good morning, everyone.") was thrown away as started in the wrong place: `start()` in
+  `lib/score.ts` found the next sentence's first 4 words within the first 8 heard and preferred the longer match.
+  A sentence's first word must now open what was heard (`ANCHOR`, one stray word allowed). An attempt not counted
+  left the slide new, so it was picked first again; now a slide not counted twice in a session is passed over as new
+  while there is anything else.
+- **One good reading is enough.** A reading of 85 or more moves the slide `ALPHA_GOOD` of the way whatever is hidden
+  (`record(..., sure)`), so it is at the bar at once: with 82% of readings there, the second time round is about a
+  fifth of the talk, not all of it.
+- **Read again next.** Tim liked going back to a slide that was not read well. A verdict under 85, or an attempt not
+  counted, brings that slide next ("Again"), once a session.
+- **Waiting, not repeating.** When the only slides left are with the judge, the session waits for their verdicts
+  ("Checking your last reading") instead of showing the last slide again.
+- **The strip.** Across the top of a session, one cell a slide in talk order: grey not tried, amber to green by its
+  estimate against the bar, green at the bar, the slide on screen outlined, a slide with the judge faded.
+
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed
 (the misses fall on them), until they are passed again; then the slide comes back. A clause is never practised on its

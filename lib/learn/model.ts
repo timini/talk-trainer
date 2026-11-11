@@ -131,15 +131,17 @@ const troubled = (st: State | null, now: number, add: number[]) => {
 
 // The new states an attempt writes: the attempted node and every part under it, each with its own score. hide: each
 // leaf's share hidden on this attempt.
-// trouble: what each leaf's words took on in this attempt; without it, the trouble stays as it was.
+// trouble: what each leaf's words took on in this attempt; without it, the trouble stays as it was. sure: the share
+// hidden a pass of GOOD needs to move the node ALPHA_GOOD of the way (getting familiar: 0, so one good reading is
+// enough).
 export const record = (tree: Tree, get: States, node: Node, leafScores: Map<string, number>, points: number, now: number,
-  hide: Map<string, number>, est: Map<string, number>, trouble?: Map<string, number[]>): Map<string, State> => {
+  hide: Map<string, number>, est: Map<string, number>, trouble?: Map<string, number[]>, sure = SURE): Map<string, State> => {
   const out = new Map<string, State>();
   for (const [id, p] of scores(tree, node, leafScores, points)) {
     const x = tree.nodes.get(id) as Node, leaves = x.leaves.length ? x.leaves : [id];
     const ws = leaves.map((l) => (tree.nodes.get(l) as Node).words), all = ws.reduce((a, b) => a + b, 0);
     const hid = leaves.reduce((a, l, k) => a + (hide.get(l) ?? 1) * ws[k], 0) / all;
-    const h = Math.round(hid * 100) / 100, alpha = id !== node.id ? UNDER : p >= GOOD && h >= SURE ? ALPHA_GOOD : ALPHA;
+    const h = Math.round(hid * 100) / 100, alpha = id !== node.id ? UNDER : p >= GOOD && h >= sure ? ALPHA_GOOD : ALPHA;
     const st = get(id), next = update(st, est.get(id) as number, p, now, h, alpha);
     const add = trouble?.get(id);
     if (add) next.trouble = troubled(st, now, add);

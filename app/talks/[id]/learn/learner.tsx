@@ -78,13 +78,19 @@ function Learn({ engine: e }: { engine: Engine }) {
         <button type="button" className="ghost" aria-expanded={menu} onClick={() => setMenu(!menu)}>Menu</button>
       </header>
       {e.screen === "session" && (
-        <div className="learnbar" role="img" aria-label={`${sum.at} of ${sum.total} slides learned in this mode`}>
-          <span style={{ width: `${(100 * sum.at) / Math.max(1, sum.total)}%` }} />
+        // one cell a slide, in talk order: grey not tried, amber to green by how well it is known, green at the bar;
+        // the slide on screen outlined
+        <div className="strip" role="img" data-testid="strip" aria-label={`${sum.at} of ${sum.total} slides learned in this mode`}>
+          {e.strip().map((x) => (
+            <span key={x.n} title={`Slide ${x.n}: ${x.at ? "learned" : x.tried ? `${Math.round(100 * x.known)}% of the way` : "not tried"}`}
+              className={[x.at ? "at" : x.tried ? "tried" : "", x.now ? "now" : "", x.judging ? "judging" : ""].filter(Boolean).join(" ")}
+              style={{ "--k": x.known } as React.CSSProperties} />))}
         </div>
       )}
       <main className="tr-main">
         {e.screen === "home" && <Home e={e} />}
         {e.screen === "session" && <Card e={e} />}
+        {e.screen === "session" && e.waiting && <p className="heard" data-testid="checking">Checking your last reading...</p>}
         {e.screen === "progress" && <Progress e={e} />}
         {e.screen === "done" && (
           <section className="stack" data-testid="goal-reached">
