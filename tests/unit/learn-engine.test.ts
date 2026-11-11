@@ -646,6 +646,47 @@ describe("looking counts", () => {
   });
 });
 
+describe("give up", () => {
+  test("getting familiar: 0, nothing sent, and the slide comes back after the next one", async () => {
+    const e = make();
+    e.setAim("familiar");
+    const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
+    e.start();
+    await flush();
+    expect([e.node?.id, e.phase]).toEqual([one, "listening"]);
+    await e.giveUp();
+    await flush();
+    // a miss: no more hidden next time (the step down is in the staircase tests)
+    expect(state(e, one)).toMatchObject({ next: 0, streak: 0, run: 1 });
+    expect(e.log()[0]).toMatchObject({ node: one, points: 0, why: "gave up" });
+    expect([e.node?.id, e.phase]).toEqual([two, "listening"]);
+    await e.nextCard();
+    await flush();
+    expect([e.node?.id, e.item?.why]).toEqual([one, "due"]);
+    expect(sent.filter((x) => x.url === "/api/grade")).toHaveLength(1);
+  });
+
+  test("at the gist: a miss, so the next card goes down; not once judged, and not in a run-through", async () => {
+    const e = make();
+    e.setAim("gist");
+    const one = e.tree.roots.get(1) as string;
+    e.start();
+    expect(e.node?.id).toBe(one);
+    await e.giveUp();
+    expect(e.log()[0]).toMatchObject({ node: one, points: 0, why: "gave up" });
+    expect(e.node?.id).not.toBe(one);
+    expect(e.node?.slides).toEqual([1]);
+    await say(e);
+    expect(e.phase).toBe("judged");
+    const n = e.log().length;
+    await e.giveUp();
+    expect(e.log().length).toBe(n);
+    e.show("home");
+    await e.giveUp();
+    expect(e.log().length).toBe(n);
+  });
+});
+
 describe("settings, sync and migration", () => {
   test("the old trainer's settings until set here; its goal becomes a range from slide 1, kept within the talk", () => {
     storage.setItem(`${P}train:aim`, JSON.stringify("verbatim"));

@@ -414,6 +414,27 @@ export class Engine {
     this.go();
   }
 
+  // Give up (Tim, 11 Nov): the attempt counts as 0, a miss, and nothing goes to the judge. Getting familiar, the slide
+  // hides less and comes back after the next one; elsewhere the miss goes down to its parts. Logged "gave up".
+  async giveUp() {
+    const item = this.item;
+    if (this.screen !== "session" || !item || this.isRun || (this.phase !== "ready" && this.phase !== "listening")) return;
+    const zero = new Map(item.node.leaves.map((l) => [l, 0]));
+    if (this.flow) {
+      const at = { item, hide: this.hide, share: this.share, gap: this.gap(item.node, this.deps.now()), waited: this.waited,
+        peeks: this.peeks, peekMs: this.peeked };
+      this.halt();
+      this.countFlow(at, 0, zero, "gave up", 0);
+      this.go();
+      this.after1(item.node, 0);
+      if (this.item && this.micOn) await this.speak();
+      return;
+    }
+    this.halt();
+    this.count(item, 0, zero, undefined, "gave up");
+    this.go();
+  }
+
   // Getting familiar: this slide's recording goes to the judge in the background, and the next slide comes up,
   // recording. Offline it is scored from Peek. A tap before the microphone started moves on.
   async nextCard() {

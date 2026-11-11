@@ -239,6 +239,9 @@ not the delivery. So:
   value, to be refitted from online readings, which log peeks with the judge's score.
 - **Keys:** Space held is Peek, the Right arrow the next slide (or on after a verdict), Enter speaks or stops.
 - **The strip** underlines the slides being practised and dims the rest.
+- **Give up** (the button, or G; Tim: "for when I just don't know the slide"): the attempt counts as 0, a miss, and
+  nothing goes to the judge. Getting familiar, the slide hides less and comes back after the next one, once a
+  session; elsewhere the miss goes down to its parts. Logged `why: "gave up"`.
 
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed

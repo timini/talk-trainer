@@ -42,6 +42,7 @@ function Learn({ engine: e }: { engine: Engine }) {
   useEffect(() => {
     const keys: Record<string, () => void> = {
       " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(), Enter: () => e.space(),
+      g: () => void e.giveUp(), G: () => void e.giveUp(),
       1: () => e.mark(true), 3: () => e.mark(false), r: () => e.hear(), R: () => e.hear(), Escape: () => setMenu(false),
     };
     const down = (ev: KeyboardEvent) => {
@@ -285,6 +286,7 @@ function Card({ e }: { e: Engine }) {
               {e.note && <p className="note" role="status">{e.note}</p>}
               <div className="minor">
                 {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
+                <button type="button" className="small" onClick={() => void e.giveUp()}>Give up</button>
               </div>
               <div className="pair">
                 <Peek e={e} />
@@ -303,6 +305,8 @@ function Card({ e }: { e: Engine }) {
                 <button type="button" className="small" onClick={() => e.recount(false)}>Count it as missed</button>)}
               {phase === "ready" && !e.isRun && share > 0 && <button type="button" className="small" onClick={() => e.showMe()}>Show me</button>}
               {phase === "ready" && !e.isRun && <button type="button" className="small" onClick={() => e.knowIt()}>I know this one</button>}
+              {(phase === "ready" || phase === "listening") && !e.isRun && (
+                <button type="button" className="small" onClick={() => void e.giveUp()}>Give up</button>)}
             </div>
             {(phase === "ready" || phase === "listening") && !e.isRun && share > 0 && <Peek e={e} small />}
             {phase === "ready" && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
@@ -329,8 +333,8 @@ function Card({ e }: { e: Engine }) {
                 <button type="button" className="big bad" onClick={() => e.mark(false)}>Missed</button>
               </div>)}
           </div>}
-          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide. R to hear it."
-            : "Keys: Enter to speak or stop, Right arrow to go on, hold Space to peek. R to hear it."}</p>
+          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide, G to give up. R to hear it."
+            : "Keys: Enter to speak or stop, Right arrow to go on, hold Space to peek, G to give up. R to hear it."}</p>
         </div>
       </div>
     </section>
