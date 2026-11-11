@@ -108,7 +108,12 @@ table.grid td.n { text-align: right; white-space: nowrap; }
 .mastery i { display: block; height: 100%; background: #26913c; }
 
 /* The aim and today's goal on the home screen */
-.aim { display: grid; gap: 0.4rem; text-align: left; margin: 1rem auto; max-width: 28rem; font-size: 0.95rem; }
+.aim { display: grid; gap: 0.5rem; text-align: left; margin: 1rem auto; max-width: 28rem; font-size: 0.95rem; }
+.aim label { display: grid; grid-template-columns: auto 1fr; column-gap: 0.6rem; padding: 0.6rem 0.8rem; border: 2px solid #cdf4fe;
+  border-radius: 0.6rem; cursor: pointer; }
+.aim label.on { border-color: #005eb8; background: #e6f9fe; }
+.aim input { grid-row: span 2; margin: 0.2rem 0 0; }
+.aim span { color: #2b2f3b; font-size: 0.85rem; }
 .goal { display: block; margin: 0.5rem 0; font-size: 0.95rem; }
 .goal input { width: 4rem; font: inherit; padding: 0.2rem 0.3rem; }
 

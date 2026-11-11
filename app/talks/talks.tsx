@@ -64,8 +64,7 @@ function TalkRow({ talk }: { talk: Talk }) {
       )}
       {s && building && s.log.length > 0 && <span className="small">{s.log[s.log.length - 1].message}</span>}
       {s && <TalkDate key={String(s.talkAt)} talk={s} saved={setS} />}
-      {t.sentences > 0 && <Link href={`/talks/${t.id}/train`} className="trainlink">Train</Link>}
-      {t.sentences > 0 && <Link href={`/talks/${t.id}/learn`} className="trainlink">Learn</Link>}
+      {t.sentences > 0 && <Link href={`/talks/${t.id}/learn`} className="trainlink">Practise</Link>}
     </li>
   );
 }

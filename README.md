@@ -24,18 +24,12 @@ files, a Workflow for the background build and a container for rendering slides.
 
 ## Training
 
-Each talk is trained at `/talks/<id>/train`, one slide at a time, in talk order (`lib/flow.ts`). A slide of more
-than 3 sentences is split into parts of at most 3, each learned on its own, then the whole slide is said once.
-Each slide or part has three steps, one attempt each:
-
-1. Read it aloud, with the text shown. This step cannot fail; a miss shows what to watch for.
-2. Say it from the first letters. A miss repeats this step.
-3. Say it from the slide alone. A pass learns it; a miss goes back to step 2.
-
-Each day starts with a warm-up: the slides learned before today, each said once from the slide. The header shows a
-fixed position, such as "Slide 4 of 86, step 2 of 3". Progress is kept as `flow:<slide>:<part>` in localStorage and
-in D1 (`/api/talks/<id>/progress`), merged so the newer state of each part wins. Sentence cards from the earlier
-trainer are moved over once: a slide whose every sentence was at level 2 or more counts as learned.
+Each talk is practised at `/talks/<id>/learn` (the old `/train` address opens it). There are three modes, picked on
+its home screen: Get familiar (read each slide aloud, the whole talk in order, little hidden), Get the gist (the
+meaning right, up to half hidden) and Word for word (every word hidden). `docs/learning.md` is the design of the
+engine behind them: the tree of each slide, the score and spacing of each part, hiding, and what comes next.
+Progress is kept in localStorage and in D1 (`/api/talks/<id>/progress`), merged so the newer state of each part
+wins; the old trainer's sentence scores are carried over once.
 
 You tap to speak and tap to stop; recording also stops once the browser's speech recognition has heard the last
 words, and never on a pause. The attempt (Opus, 16 kbps) goes to `POST /api/grade`, where Gemini judges whether the

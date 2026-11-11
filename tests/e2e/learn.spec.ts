@@ -219,9 +219,8 @@ test("the slides to practise: a range, a section by its name, or the opening and
   await expect(page.getByTestId("range")).toHaveText("Practising slide 3");
 });
 
-test("the old trainer links to the new one", async ({ page }) => {
+test("the old trainer's address opens the trainer", async ({ page }) => {
   const s = await open(page, "Learn link");
   await page.goto(`/talks/${s.talk.id}/train`);
-  await page.getByRole("link", { name: "Try the new trainer" }).click();
   await expect(page).toHaveURL(new RegExp(`/talks/${s.talk.id}/learn$`));
 });

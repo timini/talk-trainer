@@ -39,39 +39,6 @@ export const empty = (v: Verdict, target: string): boolean => {
   return left > 0.8 * n;
 };
 
-// The score of each sentence of a unit, from the problems of one attempt at the whole unit. Each problem's quoted
-// phrase is found in the unit's words (the first run not already taken, case and punctuation aside) and charged to
-// the sentence or sentences it falls in, against that sentence's own words; an order problem costs every sentence
-// 20, and a problem that cannot be placed costs every sentence what it would cost the whole unit.
-export const perSentence = (problems: Problem[], texts: string[]): number[] => {
-  const tokens = texts.flatMap((t, s) => normalise(t).map((w) => ({ w, s })));
-  const counts = texts.map((t) => Math.max(1, words(t)));
-  const cost = texts.map(() => 0), taken = new Set<number>();
-  const unit = texts.join(" ");
-  for (const p of problems) {
-    if (p.kind === "order") { cost.forEach((_, s) => { cost[s] += 20; }); continue; }
-    const seq = normalise(p.script);
-    let run: number[] = [];
-    for (let i = 0; seq.length && i + seq.length <= tokens.length; i += 1) {
-      if (seq.every((w, k) => tokens[i + k].w === w && !taken.has(i + k))) { run = seq.map((_, k) => i + k); break; }
-    }
-    if (!run.length) {
-      const whole = 100 - score([p], unit);
-      cost.forEach((_, s) => { cost[s] += whole; });
-      continue;
-    }
-    run.forEach((i) => taken.add(i));
-    const hit = new Map<number, number>();
-    run.forEach((i) => hit.set(tokens[i].s, (hit.get(tokens[i].s) ?? 0) + 1));
-    hit.forEach((n, s) => {
-      const share = Math.min(1, n / counts[s]);
-      cost[s] += p.kind === "left_out" ? Math.max(20, 150 * share) : p.kind === "changed" ? Math.max(20, 100 * share)
-        : p.kind === "wrong_term" ? 45 : 20;
-    });
-  }
-  return cost.map((c) => Math.max(0, Math.round(100 - c)));
-};
-
 // Which sentence of a slide an attempt started at: the sentence whose first 4 words begin what was heard, after any
 // opening filler (hi, so, um...) and with contractions spelled out (I'm is I am). Matched in order, stopping at the
 // first word that is missing, and kept when at least 3 match (or all, for a shorter sentence); the best wins, the

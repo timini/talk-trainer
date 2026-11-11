@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { hide, blank, chainStart, cue, cues, glossary, mustSay, sentences, shows } from "@/lib/text";
+import { hide, blank, chainStart, cue, cues, glossary, mustSay, redact, redactBits, sentences, shows } from "@/lib/text";
 
 describe("sentences", () => {
   test("split after . ! or ? and a closing quote or bracket, so 0.95 stays whole", () => {
@@ -92,5 +92,34 @@ describe("hide", () => {
     // a phrase not found, or with no words, hides nothing; two phrases each hide their run
     expect(hide(t, ["not here", "..."])).toBe(t);
     expect(hide(t, ["I am", "no"])).toBe("I a not a clinical scientist and have n clinical qualifications.");
+  });
+});
+
+describe("redact", () => {
+  const T = "We combined CADD, SpliceAI, REVEL and AlphaMissense to rank 9 in 10 cases first.";
+  test("hides that share of the words, terms shown in full or by their first letter, missed phrases cued, varied by seed", () => {
+    const half = redact(T, 0.5, [], [], 1);
+    expect(half.split(" ").filter((w) => /^_+[,.]?$/.test(w)).length).toBe(7);
+    expect(redact(T, 0.5, [], [], 1)).toBe(half);
+    expect(redact(T, 0.5, [], [], 2)).not.toBe(half);
+    const terms = ["CADD", "SpliceAI", "REVEL", "AlphaMissense", "9 in 10"];
+    const kept = redact(T, 0.95, terms, [], 3);
+    for (const term of ["CADD", "SpliceAI", "REVEL", "AlphaMissense"]) expect(kept).toContain(term);
+    const firsts = redact(T, 0.1, [], [], 3, ["SpliceAI", "AlphaMissense"]);
+    expect(firsts).toContain("S_______");
+    expect(firsts).toContain("A____________");
+    expect(redact(T, 0.9, [], ["to rank"], 4)).toMatch(/\bt_ r___\b/);
+    expect(redact(T, 0.9, [], ["not in it", "..."], 4)).toBe(redact(T, 0.9, [], [], 4));
+    expect([redact(T, 0, [], [], 5), redact(T, 1, [], [], 5)]).toEqual([T, ""]);
+  });
+});
+
+describe("redactBits", () => {
+  test("redaction pieces: hidden words keep their own text, so each gap is as long as the word", () => {
+    const bits = redactBits("We bake bread, slowly.", 1, ["We"], [], 7, []);
+    expect(bits).toEqual([{ kind: "word", t: "We" }, { kind: "text", t: " " }, { kind: "hidden", t: "bake" }, { kind: "text", t: " " },
+      { kind: "hidden", t: "bread" }, { kind: "text", t: ", " }, { kind: "hidden", t: "slowly" }, { kind: "text", t: "." }]);
+    expect(redactBits("Bake it", 1, [], ["bake"], 1, ["it"]).map((b) => b.kind)).toEqual(["cue", "text", "cue"]);
+    expect(redactBits("Go", 0, [], [], 1)).toEqual([{ kind: "word", t: "Go" }]);
   });
 });

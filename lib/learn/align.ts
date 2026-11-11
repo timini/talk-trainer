@@ -5,8 +5,8 @@
 // not matter, and match, so learned is close to learn). It needs at least PLACE of the phrase's words; on a tie the
 // earliest span wins, then the shortest. A span already taken by an earlier problem is not used again.
 //
-// The same placement marks the missed words on the card, charges each problem to the leaves it falls in (as
-// lib/score.ts perSentence does for exact matches), and adds to each word's trouble.
+// The same placement marks the missed words on the card, charges each problem to the leaves it falls in, and
+// adds to each word's trouble.
 
 import { match, tokens } from "../grade";
 import type { Problem } from "../judge";

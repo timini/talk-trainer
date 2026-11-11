@@ -1,5 +1,5 @@
 import { Learner } from "./learner";
-import "../train/train.css";
+import "./trainer.css";
 import "./learn.css";
 
 export const metadata = { title: "Learn | Talk Trainer" };

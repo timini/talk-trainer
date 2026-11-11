@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { band, empty, GOOD, NEARLY, real, score } from "@/lib/score";
+import { band, empty, GOOD, NEARLY, real, score, start } from "@/lib/score";
 
 // 20 words
 const T = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
@@ -36,4 +36,34 @@ describe("the score", () => {
     expect(empty({ heard, fluency: 1, clarity: 3, problems: [{ kind: "left_out", script: "one two" }, { kind: "stumble", script: "x" }] }, T)).toBe(false);
     expect(empty({ heard: "x" }, "")).toBe(false);
   });
+});
+
+describe("where to start", () => {
+  // invented sentences shaped like Tim's slide 2: two parts of three, then the whole slide
+  const S = ["I am Sam Jones, a baker at Hill Farm.", "I am not a chef and have no catering training.",
+    "This talk is what I have learned baking at home.", "I write up what I learn on my blog.",
+    "It is not advice, and it is not Hill Farm's view.", "The views are my own."];
+  test("the sentence an attempt started at; another part or a later sentence is the wrong place", () => {
+    // part 2 asked for, part 1 said (as at 19:14:06), with a greeting and a contraction
+    expect(start("Hi, I'm Sam Jones, a baker at Hill Farm. I am not a chef", S, 3)).toBe(0);
+    // part 2 asked for, started at its second sentence (19:15:43)
+    expect(start("It is not advice, and it is not Hill Farm's view.", S, 3)).toBe(4);
+    // the whole slide asked for, only part 2 said (19:20:15)
+    expect(start("I write up what I learn on my blog. It is not advice", S, 0)).toBe(3);
+    // right starts
+    expect(start("I write up what I learn on my blog.", S, 3)).toBe(3);
+    expect(start("So, um, I am Sam Jones, a baker", S, 0)).toBe(0);
+    expect(start("I'm not a chef, and I have no catering training", S, 1)).toBe(1);
+    // nothing recognisable: not known
+    expect(start("Something else entirely here today", S, 0)).toBeNull();
+    expect(start("", S, 0)).toBeNull();
+    // a tie goes to the expected sentence; a very short sentence needs all its words
+    expect(start("The views are my own", ["The views are mine.", "The views are my own."], 1)).toBe(1);
+    expect(start("Yes indeed", ["Yes.", "Yes indeed."], 1)).toBe(1);
+    expect(start("x", [""], 0)).toBeNull();
+    // a later sentence with fewer words matched, or tied but not expected, does not take over
+    expect(start("We bake bread daily now", ["We bake bread daily.", "We bake bread weekly."], 1)).toBe(0);
+    expect(start("We bake bread here", ["We bake bread here.", "We bake bread here too."], 0)).toBe(0);
+  });
+
 });

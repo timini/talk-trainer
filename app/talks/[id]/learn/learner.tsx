@@ -78,7 +78,7 @@ function Learn({ engine: e }: { engine: Engine }) {
         <button type="button" className="ghost" aria-expanded={menu} onClick={() => setMenu(!menu)}>Menu</button>
       </header>
       {e.screen === "session" && (
-        <div className="learnbar" role="img" aria-label={`${sum.at} of ${sum.total} slides at the aim`}>
+        <div className="learnbar" role="img" aria-label={`${sum.at} of ${sum.total} slides learned in this mode`}>
           <span style={{ width: `${(100 * sum.at) / Math.max(1, sum.total)}%` }} />
         </div>
       )}
@@ -102,6 +102,12 @@ function Learn({ engine: e }: { engine: Engine }) {
   );
 }
 
+// The three modes, easiest first.
+const MODES: [Aim, string, string][] = [
+  ["familiar", "Get familiar", "Read each slide aloud, the whole talk in order. Little is hidden."],
+  ["gist", "Get the gist", "Say each slide with the meaning right. Up to half is hidden."],
+  ["verbatim", "Word for word", "Say each slide exactly, with every word hidden."],
+];
 const AIM_DONE: Record<Aim, string> = { familiar: " to get familiar", gist: " at the gist", verbatim: " word for word" };
 
 function Home({ e }: { e: Engine }) {
@@ -110,15 +116,14 @@ function Home({ e }: { e: Engine }) {
     <section className="home">
       <h1>{e.script.talk.title}</h1>
       {e.script.talk.talkAt && <p className="countdown">{countdown(now, e.script.talk.talkAt)}</p>}
-      <p className="hstatus" data-testid="learned">{`${sum.at} of ${plural(sum.total, "slide")} at the aim`}</p>
+      <p className="hstatus" data-testid="learned">{`${sum.at} of ${plural(sum.total, "slide")} learned in this mode`}</p>
       <div className="meter"><span style={{ width: `${(100 * sum.at) / Math.max(1, sum.total)}%` }} /></div>
-      <div className="aim" role="radiogroup" aria-label="Aim">
-        <label><input type="radio" name="aim" checked={e.aim === "familiar"} onChange={() => e.setAim("familiar")} />
-          {" "}Get familiar: read every slide aloud, the whole talk before any slide again, little hidden</label>
-        <label><input type="radio" name="aim" checked={e.aim === "gist"} onChange={() => e.setAim("gist")} />
-          {" "}Get the gist: each slide with the meaning right, at most half hidden</label>
-        <label><input type="radio" name="aim" checked={e.aim === "verbatim"} onChange={() => e.setAim("verbatim")} />
-          {" "}Word for word: each slide said with every word hidden</label>
+      <div className="aim" role="radiogroup" aria-label="Mode">
+        {MODES.map(([aim, name, hint]) => (
+          <label key={aim} className={e.aim === aim ? "on" : ""}>
+            <input type="radio" name="aim" checked={e.aim === aim} onChange={() => e.setAim(aim)} />
+            <strong>{name}</strong><span>{hint}</span>
+          </label>))}
       </div>
       <div className="goal" role="group" aria-label="Slides to practise">
         <p data-testid="range">{`Practising ${rangeLine(e.range)}`}</p>
@@ -155,7 +160,7 @@ function Progress({ e }: { e: Engine }) {
     <section className="stack progress" data-testid="progress">
       <h1>Progress</h1>
       <dl>
-        <dt>Slides at the aim</dt><dd data-testid="p-slides">{`${sum.at} of ${sum.total}`}</dd>
+        <dt>Slides learned in this mode</dt><dd data-testid="p-slides">{`${sum.at} of ${sum.total}`}</dd>
         <dt>Passed this session</dt>
         <dd data-testid="p-session">{`${rate(m.session)} (the aim is ${pct(m.session.low)} to ${pct(m.session.high)})`}</dd>
         <dt>Retention</dt><dd data-testid="p-retention">{`${rate(m.retention)} passed after a gap of more than 30 minutes`}</dd>
@@ -313,7 +318,6 @@ function Menu({ e, close }: { e: Engine; close: () => void }) {
           Gemini, which checks that the meaning came through. With it off, say it, tap Show the words, then mark
           yourself.</p>
         <button type="button" className="item" onClick={() => { close(); e.show("progress"); }}>Progress</button>
-        <Link className="item" href={`/talks/${e.script.talk.id}/train`}>The old trainer</Link>
         <Link className="item" href="/talks">Your talks</Link>
         <button type="button" className="item" onClick={close}>Close</button>
       </div>

@@ -1,8 +1,6 @@
-import { Trainer } from "./trainer";
-import "./train.css";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Train | Talk Trainer" };
-
+// The old trainer is gone: its address opens the trainer, which reads its saved progress once.
 export default async function TrainPage({ params }: PageProps<"/talks/[id]/train">) {
-  return <Trainer id={(await params).id} />;
+  redirect(`/talks/${(await params).id}/learn`);
 }
