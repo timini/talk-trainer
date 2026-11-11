@@ -9,7 +9,7 @@
 
 import { placed } from "./align";
 import type { Problem } from "../judge";
-import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_DOWN, FAMILIAR_OK, FAMILIAR_STREAK, FAMILIAR_HIDE, FAMILIAR_RELEARN, FAMILIAR_UP, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
+import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_DOWN, FAMILIAR_OK, FAMILIAR_STREAK, JUMP, FAMILIAR_HIDE, FAMILIAR_RELEARN, FAMILIAR_UP, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
   GIST_CLAUSES, GIST_GROUP, GIST_TOP, GOOD, PACE_HIGH, PACE_LOW, SHIFT, SURE, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
 import type { Node, Tree } from "./tree";
 
@@ -81,7 +81,12 @@ export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Ai
     while (x !== node && skipped(x, aim) && x.parent) x = tree.nodes.get(x.parent) as Node;
     return Math.max(est.get(l) as number, est.get(x.id) as number);
   };
-  return new Map(node.leaves.map((l) => [l, aim === "verbatim" && node.kind === "slide" && node.kids.length ? 1 : hidden(of(l) + shift, aim)]));
+  // a whole slide getting familiar has read, at the gist: no more than JUMP past what it was recalled at (its score came
+  // from reading; on 11 Nov the first gist attempt after it hid 50% and scored 0). A slide only the gist has practised is
+  // hidden by its score, as before.
+  const cap = aim === "gist" && node.kind === "slide" && st?.next !== undefined ? (st.peak ?? 0) + JUMP : 1;
+  return new Map(node.leaves.map((l) => [l, aim === "verbatim" && node.kind === "slide" && node.kids.length ? 1
+    : Math.min(cap, hidden(of(l) + shift, aim))]));
 };
 
 // The nodes not practised on their own at an aim: for the gist, the clauses of a sentence (GIST_CLAUSES) and the groups

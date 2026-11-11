@@ -256,12 +256,15 @@ below the gist's slide bar of 0.8). Since 11 November:
 - **The gist and word for word start on the slides getting familiar found hard**, the hardest first: the slide's last
   familiar reading under 85, given up, or with more than `WEAK_PEEK` (3 s) of Peek, and not yet tried in this mode
   since. At the gist such a slide starts at its sentences, not whole.
-- **Not done: a cap on the jump in hiding between modes.** One good familiar reading leaves a slide at a score that maps
-  to 50% hidden on its first gist attempt. A cap of 10 to 20% past the most the slide was recalled at was tried: on
-  every slide it cut the budget simulation's expected Saturday score from over 0.45 to 0.23; on the slides getting
-  familiar had read, the first three gist attempts a day later were recalled 5% of the time with it and 1% without
-  (the fitted learner keeps little a day after reading with few words hidden). To be decided from Tim's first gist
-  session after getting familiar: his first gist attempt on each slide, its share hidden and its score.
+- **The jump from getting familiar to the gist is capped** (Tim, 11 November: "gist thinks I'm better than I am").
+  His first gist attempt after getting familiar hid 50% and scored 0 (slide 13). A whole slide getting familiar has
+  read now hides at the gist at most `JUMP` (20%) more than the most it was recalled well at, then 40%, then the
+  gist's 50%. Only those slides: on every slide the cap cut the budget simulation's expected Saturday score from over
+  0.45 to 0.23. And a slide counts as at the gist's bar only after an attempt with at least `SURE` (45%) hidden; one
+  attempt at 20% had taken a slide read in getting familiar to the bar.
+- **Peek counts by the time held, online too** (Tim: "the total time I'm peeking rather than the number of peeks").
+  An attempt scores at most `peekPoints` of the time held (100 less 10 a second): 13 s of peeking had scored 80.
+  Getting familiar steps its staircase on the meaning half capped the same way.
 
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed

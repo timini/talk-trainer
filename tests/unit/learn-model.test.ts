@@ -193,3 +193,15 @@ describe("getting familiar: the staircase", () => {
     expect([0.03, 0.09, 0.3].map(hid)).toEqual([0, 1, 3]);
   });
 });
+
+describe("from getting familiar to the gist", () => {
+  test("a whole slide getting familiar has read hides at most 20% past its peak at the gist; a gist-only slide as before", () => {
+    const est = new Map([[a, 0.65], [b, 0.65], [root, 0.65]]);
+    expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.5, 0.5]);
+    expect([...hiding(tree, node(root), est, "gist", null, st({ next: 0.06, peak: 0 })).values()]).toEqual([0.2, 0.2]);
+    expect([...hiding(tree, node(root), est, "gist", null, st({ next: 0.06, peak: 0.2 })).values()]).toEqual([0.4, 0.4]);
+    expect([...hiding(tree, node(root), est, "gist", null, st({ next: 0.06 })).values()]).toEqual([0.2, 0.2]);
+    // a sentence is not capped
+    expect([...hiding(tree, node(a), est, "gist", null, st({ next: 0.06, peak: 0 })).values()]).toEqual([0.5]);
+  });
+});

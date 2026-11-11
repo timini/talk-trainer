@@ -510,9 +510,12 @@ export class Engine {
       const o = outcome(this.tree, n, v, this.mustOf(n), true);
       if (!o.counted) { this.logFlow(at, null, "", this.deps.now() - t0); this.after1(n, null); }
       else {
-        this.countFlow(at, o.points, o.leaves, at.item.why, (o.read as { meaning: number }).meaning, o.trouble, this.deps.now() - t0, {
+        // Peek counts by the time held: the score and the recall are at most what it allows
+        const cap = peekPoints(at.peekMs), pts = Math.min(o.points, cap);
+        this.countFlow(at, pts, new Map([...o.leaves].map(([l, p]) => [l, Math.min(p, cap)])), at.item.why,
+          Math.min((o.read as { meaning: number }).meaning, cap), o.trouble, this.deps.now() - t0, {
           ...o.read as { meaning: number; delivery: number }, clarity: v.clarity, fluency: v.fluency, pace: v.pace, tip: v.tip });
-        this.after1(n, o.points);
+        this.after1(n, pts);
       }
     } catch {
       this.logFlow(at, null, "failed", this.deps.now() - t0);
@@ -533,7 +536,7 @@ export class Engine {
     const now = this.deps.now(), n = at.item.node;
     const got = familiar(record(this.tree, this.state, n, leaves, points, now, at.hide, estimates(this.tree, this.state, now), trouble, 0),
       this.state);
-    got.set(n.id, { ...got.get(n.id) as State, ...staircase(this.state(n.id), at.share, recall, at.peeks > 0) });
+    got.set(n.id, { ...got.get(n.id) as State, ...staircase(this.state(n.id), at.share, recall) });
     this.write(got);
     this.session = after(this.session, at.item, points >= 60);
     this.logFlow(at, points, why, ms, read, n.leaves.map((l) => leaves.get(l) as number));
@@ -639,8 +642,9 @@ export class Engine {
       this.result = o.result;
       this.trouble = o.trouble;
       // Show me, then said off the screen, is not recalled (Tim, 11 Nov: "it didn't penalise me for looking"): it
-      // counts as missed, so it comes back easier, not harder. With a Peek it is at most Nearly, never a confident pass.
-      const cap = this.shown ? RECOUNT.missed : this.peeks ? GOOD - 1 : 100;
+      // counts as missed, so it comes back easier, not harder. With Peek it scores at most what the time held allows
+      // (Tim, 11 Nov: the time, not the number of holds; 13 s of peeking had scored 80).
+      const cap = this.shown ? RECOUNT.missed : peekPoints(this.peeked);
       this.count(item, Math.min(o.points, cap), new Map([...o.leaves].map(([l, p]) => [l, Math.min(p, cap)])), o.trouble);
       this.phase = "judged";
     } catch (err) {
@@ -659,6 +663,11 @@ export class Engine {
     const hide = this.shown ? new Map(item.node.leaves.map((l) => [l, 0])) : this.hide;
     const got = record(this.tree, this.state, item.node, leaves, points, now, hide, est, trouble);
     const states = this.aim === "familiar" ? familiar(got, this.state) : got;
+    // a whole slide recalled well at the gist, with nothing shown: the most it was recalled at, for the cap in hiding()
+    const slide = states.get(item.node.id);
+    if (slide && item.node.kind === "slide" && this.aim === "gist" && points >= GOOD && !this.shown) {
+      slide.peak = Math.max(this.state(item.node.id)?.peak ?? 0, this.share);
+    }
     this.before = new Map([...states.keys()].map((k) => [k, this.state(k)]));
     this.write(states);
     this.points = points;

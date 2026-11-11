@@ -101,12 +101,14 @@ export const FAMILIAR_DOWN = 0.1;
 // judge's score together.
 export const PEEK_COST = 10;
 
-// Across modes (Tim, 11 Nov: how one mode's data feeds the next). A cap on how much a whole slide hides at the gist
-// beyond what it was recalled at was tried and left out: on every slide it cut the budget simulation's expected
-// Saturday score from over 0.45 to 0.23; on the slides getting familiar had read, the first three gist attempts a day
-// later were recalled 5% of the time with it and 1% without (the fitted learner keeps little a day after reading with
-// few words hidden), short of the 15 points asked of it. To be decided from his first gist session after getting
-// familiar, which the log now marks with the mode.
+// Across modes (Tim, 11 Nov: "gist thinks I'm better than I am"). A whole slide that getting familiar has read hides at
+// the gist at most JUMP more than the most it was recalled well at (its peak: familiar's staircase, then each gist
+// attempt of GOOD or more with nothing shown), so 20%, 40%, then the gist's 50%. His first gist attempt after getting
+// familiar hid 50% and scored 0 (slide 13). In simulation a cap on every slide cut the budget's expected Saturday score
+// from over 0.45 to 0.23, so it is on these slides only; the fitted learner gained little from it (first gist attempts
+// a day after reading recalled 5% against 1%), but it keeps little a day after reading with few words hidden, which
+// his attempts do not bear out.
+export const JUMP = 0.2;
 // A familiar reading with more than WEAK_PEEK of Peek marks its slide as hard, for the gist to start on (ms).
 export const WEAK_PEEK = 3000;
 export const FAMILIAR_CAP = 0.65;

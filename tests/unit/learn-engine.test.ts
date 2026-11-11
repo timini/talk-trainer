@@ -571,7 +571,7 @@ describe("getting familiar", () => {
     expect(state(e, one)).toMatchObject({ next: 0.03, streak: 0 });
   });
 
-  test("an online reading with a Peek holds the staircase and logs the Peek", async () => {
+  test("online, Peek counts by the time held: half a second scores at most 95, three seconds at most 70", async () => {
     const e = make();
     e.setAim("familiar");
     const one = e.tree.roots.get(1) as string;
@@ -582,8 +582,16 @@ describe("getting familiar", () => {
     e.peek(false);
     await e.nextCard();
     await flush();
-    expect(state(e, one)).toMatchObject({ next: 0, streak: 0 });
-    expect(entries(e)[0]).toMatchObject({ peeks: 1, peekMs: 500, points: 100 });
+    // 95: still recalled well
+    expect(state(e, one)).toMatchObject({ next: 0, streak: 1 });
+    expect(entries(e)[0]).toMatchObject({ peeks: 1, peekMs: 500, points: 95 });
+    // slide 2 held for 3 s: 70, under the bar, so it comes back
+    e.peek(true);
+    clock += 3000;
+    e.peek(false);
+    await e.nextCard();
+    await flush();
+    expect(entries(e)[1]).toMatchObject({ peekMs: 3000, points: 70 });
   });
 
   test("the keys' engine side: Right arrow goes on after a verdict; offline at the gist, Next counts from Peek", async () => {
@@ -625,7 +633,7 @@ describe("getting familiar", () => {
 });
 
 describe("looking counts", () => {
-  test("Show me, then said off the screen, counts as missed; a Peek caps the attempt at Nearly", async () => {
+  test("Show me, then said off the screen, counts as missed; Peek caps the attempt by the time held", async () => {
     const e = make();
     e.setAim("gist");
     const one = e.tree.roots.get(1) as string;
@@ -640,9 +648,10 @@ describe("looking counts", () => {
     expect([e.points, e.counted, state(e, one)?.run]).toEqual([50, false, 1]);
     e.go();
     e.peek(true);
+    clock += 2000;
     e.peek(false);
     await say(e);
-    expect(e.points).toBe(84);
+    expect(e.points).toBe(80);
   });
 });
 
@@ -672,6 +681,30 @@ describe("from one mode to the next", () => {
     // tried at the gist since: no longer first
     expect(e.weak()).toEqual([]);
     expect(two).toBeTruthy();
+  });
+
+  test("the gist after getting familiar hides 20% on the first whole-slide attempt, then 40% after a good one", async () => {
+    const e = make();
+    e.setAim("familiar");
+    e.setRange([[1, 1]]);
+    const one = e.tree.roots.get(1) as string;
+    e.start();
+    await flush();
+    await e.nextCard();
+    await flush();
+    e.setAim("gist");
+    e.start();
+    expect([e.node?.id, e.share]).toEqual([one, 0.2]);
+    clock += 1000;
+    await say(e);
+    expect(state(e, one)?.peak).toBe(0.2);
+    // read off the screen with Show me: no new peak
+    e.go();
+    expect(e.share).toBe(0.4);
+    e.showMe();
+    clock += 1000;
+    await say(e);
+    expect(state(e, one)?.peak).toBe(0.2);
   });
 
   test("given up, or peeked for more than 3 s, also counts as hard; an older entry with no mode is read as familiar", () => {

@@ -14,7 +14,7 @@
 // rule 3, and a miss does not go down.
 
 import { barOf, estimates, fade, skipped, type States } from "./model";
-import { type Aim, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK } from "./rules";
+import { type Aim, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK, SURE } from "./rules";
 import type { Node, Tree } from "./tree";
 
 // The session so far: each counted attempt's pass, the last attempt, how many times running that node was picked,
@@ -42,7 +42,10 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   // word, a slide also needs its last attempt with every word hidden
   const at = (id: string, margin = 0) => {
     const st = get(id);
-    return !!st && st.run === 0 && fade(st, now) >= bar(id) + margin && !(aim === "verbatim" && node(id).kind === "slide" && st.hid < 1);
+    return !!st && st.run === 0 && fade(st, now) >= bar(id) + margin && !(aim === "verbatim" && node(id).kind === "slide" && st.hid < 1)
+      // at the gist, a slide also needs its last attempt with at least SURE hidden (11 Nov: a slide read in getting
+      // familiar reached the gist's bar after one attempt with 20% hidden)
+      && !(aim === "gist" && node(id).kind === "slide" && st.hid < SURE);
   };
   const due = (id: string) => {
     const st = get(id);
