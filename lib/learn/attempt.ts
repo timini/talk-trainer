@@ -16,7 +16,7 @@ import { grade, normalise } from "../grade";
 import { empty, readScore, start } from "../score";
 import { sentences } from "../text";
 import { place, record, type State, type States } from "./model";
-import { EMPTY, NEARLY, RECOUNT } from "./rules";
+import { EMPTY, NEARLY, PEEK_COST, RECOUNT } from "./rules";
 import type { Node, Tree } from "./tree";
 
 export type Result = ReturnType<typeof judged>;
@@ -61,6 +61,9 @@ export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[], read
   const r = readScore(result.problems, node.text, v);
   return { ...out, points: r.points, read: { meaning: r.meaning, delivery: r.delivery } };
 };
+
+// Offline (no judge): an attempt scored from how long Peek was held, PEEK_COST points a second.
+export const peekPoints = (ms: number) => Math.max(0, Math.round(100 - (PEEK_COST * ms) / 1000));
 
 // Every leaf scored alike: a recount, or marking yourself.
 export const byHand = (node: Node, got: boolean) => {

@@ -77,6 +77,28 @@ test("getting familiar: one button, the next slide, recording; judged in the bac
   await expect(page.getByTestId("p-weakslides")).toContainText("slide 1: 100");
 });
 
+test("offline: no microphone and no judge; Peek held is the score, Right arrow is the next slide", async ({ page }) => {
+  await open(page, "Learn offline", deck([{ title: "One", notes: ["Good morning, and thank you."] },
+    { title: "Two", notes: ["Mix the flour."] }]));
+  let graded = 0;
+  await page.route("**/api/grade", (route) => { graded += 1; return route.fulfill({ json: {} }); });
+  await page.getByLabel(/Get familiar/).check();
+  await page.getByLabel(/Offline: no microphone, no judge/).check();
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.getByTestId("status")).toHaveText("Slide 1 of 2 (familiar)");
+  const peek = page.locator(".actions").getByRole("button", { name: "Peek" });
+  await peek.hover();
+  await page.mouse.down();
+  await expect(peek).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.up();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("status")).toHaveText("Slide 2 of 2 (familiar)");
+  await expect(page.getByTestId("strip").locator("span.learning")).toHaveCount(2);
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("goal-reached")).toBeVisible();
+  expect(graded).toBe(0);
+});
+
 test("a long sentence: its clauses, then the sentence", async ({ page }) => {
   const long = "We looked at the data very closely, and we found that most variants were rare; so we asked the families.";
   await open(page, "Learn clauses", deck([{ title: "Data", notes: [long, "That is all."] }, { title: "End", notes: ["Thank you."] }]));

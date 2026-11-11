@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { barOf, cues, familiar, troubleOf, estimates, fade, hidden, hiding, known, opening, place, record, scores, type State, terms, update }
+import { barOf, cues, familiar, staircase, troubleOf, estimates, fade, hidden, hiding, known, opening, place, record, scores, type State, terms, update }
   from "@/lib/learn/model";
 import { ALPHA, ALPHA_GOOD, FIRST, GROW, JOIN, SURE, UNDER } from "@/lib/learn/rules";
 import { build, type Input, type Node } from "@/lib/learn/tree";
@@ -76,7 +76,8 @@ describe("hiding", () => {
     // the gist starts the slide whole: a sentence passed over hides by the slide when that is higher (0.4 for b)
     expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.5, 0.25]);
     expect([...hiding(tree, node(root), est, "verbatim", null).values()]).toEqual([1, 1]);
-    expect([...hiding(tree, node(root), est, "familiar", null).values()]).toEqual([0.3, 0.25]);
+    // getting familiar: the slide's own next share, the same for every leaf in whole words, whatever the pace
+    expect([...hiding(tree, node(root), est, "familiar", 0.9).values()]).toEqual([0, 0]);
     expect([...hiding(tree, node(a), est, "verbatim", null).values()]).toEqual([0.5]);
     expect([...hiding(tree, node(a), est, "verbatim", 0.5).values()]).toEqual([0.25]);
     expect([...hiding(tree, node(a), est, "verbatim", 0.9).values()]).toEqual([0.7]);
@@ -163,5 +164,32 @@ describe("an attempt", () => {
     const out = known(tree, (id) => (id === a ? st({ s: 0.95, n: 4, passes: 3, interval: 3 * FIRST }) : null), node(root), 50);
     expect(out.get(root)).toEqual({ s: 0.9, at: 50, interval: FIRST, n: 0, passes: 1, lastPass: 50, run: 0, hid: 1 });
     expect(out.get(a)).toMatchObject({ s: 0.95, n: 4, passes: 3, interval: 3 * FIRST });
+  });
+});
+
+describe("getting familiar: the staircase", () => {
+  const at = (next: number, peak = 0, streak = 0) => st({ next, peak, streak });
+  test("up 3% after two readings recalled in a row, to at most 30%; down 10% after any other; a Peek holds", () => {
+    expect(staircase(null, 0, 100)).toEqual({ next: 0, peak: 0, streak: 1 });
+    expect(staircase(at(0, 0, 1), 0, 90)).toEqual({ next: 0.03, peak: 0, streak: 0 });
+    expect(staircase(at(0.3, 0.3, 1), 0.3, 100)).toEqual({ next: 0.3, peak: 0.3, streak: 0 });
+    expect(staircase(at(0.06, 0.06, 1), 0.06, 79)).toEqual({ next: 0, peak: 0.06, streak: 0 });
+    expect(staircase(at(0.15, 0.15), 0.15, 40)).toEqual({ next: 0.05, peak: 0.15, streak: 0 });
+    // a reading with a Peek: not recalled well, not missed either
+    expect(staircase(at(0.09, 0.09, 1), 0.09, 95, true)).toEqual({ next: 0.09, peak: 0.09, streak: 0 });
+  });
+
+  test("a slide forgotten climbs back 6% at a time to where it was, then 3%", () => {
+    expect(staircase(at(0.05, 0.15), 0.05, 100)).toEqual({ next: 0.11, peak: 0.15, streak: 0 });
+    expect(staircase(at(0.15, 0.15), 0.15, 100)).toEqual({ next: 0.15, peak: 0.15, streak: 1 });
+  });
+
+  test("the share is given out over the leaves in whole words", () => {
+    const two = build([said(1, ["Good morning, and thank you for coming.", "Today we bake bread."])]);
+    const slide = two.nodes.get(two.order[2]) as Node, words = slide.leaves.map((l) => (two.nodes.get(l) as Node).words);
+    const hid = (share: number) => [...hiding(two, slide, new Map(), "familiar", null, st({ next: share })).values()]
+      .reduce((a, h, i) => a + Math.round(h * words[i]), 0);
+    // 11 words: 3% is none, 9% one, 30% three
+    expect([0.03, 0.09, 0.3].map(hid)).toEqual([0, 1, 3]);
   });
 });

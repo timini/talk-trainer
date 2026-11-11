@@ -81,6 +81,25 @@ export const BARS: Record<Aim, { node: number; top: number }> = {
 // moves on instead of going down. At most FAMILIAR_HIDE is hidden, and an attempt never lifts a node's score above
 // FAMILIAR_CAP (or above where it was), so reading a slide aloud does not count toward the gist's bar of 0.8.
 export const FAMILIAR_HIDE = 0.3;
+// Getting familiar hides in steps, a staircase per slide (Tim, 11 November: "I go from reading to not being able to
+// read at all"). Since 0.2 one good reading put a slide at the 30% cap at once, and 30% straight after one reading
+// was recalled 1 time in 4. The staircase steps on recall, the meaning half of a reading's score (or the Peek score
+// offline), at FAMILIAR_OK or more: when words were hidden it was the meaning that fell (0, 0 and 29 at 30%), while
+// the delivery half barely moved; with nothing hidden the meaning was 80 or more in 91% of his readings.
+// A slide hides FAMILIAR_UP more after FAMILIAR_STREAK readings in a row recalled well (no Peek), or FAMILIAR_RELEARN
+// more after one while it is below the most it was recalled well at before (a slide forgotten climbs back quickly),
+// and FAMILIAR_DOWN less after any other. Simulation (tests/sim/familiar.test.ts, the learners fitted to his sessions,
+// 6 readings of every slide of his talk): readings recalled 74% (both fits) and at most 12% hidden, against 51% and a
+// 30% jump before; up 5% after every recalled reading gave 64 to 66%, up 2% after two gave 75 to 76% but at most 8%.
+export const FAMILIAR_OK = 80;
+export const FAMILIAR_UP = 0.03;
+export const FAMILIAR_STREAK = 2;
+export const FAMILIAR_RELEARN = 0.06;
+export const FAMILIAR_DOWN = 0.1;
+// Offline (no microphone, no judge), an attempt scores 100 less PEEK_COST a second of Peek held. A starting value:
+// 1.5 s of peeking is still good, about 4 s a miss. To be refitted from online readings, which log peeks and the
+// judge's score together.
+export const PEEK_COST = 10;
 export const FAMILIAR_CAP = 0.65;
 
 // The gist, to fit Tim's budget (about 1100 attempts over 10 hours, Tuesday 10 to Friday 13 November; the talk on

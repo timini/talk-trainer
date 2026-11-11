@@ -105,6 +105,9 @@ table.grid td.n { text-align: right; white-space: nowrap; }
 .strip span.at { background: #26913c; }
 .strip span.now { outline: 2px solid #005eb8; outline-offset: 1px; z-index: 1; }
 .strip span.judging { opacity: 0.55; }
+.strip { padding-bottom: 5px; }
+.strip span.learning { box-shadow: 0 3px 0 #005eb8; }
+.strip span.out { opacity: 0.3; }
 .instruction { font-size: 1.15rem; font-weight: bold; color: #005eb8; margin: 0 0 0.25rem; }
 
 /* How well the unit on screen is known now (it fades with time) */

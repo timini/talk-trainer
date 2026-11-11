@@ -9,15 +9,17 @@
 
 import { placed } from "./align";
 import type { Problem } from "../judge";
-import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_HIDE, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
+import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_DOWN, FAMILIAR_OK, FAMILIAR_STREAK, FAMILIAR_HIDE, FAMILIAR_RELEARN, FAMILIAR_UP, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
   GIST_CLAUSES, GIST_GROUP, GIST_TOP, GOOD, PACE_HIGH, PACE_LOW, SHIFT, SURE, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
 import type { Node, Tree } from "./tree";
 
 // s: the score; at: the last attempt; interval (ms); n: attempts; passes: attempts of NEARLY or more; lastPass: when
 // the last of them was (0: never); run: misses running; hid: the share of words hidden on the last attempt.
 // trouble (a leaf's only): how much trouble each of its words has given, from the problems placed on it.
+// next, peak and streak (getting familiar, a slide's): the share to hide on its next reading, the most hidden on a
+// reading recalled well, and the readings recalled well in a row.
 export type State = { s: number; at: number; interval: number; n: number; passes: number; lastPass: number; run: number; hid: number;
-  trouble?: number[] };
+  trouble?: number[]; next?: number; peak?: number; streak?: number };
 export type States = (id: string) => State | null;
 
 // The score now: trusted for the interval, then fading as a power of the time past it, in intervals.
@@ -70,7 +72,9 @@ export const hidden = (s: number, aim: Aim) => {
 // added. Word for word, a whole slide is said with every word hidden: that is the aim.
 // A leaf passed over at this aim takes the estimate of the nearest node over it that is not (up to the node attempted),
 // when that is higher.
-export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Aim, rate: number | null) => {
+// Getting familiar hides the same share of every leaf: the slide's own next share (staircase), with no pace shift.
+export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Aim, rate: number | null, st: State | null = null) => {
+  if (aim === "familiar") return spread(tree, node, st?.next ?? 0);
   const shift = rate === null ? 0 : rate < PACE_LOW ? -SHIFT : rate > PACE_HIGH ? SHIFT : 0;
   const of = (l: string) => {
     let x = tree.nodes.get(l) as Node;
@@ -89,6 +93,27 @@ const PARTS = new Set<Node["kind"]>(["clause", "clauses", "sentence", "group"]);
 export const skipped = (n: Node, aim: Aim, st: State | null = null) => aim === "familiar" ? n.kind !== "slide" : aim === "gist"
   && ((GIST_TOP && (st?.run ?? 0) === 0 && PARTS.has(n.kind)) || (!GIST_CLAUSES && (n.kind === "clause" || n.kind === "clauses"))
     || (n.kind === "group" && n.last - n.first + 1 <= GIST_GROUP));
+
+// The share a slide hides on its next reading, after a reading with one share hidden; the most hidden on a reading
+// recalled well; and the readings recalled well in a row (getting familiar). recall: the meaning half of its score,
+// or the Peek score offline. A reading with a Peek counts as recalled for nothing: it holds.
+export const staircase = (prev: State | null, share: number, recall: number, peeked = false) => {
+  const peak = prev?.peak ?? 0, ok = recall >= FAMILIAR_OK && !peeked, streak = ok ? (prev?.streak ?? 0) + 1 : 0;
+  const relearn = share < peak, up = ok && (relearn || streak >= FAMILIAR_STREAK);
+  const next = recall < FAMILIAR_OK ? Math.max(0, share - FAMILIAR_DOWN)
+    : up ? Math.min(FAMILIAR_HIDE, share + (relearn ? FAMILIAR_RELEARN : FAMILIAR_UP)) : share;
+  return { next: Math.round(next * 100) / 100, peak: ok ? Math.max(peak, share) : peak, streak: up ? 0 : streak };
+};
+
+// Getting familiar: the share of each leaf to hide so the slide hides share of all its words, whole words, the
+// words given out over the leaves by the largest remainder. Per leaf, 3% of an 8-word clause would round to none.
+const spread = (tree: Tree, node: Node, share: number) => {
+  const words = node.leaves.map((l) => (tree.nodes.get(l) as Node).words), total = words.reduce((a, b) => a + b, 0);
+  const want = words.map((w) => (w * Math.round(share * total)) / total), got = want.map(Math.floor);
+  const order = want.map((w, i) => [w - got[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  for (let k = 0; k < Math.round(share * total) - got.reduce((a, b) => a + b, 0); k += 1) got[order[k][1]] += 1;
+  return new Map(node.leaves.map((l, i) => [l, got[i] / words[i]]));
+};
 
 // How a leaf's terms show at its score: in full, by their first letter, or hidden like any word.
 export const terms = (s: number): "full" | "initial" | "hide" => (s < TERM_HINT ? "full" : s < TERM_HIDE ? "initial" : "hide");
@@ -146,6 +171,7 @@ export const record = (tree: Tree, get: States, node: Node, leafScores: Map<stri
     const add = trouble?.get(id);
     if (add) next.trouble = troubled(st, now, add);
     else if (st?.trouble) next.trouble = st.trouble;
+    if (st?.next !== undefined) Object.assign(next, { next: st.next, peak: st.peak, streak: st.streak });
     out.set(id, next);
   }
   return out;

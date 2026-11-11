@@ -214,6 +214,32 @@ the sentence (7). About 16 seconds a slide; the judge took about 3.6 seconds, we
 - **The strip.** Across the top of a session, one cell a slide in talk order: grey not tried, amber to green by its
   estimate against the bar, green at the bar, the slide on screen outlined, a slide with the judge faded.
 
+**Version 0.3: hiding in small steps, Peek and offline** (11 November). Tim: "I go from reading to not being able to
+read at all." Since 0.2 one good reading put a slide at the 30% cap at once. Across his 331 scored attempts, whole
+slides were read well 81% of the time with nothing hidden, 46% at half hidden on the gist after practice, but only
+1 time in 4 at 30% straight after one reading. When words were hidden it was the meaning half that fell (0, 0, 29),
+not the delivery. So:
+
+- **A staircase per slide** (`staircase` in `lib/learn/model.ts`). It steps on recall: the meaning half of the score
+  (or the Peek score offline) at `FAMILIAR_OK` (80) or more, which with nothing hidden he met 91% of the time. Up
+  `FAMILIAR_UP` (3%) after `FAMILIAR_STREAK` (2) readings in a row recalled well, up `FAMILIAR_RELEARN` (6%) after one
+  while below the most it was recalled at before (relearning is quick), down `FAMILIAR_DOWN` (10%) after any other;
+  at most 30%. The hidden words are given out over the whole slide in whole words, so 3% of a 35-word slide is one
+  word (per clause it rounded to none). Names and numbers stay in full.
+- **Simulation** (`tests/sim/familiar.test.ts`, learners fitted to his sessions, 6 readings of every slide):
+  readings recalled 79% with no jump over 6%, against 51% and a 30% jump before, and 85% with nothing ever hidden.
+  A grid of steps: up 5% after every recalled reading gave 64 to 66%; up 3% after two, 74%; up 2% after two, 75 to
+  76% but at most 8% hidden.
+- **Peek** (hold the button, or Space): the hidden words show while held. Each attempt logs `peeks` and `peekMs`.
+  Online the judge's score stands, but a reading with a Peek does not step the staircase up, and at the gist and word
+  for word it is at most Nearly.
+- **Show me counts as missed** (Tim: "it didn't penalise me for looking"): said off the screen, it is scored 50, so it
+  comes back easier, not harder.
+- **Offline** (no microphone, no judge): each attempt scores 100 less `PEEK_COST` (10) a second of Peek held. A starting
+  value, to be refitted from online readings, which log peeks with the judge's score.
+- **Keys:** Space held is Peek, the Right arrow the next slide (or on after a verdict), Enter speaks or stops.
+- **The strip** underlines the slides being practised and dims the rest.
+
 **The gist starts each slide whole** (`GIST_TOP`), to fit Tim's budget (below). A new slide is read aloud whole first,
 then said with more hidden each time. Its sentences and groups are practised only where an attempt at the slide missed
 (the misses fall on them), until they are passed again; then the slide comes back. A clause is never practised on its

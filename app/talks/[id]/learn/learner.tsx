@@ -36,11 +36,12 @@ function Learn({ engine: e }: { engine: Engine }) {
   useSyncExternalStore(e.subscribe, e.snapshot, e.snapshot);
   const [menu, setMenu] = useState(false);
 
-  // Keys: Space is the big button; Enter goes on after a verdict; 1 got it and 3 missed when marking yourself;
-  // R hears it; Escape closes the menu.
+  // Keys (Tim, 11 Nov): Space held is Peek; the Right arrow is the next slide, or on after a verdict; Enter is the
+  // big button (speak or stop at the gist and word for word); 1 got it and 3 missed when marking yourself; R hears
+  // it; Escape closes the menu.
   useEffect(() => {
     const keys: Record<string, () => void> = {
-      " ": () => e.space(), Enter: () => { if (e.phase === "judged" || e.screen !== "session") e.space(); },
+      " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(), Enter: () => e.space(),
       1: () => e.mark(true), 3: () => e.mark(false), r: () => e.hear(), R: () => e.hear(), Escape: () => setMenu(false),
     };
     const down = (ev: KeyboardEvent) => {
@@ -51,15 +52,20 @@ function Learn({ engine: e }: { engine: Engine }) {
       const act = keys[ev.key];
       if (!act) return;
       ev.preventDefault();
+      // a held key repeats: one Peek, not many
+      if (ev.repeat) return;
       if (t !== document.body) t.blur?.();
       act();
     };
     const hide = () => e.pagehide();
+    const up = (ev: KeyboardEvent) => { if (ev.key === " ") e.peek(false); };
     document.addEventListener("keydown", down);
+    document.addEventListener("keyup", up);
     window.addEventListener("pagehide", hide);
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
     return () => {
       document.removeEventListener("keydown", down);
+      document.removeEventListener("keyup", up);
       window.removeEventListener("pagehide", hide);
       e.halt();
     };
@@ -79,11 +85,12 @@ function Learn({ engine: e }: { engine: Engine }) {
       </header>
       {e.screen === "session" && (
         // one cell a slide, in talk order: grey not tried, amber to green by how well it is known, green at the bar;
-        // the slide on screen outlined
+        // the slide on screen outlined; the slides being practised underlined, the rest dimmed
         <div className="strip" role="img" data-testid="strip" aria-label={`${sum.at} of ${sum.total} slides learned in this mode`}>
           {e.strip().map((x) => (
-            <span key={x.n} title={`Slide ${x.n}: ${x.at ? "learned" : x.tried ? `${Math.round(100 * x.known)}% of the way` : "not tried"}`}
-              className={[x.at ? "at" : x.tried ? "tried" : "", x.now ? "now" : "", x.judging ? "judging" : ""].filter(Boolean).join(" ")}
+            <span key={x.n} title={`Slide ${x.n}: ${x.at ? "learned" : x.tried ? `${Math.round(100 * x.known)}% of the way` : "not tried"}${x.learning ? ", practising" : ""}`}
+              className={[x.at ? "at" : x.tried ? "tried" : "", x.now ? "now" : "", x.judging ? "judging" : "",
+                x.learning ? "learning" : "out"].filter(Boolean).join(" ")}
               style={{ "--k": x.known } as React.CSSProperties} />))}
         </div>
       )}
@@ -131,6 +138,7 @@ function Home({ e }: { e: Engine }) {
             <strong>{name}</strong><span>{hint}</span>
           </label>))}
       </div>
+      <Offline e={e} />
       <div className="goal" role="group" aria-label="Slides to practise">
         <p data-testid="range">{`Practising ${rangeLine(e.range)}`}</p>
         <label>From slide{" "}
@@ -272,14 +280,17 @@ function Card({ e }: { e: Engine }) {
               {label("Tip", j.tip)}
             </div>
           )}
-          {e.flow ? (
+          {e.flow || e.offline ? (
             <div className="actions">
               {e.note && <p className="note" role="status">{e.note}</p>}
               <div className="minor">
                 {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
               </div>
-              <button type="button" className={`big primary${phase === "listening" ? " on" : ""}`} onClick={() => void e.nextCard()}>
-                Next slide</button>
+              <div className="pair">
+                <Peek e={e} />
+                <button type="button" className={`big primary${phase === "listening" ? " on" : ""}`} onClick={() => e.advance()}>
+                  {e.flow ? "Next slide" : "Next"}</button>
+              </div>
             </div>
           ) : <div className="actions">
             {/* in the bar pinned at the bottom, so a long slide never pushes it out of sight */}
@@ -293,8 +304,8 @@ function Card({ e }: { e: Engine }) {
               {phase === "ready" && !e.isRun && share > 0 && <button type="button" className="small" onClick={() => e.showMe()}>Show me</button>}
               {phase === "ready" && !e.isRun && <button type="button" className="small" onClick={() => e.knowIt()}>I know this one</button>}
             </div>
-            {phase === "ready" && e.micOn && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
-            {phase === "ready" && !e.micOn && <button type="button" className="big primary" onClick={() => e.reveal()}>Show the words</button>}
+            {(phase === "ready" || phase === "listening") && !e.isRun && share > 0 && <Peek e={e} small />}
+            {phase === "ready" && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
             {phase === "listening" && !e.isRun && <button type="button" className="big primary on" onClick={() => e.space()}>Tap to stop</button>}
             {phase === "listening" && e.isRun && (
               <button type="button" className="big primary on" onClick={() => e.space()}>
@@ -318,23 +329,41 @@ function Card({ e }: { e: Engine }) {
                 <button type="button" className="big bad" onClick={() => e.mark(false)}>Missed</button>
               </div>)}
           </div>}
-          <p className="keys">Keys: Space to speak, stop or go on. R to hear it.</p>
+          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide. R to hear it."
+            : "Keys: Enter to speak or stop, Right arrow to go on, hold Space to peek. R to hear it."}</p>
         </div>
       </div>
     </section>
   );
 }
 
+// Peek: hold to show the hidden words (pointer or touch), let go to hide them again.
+function Peek({ e, small = false }: { e: Engine; small?: boolean }) {
+  return (
+    <button type="button" className={small ? "small" : "big"} aria-pressed={e.peeking}
+      onPointerDown={(ev) => { ev.preventDefault(); e.peek(true); }} onPointerUp={() => e.peek(false)}
+      onPointerLeave={() => e.peek(false)} onPointerCancel={() => e.peek(false)} onContextMenu={(ev) => ev.preventDefault()}>
+      Peek</button>
+  );
+}
+
+// Offline: no microphone and no judge; each attempt is scored from how long Peek was held.
+function Offline({ e }: { e: Engine }) {
+  return <>
+    <label className="toggle">
+      <input type="checkbox" checked={e.offline} onChange={(ev) => e.setOffline(ev.target.checked)} /> Offline: no microphone, no judge
+    </label>
+    <p className="note">Online, each attempt is recorded and sent through this site to Google&apos;s Gemini, which checks
+      the meaning and the delivery. Offline nothing is recorded or sent: say it, hold Peek for any word you need, and
+      the time you peek is the score.</p>
+  </>;
+}
+
 function Menu({ e, close }: { e: Engine; close: () => void }) {
   return (
     <div className="menu" onClick={(ev) => { if (ev.target === ev.currentTarget) close(); }}>
       <div className="sheet" role="dialog" aria-label="Menu">
-        <label className="toggle">
-          <input type="checkbox" checked={e.micOn} onChange={(ev) => e.setMic(ev.target.checked)} /> Use microphone
-        </label>
-        <p className="note">With the microphone on, each attempt is recorded and sent through this site to Google&apos;s
-          Gemini, which checks that the meaning came through. With it off, say it, tap Show the words, then mark
-          yourself.</p>
+        <Offline e={e} />
         <button type="button" className="item" onClick={() => { close(); e.show("progress"); }}>Progress</button>
         <Link className="item" href="/talks">Your talks</Link>
         <button type="button" className="item" onClick={close}>Close</button>

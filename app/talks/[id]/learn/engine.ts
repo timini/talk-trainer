@@ -6,11 +6,11 @@
 // One attempt at a time: tap to speak, tap to stop, then "Checking..." while the judge works, then the verdict. A
 // run-through is said slide by slide: a recording for each slide, Next slide between them, judged as they go.
 
-import { byHand, outcome, run as runRecord, type Result } from "@/lib/learn/attempt";
+import { byHand, outcome, peekPoints, run as runRecord, type Result } from "@/lib/learn/attempt";
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { metrics, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
-import { barOf, cues, estimates, familiar, hiding, known, record, type State, terms, troubleOf } from "@/lib/learn/model";
-import { type Aim, GOOD } from "@/lib/learn/rules";
+import { barOf, cues, estimates, familiar, hiding, known, record, staircase, type State, terms, troubleOf } from "@/lib/learn/model";
+import { type Aim, GOOD, RECOUNT } from "@/lib/learn/rules";
 import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
@@ -43,7 +43,8 @@ const LONGEST = 180000;
 
 // A familiar attempt as it was when Next slide was tapped: the pick, each leaf's share hidden, the share of the
 // slide hidden, the gap since it was last tried and the wait before speaking.
-type Flow = { item: Pick; hide: Map<string, number>; share: number; gap: number | null; waited: number | null };
+type Flow = { item: Pick; hide: Map<string, number>; share: number; gap: number | null; waited: number | null; peeks: number;
+  peekMs: number };
 
 // One slide of a run-through: its outcome once judged.
 type Said = { points: number; leaves: Map<string, number>; trouble?: Map<string, number[]>; result: Result | null; why: string };
@@ -63,6 +64,11 @@ export class Engine {
   private entry: Entry | null = null;
   // getting familiar: the slides whose attempts are still with the judge
   readonly pending = new Set<string>();
+  // Peek: the hidden words shown while it is held; how many times and for how long on this card
+  peeking = false;
+  private peeks = 0;
+  private peekMs = 0;
+  private peekAt = 0;
   // getting familiar: slides to read again next (a verdict under GOOD, or not counted), each once a session; and the
   // slides not counted twice, passed over as new while there is anything else
   private redo: string[] = [];
@@ -173,10 +179,13 @@ export class Engine {
 
   // The home screen and the Progress screen.
   summary() { return slidesAt(this.tree, this.state, this.deps.now(), this.aim); }
-  // The strip across the top: each slide, how well it is known, and whether it is on screen or with the judge.
+  // The strip across the top: each slide, how well it is known, whether it is on screen or with the judge, and
+  // whether it is in the slides being practised (Tim, 11 Nov).
   strip() {
     const on = this.node?.slides ?? [], busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
-    return strip(this.tree, this.state, this.deps.now(), this.aim).map((x) => ({ ...x, now: on.includes(x.n), judging: busy.has(x.n) }));
+    const within = inRange(this.range);
+    return strip(this.tree, this.state, this.deps.now(), this.aim).map((x) => ({ ...x, now: on.includes(x.n), judging: busy.has(x.n),
+      learning: within(x.n) }));
   }
   log(): Entry[] {
     return Object.entries(this.items()).filter(([k]) => k.startsWith("learn:log:")).sort(([a], [b]) => (a < b ? -1 : 1))
@@ -230,7 +239,8 @@ export class Engine {
     this.waiting = !narrow && this.flow && this.pending.size > 0;
     this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session));
     const est = estimates(this.tree, this.state, now);
-    this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session)) : new Map();
+    this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session), this.state(this.item.node.id)) : new Map();
+    Object.assign(this, { peeking: false, peeks: 0, peekMs: 0 });
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
       at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();
@@ -251,7 +261,7 @@ export class Engine {
     if (!n || this.shown) return 0;
     if (this.isRun) return 1;
     const ws = n.leaves.map((l) => (this.tree.nodes.get(l) as Node).words), all = ws.reduce((a, b) => a + b, 0);
-    return Math.round((20 * n.leaves.reduce((a, l, k) => a + (this.hide.get(l) as number) * ws[k], 0)) / all) / 20;
+    return Math.round((100 * n.leaves.reduce((a, l, k) => a + (this.hide.get(l) as number) * ws[k], 0)) / all) / 100;
   }
   get instruction() { return instruction(this.share, this.isRun); }
   get position() { return this.node ? position(this.tree, this.node) : ""; }
@@ -264,8 +274,9 @@ export class Engine {
     return n.leaves.map((id) => {
       const leaf = this.tree.nodes.get(id) as Node, slide = this.slides.find((s) => s.n === leaf.slides[0]);
       const must = (slide?.sentences[leaf.first]?.must_say ?? []).filter((m) => leaf.text.includes(m));
-      const mode = terms(est.get(id) as number);
-      return { id, slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: this.shown ? 0 : this.hide.get(id) as number,
+      // getting familiar keeps names and numbers in full
+      const mode = this.aim === "familiar" ? "full" : terms(est.get(id) as number);
+      return { id, slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: this.shown || this.peeking ? 0 : this.hide.get(id) as number,
         keep: [...(mode === "full" ? must : []), ...keep], initial: mode === "initial" ? must : [],
         seed: Number.parseInt(hash(`${id}:${this.state(id)?.n ?? 0}`), 36) >>> 0 };
     });
@@ -313,6 +324,8 @@ export class Engine {
     if (!this.item || this.phase !== "ready") return;
     known(this.tree, this.state, this.item.node, this.deps.now()).forEach((v, k) => this.set(nodeKey(k), v));
     this.logAttempt(this.item, null, this.deps.now(), this.gap(this.item.node, this.deps.now()), "known");
+    // known: a miss just before it no longer sends the next card down to it
+    if (this.session.last?.id === this.item.node.id) this.session = { ...this.session, last: { id: this.item.node.id, pass: true } };
     this.pushSoon();
     this.go();
   }
@@ -372,21 +385,53 @@ export class Engine {
     void this.take().then((blob) => this.ask(item, blob as Blob));
   }
 
+  // Peek: held, the hidden words show; each hold counts, and the time held adds up (offline, it is the score).
+  peek(on: boolean) {
+    if (this.screen !== "session" || !this.item || on === this.peeking) return;
+    const now = this.deps.now();
+    if (on) { this.peeks += 1; this.peekAt = now; } else this.peekMs += now - this.peekAt;
+    this.peeking = on;
+    this.emit();
+  }
+  private get peeked() { return this.peekMs + (this.peeking ? this.deps.now() - this.peekAt : 0); }
+  // Offline: no microphone and no judge; each attempt is scored from Peek. The setting is the microphone's.
+  get offline() { return !this.micOn; }
+  setOffline(on: boolean) { this.setMic(!on); }
+  // The Right arrow, and the Next button: the next slide (getting familiar), the attempt said (offline), or on after a
+  // verdict.
+  advance() {
+    if (this.screen !== "session") return;
+    if (this.flow) void this.nextCard();
+    else if (this.offline && this.phase === "ready") this.nextOffline();
+    else if (this.phase === "judged") this.go();
+  }
+  // Offline, at the gist or word for word: the attempt scored from Peek and counted, then on.
+  nextOffline() {
+    const item = this.item;
+    if (!item || !this.offline || this.flow || this.phase !== "ready") return;
+    const points = peekPoints(this.peeked);
+    this.count(item, points, new Map(item.node.leaves.map((l) => [l, points])), undefined, "offline");
+    this.go();
+  }
+
   // Getting familiar: this slide's recording goes to the judge in the background, and the next slide comes up,
-  // recording. Without the microphone the slide counts as read. A tap before the microphone started moves on.
+  // recording. Offline it is scored from Peek. A tap before the microphone started moves on.
   async nextCard() {
     const item = this.item;
     if (!this.flow || !item) return;
-    const at = { item, hide: this.hide, share: this.share, gap: this.gap(item.node, this.deps.now()), waited: this.waited };
-    if (!this.micOn) {
-      const h = byHand(item.node, true);
-      this.countFlow(at, h.points, h.leaves, "read");
+    const at = { item, hide: this.hide, share: this.share, gap: this.gap(item.node, this.deps.now()), waited: this.waited,
+      peeks: this.peeks, peekMs: this.peeked };
+    if (this.offline) {
+      const points = peekPoints(at.peekMs);
+      this.countFlow(at, points, new Map(item.node.leaves.map((l) => [l, points])), "offline", points);
     } else if (this.phase === "listening" && this.rec) {
       const t0 = this.recAt, blob = this.take();
       this.pending.add(item.node.id);
       void blob.then((b) => this.background({ ...at, spoke: this.deps.now() - t0 }, b as Blob));
     }
     this.go();
+    // offline the score is known now; read again after the next slide, as a verdict online comes in by then
+    if (this.offline) this.after1(item.node, peekPoints(at.peekMs));
     if (this.item && this.micOn) await this.speak();
   }
   private async background(at: Flow & { spoke: number }, blob: Blob) {
@@ -396,7 +441,7 @@ export class Engine {
       const o = outcome(this.tree, n, v, this.mustOf(n), true);
       if (!o.counted) { this.logFlow(at, null, "", this.deps.now() - t0); this.after1(n, null); }
       else {
-        this.countFlow(at, o.points, o.leaves, at.item.why, o.trouble, this.deps.now() - t0, {
+        this.countFlow(at, o.points, o.leaves, at.item.why, (o.read as { meaning: number }).meaning, o.trouble, this.deps.now() - t0, {
           ...o.read as { meaning: number; delivery: number }, clarity: v.clarity, fluency: v.fluency, pace: v.pace, tip: v.tip });
         this.after1(n, o.points);
       }
@@ -412,12 +457,15 @@ export class Engine {
     }
     this.emit();
   }
-  // A familiar attempt counted on its own slide, whatever is on screen now, and logged.
-  private countFlow(at: Flow & { spoke?: number }, points: number, leaves: Map<string, number>, why: string,
+  // A familiar attempt counted on its own slide, whatever is on screen now, and logged. recall: what the staircase
+  // steps on (the meaning half, or the Peek score offline).
+  private countFlow(at: Flow & { spoke?: number }, points: number, leaves: Map<string, number>, why: string, recall: number,
     trouble?: Map<string, number[]>, ms = 0, read?: Entry["read"]) {
     const now = this.deps.now(), n = at.item.node;
-    const got = record(this.tree, this.state, n, leaves, points, now, at.hide, estimates(this.tree, this.state, now), trouble, 0);
-    this.write(familiar(got, this.state));
+    const got = familiar(record(this.tree, this.state, n, leaves, points, now, at.hide, estimates(this.tree, this.state, now), trouble, 0),
+      this.state);
+    got.set(n.id, { ...got.get(n.id) as State, ...staircase(this.state(n.id), at.share, recall, at.peeks > 0) });
+    this.write(got);
     this.session = after(this.session, at.item, points >= 60);
     this.logFlow(at, points, why, ms, read, n.leaves.map((l) => leaves.get(l) as number));
   }
@@ -428,7 +476,8 @@ export class Engine {
       height: n.height, words: n.words, before: at.item.est, bar: at.item.bar,
       after: points === null ? null : estimates(this.tree, this.state, now).get(n.id) as number, hidden: at.share, points,
       pass: points === null ? null : points >= 60, ms, gap: at.gap, why: why || at.item.why, m: now, v: RULES,
-      ...(leaves ? { leaves } : {}), ...(read ? { read } : {}), speak: at.spoke ?? 0, wait: at.waited };
+      ...(leaves ? { leaves } : {}), ...(read ? { read } : {}), speak: at.spoke ?? 0, wait: at.waited, peeks: at.peeks,
+      peekMs: at.peekMs };
     const day = ymd(now);
     this.set(logKey(day), logged(this.get<Log | null>(logKey(day), null), e));
   }
@@ -520,7 +569,10 @@ export class Engine {
       }
       this.result = o.result;
       this.trouble = o.trouble;
-      this.count(item, o.points, o.leaves, o.trouble);
+      // Show me, then said off the screen, is not recalled (Tim, 11 Nov: "it didn't penalise me for looking"): it
+      // counts as missed, so it comes back easier, not harder. With a Peek it is at most Nearly, never a confident pass.
+      const cap = this.shown ? RECOUNT.missed : this.peeks ? GOOD - 1 : 100;
+      this.count(item, Math.min(o.points, cap), new Map([...o.leaves].map(([l, p]) => [l, Math.min(p, cap)])), o.trouble);
       this.phase = "judged";
     } catch (err) {
       if (this.item !== item) return;
@@ -531,7 +583,7 @@ export class Engine {
 
   // Count the attempt on screen: the states move and the attempt is logged. Counting again (a recount) first puts
   // back what the last count replaced.
-  private count(item: Pick, points: number, leaves: Map<string, number>, trouble?: Map<string, number[]>) {
+  private count(item: Pick, points: number, leaves: Map<string, number>, trouble?: Map<string, number[]>, why?: string) {
     const now = this.deps.now();
     this.before.forEach((v, k) => (v === null ? this.remove(nodeKey(k)) : this.set(nodeKey(k), v)));
     const est = estimates(this.tree, this.state, now), gap = this.gap(item.node, now);
@@ -543,7 +595,7 @@ export class Engine {
     this.points = points;
     this.counted = points >= 60;
     this.leafScores ??= item.node.leaves.map((l) => leaves.get(l) ?? 0);
-    this.logAttempt(item, points, now, gap);
+    this.logAttempt(item, points, now, gap, why);
   }
   private write(states: Map<string, State>) {
     states.forEach((v, k) => this.set(nodeKey(k), v));
@@ -557,7 +609,8 @@ export class Engine {
       kind: n.kind, height: n.height, words: n.words, before: item.est, bar: item.bar, after: after1, hidden: this.share,
       points, pass: points === null ? null : points >= 60, ms: this.ms, gap: prev ? prev.gap : gap, why, m: now, v: RULES,
       ...(this.leafScores && points !== null ? { leaves: this.leafScores } : {}), ...(this.probs ? { probs: this.probs } : {}),
-      ...(this.runSlides ? { slides: this.runSlides } : {}), shown: this.shown, speak: this.spoke, wait: this.waited };
+      ...(this.runSlides ? { slides: this.runSlides } : {}), shown: this.shown, speak: this.spoke, wait: this.waited,
+      peeks: this.peeks, peekMs: this.peeked };
     if (!prev && points !== null) this.session = after(this.session, item, points >= 60);
     else if (points !== null) this.session = { ...this.session, recent: [...this.session.recent.slice(0, -1), points >= 60],
       last: { id: n.id, pass: points >= 60 } };

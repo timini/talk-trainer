@@ -180,7 +180,8 @@ describe("not counted", () => {
     e.showMe();
     expect([e.phase, e.shown, e.share, e.note]).toEqual(["ready", true, 0, ""]);
     await say(e);
-    expect([e.phase, e.counted]).toEqual(["judged", true]);
+    // read off the screen: counted, as missed
+    expect([e.phase, e.counted, e.points]).toEqual(["judged", false, 50]);
     // Show me does nothing once judged
     e.showMe();
     expect(e.phase).toBe("judged");
@@ -259,14 +260,17 @@ describe("recount, Show me and I know this one", () => {
     expect([e.share, e.instruction]).toEqual([0, "Read it aloud."]);
     expect(e.lines()[0].share).toBe(0);
     await say(e);
-    expect(state(e, a)!.hid).toBe(0);
+    expect(state(e, a)!).toMatchObject({ hid: 0, run: 1 });
+    // missed, so the same clause again
     e.go();
     const b = e.node!.id;
+    expect(b).toBe(a);
+    clock += 1000;
     e.knowIt();
     expect(state(e, b)).toMatchObject({ s: 0.9, hid: 1 });
     expect(e.node?.id).not.toBe(b);
-    // both logged: the attempt with Show me used, then "I know this one", not counted
-    expect(e.log().map((x) => [x.node, x.why, x.pass, x.shown])).toEqual([[a, expect.any(String), true, true], [b, "known", null, false]]);
+    // both logged: the attempt with Show me used (missed), then "I know this one", not counted
+    expect(e.log().map((x) => [x.node, x.why, x.pass, x.shown])).toEqual([[a, expect.any(String), false, true], [b, "known", null, false]]);
   });
 
   test("each attempt logs what a later fit needs: the rules, each leaf's score, the problems, the time spoken and waited", async () => {
@@ -371,8 +375,11 @@ describe("getting familiar", () => {
     expect(grade()[0]).toMatchObject({ mode: "read", target: "Good morning, and thank you for coming. Today we bake bread." });
     // one good reading is enough: at the bar (0.6) at once, capped at 0.65
     expect(state(e, one)?.s).toBe(0.65);
-    expect(e.strip()).toEqual([{ n: 1, known: 1, tried: true, at: true, now: false, judging: false },
-      { n: 2, known: 0, tried: false, at: false, now: true, judging: false }]);
+    expect(e.strip()).toEqual([{ n: 1, known: 1, tried: true, at: true, now: false, judging: false, learning: true },
+      { n: 2, known: 0, tried: false, at: false, now: true, judging: false, learning: true }]);
+    // the slides being practised: the range
+    e.setRange([[2, 2]]);
+    expect(e.strip().map((x) => x.learning)).toEqual([false, true]);
     expect([e.pending.size, e.node?.id, e.phase, e.points]).toEqual([0, two, "listening", null]);
     expect(entries(e)[0]).toMatchObject({ node: one, points: 100, pass: true, why: "new",
       read: { meaning: 100, delivery: 100, clarity: 5, fluency: 5, pace: "good", tip: "Good." } });
@@ -510,21 +517,101 @@ describe("getting familiar", () => {
     expect(e.progress().slides).toEqual([{ slide: 1, points: 60, low: "delivery" }]);
   });
 
-  test("without the microphone, Next slide counts the slide as read and moves on", async () => {
+  test("offline: no microphone and no judge; each reading scored from Peek", async () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     e.setAim("familiar");
+    expect(e.offline).toBe(true);
     e.start();
-    const one = e.tree.roots.get(1) as string;
+    const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
     expect([e.node?.id, e.phase]).toEqual([one, "ready"]);
-    await e.nextCard();
-    // read (85): at the bar at once
-    expect([state(e, one)?.s, e.node?.id]).toEqual([0.65, e.tree.roots.get(2)]);
-    expect(entries(e)[0]).toMatchObject({ node: one, points: 85, why: "read" });
+    // peek 3 seconds in two holds: 70
+    e.peek(true);
+    expect(e.lines().every((l) => l.share === 0)).toBe(true);
+    clock += 1000;
+    e.peek(false);
+    e.peek(false);
+    e.peek(true);
+    clock += 2000;
+    e.advance();
+    await flush();
+    expect(entries(e)[0]).toMatchObject({ node: one, points: 70, why: "offline", peeks: 2, peekMs: 3000 });
     expect(entries(e)[0].read).toBeUndefined();
-    await e.nextCard();
-    expect(e.item).toBeNull();
-    await e.nextCard();
+    // no peek: 100, at the bar
+    expect(e.node?.id).toBe(two);
+    e.advance();
+    await flush();
+    expect(entries(e)[1]).toMatchObject({ node: two, points: 100, peeks: 0 });
+    expect(state(e, two)?.s).toBe(0.65);
+    // slide 1 scored 70: read again; nothing is ever sent to the judge
+    expect([e.node?.id, e.item?.why]).toEqual([one, "due"]);
     expect(grade()).toEqual([]);
+    e.setOffline(false);
+    expect(e.offline).toBe(true);
+  });
+
+  test("hiding climbs in small steps: none, none, then 3% of the slide after two good readings", async () => {
+    const e = make();
+    e.setAim("familiar");
+    e.setRange([[1, 1]]);
+    const one = e.tree.roots.get(1) as string;
+    e.start();
+    await flush();
+    await e.nextCard();
+    await flush();
+    expect(state(e, one)).toMatchObject({ next: 0, streak: 1 });
+    // a day later slide 1 is due again, read well again: 3% next time
+    clock += 2 * 24 * 3600 * 1000;
+    e.go();
+    expect(e.node?.id).toBe(one);
+    expect(e.share).toBe(0);
+    await e.speak();
+    await flush();
+    await e.nextCard();
+    await flush();
+    expect(state(e, one)).toMatchObject({ next: 0.03, streak: 0 });
+  });
+
+  test("an online reading with a Peek holds the staircase and logs the Peek", async () => {
+    const e = make();
+    e.setAim("familiar");
+    const one = e.tree.roots.get(1) as string;
+    e.start();
+    await flush();
+    e.peek(true);
+    clock += 500;
+    e.peek(false);
+    await e.nextCard();
+    await flush();
+    expect(state(e, one)).toMatchObject({ next: 0, streak: 0 });
+    expect(entries(e)[0]).toMatchObject({ peeks: 1, peekMs: 500, points: 100 });
+  });
+
+  test("the keys' engine side: Right arrow goes on after a verdict; offline at the gist, Next counts from Peek", async () => {
+    const e = make();
+    e.setAim("gist");
+    e.start();
+    await say(e);
+    expect(e.phase).toBe("judged");
+    e.advance();
+    expect(e.phase).toBe("ready");
+    e.advance();
+    expect(e.phase).toBe("ready");
+    e.peek(true);
+    e.peek(true);
+    expect(e.peeking).toBe(true);
+    e.peek(false);
+    e.setOffline(true);
+    expect([e.offline, e.flow]).toEqual([true, false]);
+    const before = e.log().length;
+    clock += 1000;
+    e.advance();
+    expect(e.log().at(-1)).toMatchObject({ why: "offline", points: 100, peeks: 1 });
+    expect(e.log().length).toBe(before + 1);
+    e.nextOffline();
+    e.show("home");
+    e.peek(true);
+    e.advance();
+    expect(e.peeking).toBe(false);
   });
 
   test("the other modes still judge each card and show the verdict", async () => {
@@ -534,6 +621,28 @@ describe("getting familiar", () => {
     expect(e.flow).toBe(false);
     await say(e);
     expect([e.phase, grade()[0].mode]).toEqual(["judged", "card"]);
+  });
+});
+
+describe("looking counts", () => {
+  test("Show me, then said off the screen, counts as missed; a Peek caps the attempt at Nearly", async () => {
+    const e = make();
+    e.setAim("gist");
+    const one = e.tree.roots.get(1) as string;
+    const all: State = { s: 0.6, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 0.5 };
+    e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+    e.go();
+    e.screen = "session";
+    expect(e.node?.id).toBe(one);
+    e.showMe();
+    await say(e);
+    // the judge heard it all, but it was read: missed
+    expect([e.points, e.counted, state(e, one)?.run]).toEqual([50, false, 1]);
+    e.go();
+    e.peek(true);
+    e.peek(false);
+    await say(e);
+    expect(e.points).toBe(84);
   });
 });
 
