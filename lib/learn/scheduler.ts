@@ -11,7 +11,7 @@
 // LIFT above their bars before it is tried again, and they are practised until they are. A node picked SAME times in
 // a row is passed over once. The slides getting familiar found hard (weak) come before the rest of rule 3. Getting
 // familiar goes breadth first: the next new slide comes first, then rule 1, then
-// rule 3, and a miss does not go down.
+// rule 3, and a miss does not go down; with nothing left it reads on in talk order (readOn).
 
 import { barOf, estimates, fade, skipped, type States } from "./model";
 import { type Aim, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK, SURE } from "./rules";
@@ -129,6 +129,17 @@ export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: numbe
     return review ? make(review, "due") : null;
   };
   return choose(skip) ?? choose(null);
+};
+
+// Getting familiar with nothing due or ready: read on, the slide after the last one in talk order within the range,
+// back to the first after the end, at its own level of hiding (Tim, 12 Nov: a second read-through of the whole talk).
+export const readOn = (tree: Tree, within: (n: number) => boolean, last: string | null, now: number, get: States): Pick | null => {
+  const slides = [...tree.roots.keys()].filter(within).sort((x, y) => x - y);
+  const here = last ? Math.max(...(tree.nodes.get(last) as Node).slides) : 0;
+  const n = slides.find((x) => x > here) ?? slides[0];
+  if (n === undefined) return null;
+  const id = tree.roots.get(n) as string, est = estimates(tree, get, now);
+  return { node: tree.nodes.get(id) as Node, why: "up", est: est.get(id) as number, bar: barOf(tree.nodes.get(id) as Node, "familiar") };
 };
 
 // The session after an attempt at a pick. pass: null when it was not counted.

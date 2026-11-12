@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { estimates, hiding, record, type State } from "@/lib/learn/model";
 import { FIRST, PACE_OF, REVIEWS } from "@/lib/learn/rules";
-import { after, begin, pace, pick, type Session, standing } from "@/lib/learn/scheduler";
+import { after, begin, pace, pick, readOn, type Session, standing } from "@/lib/learn/scheduler";
 import { build, type Input, type Node } from "@/lib/learn/tree";
 
 const said = (n: number, texts: string[]): Input => ({ n, sentences: texts.map((text) => ({ text })) });
@@ -220,7 +220,11 @@ describe("getting familiar goes breadth first, whole slides only", () => {
   test("then due reviews, then the slides not yet at the bar, in talk order; never a part, a bridge or a run-through", () => {
     expect(go({ [one]: old(0.65), [two]: st(0.3, { run: 1 }), [three]: st(0.65) }, begin(), "familiar")).toEqual([one, "due"]);
     expect(go({ [one]: st(0.65), [two]: st(0.3, { run: 1 }), [three]: st(0.45) }, begin(), "familiar")).toEqual([two, "up"]);
-    expect(go({ [one]: st(0.65), [two]: st(0.65), [three]: st(0.65) }, begin(), "familiar")).toBeNull();
+    const all = { [one]: st(0.65), [two]: st(0.65), [three]: st(0.65) };
+    expect(go(all, begin(), "familiar")).toBeNull();
+    // then read on in talk order, back to the first slide after the last
+    const on = (last: string | null, within = (_: number) => true) => readOn(tree, within, last, NOW, from(all))?.node.id ?? null;
+    expect([on(null), on(one), on(three), on(two, (n) => n !== 3), on(one, () => false)]).toEqual([one, two, one, one, null]);
     const s = standing(tree, from({}), NOW, "familiar");
     expect([a, b, bridge12, "t"].map(s.skip)).toEqual([true, true, true, true]);
     expect([s.skip(one), s.ready(one), s.parts(one)]).toEqual([false, true, []]);

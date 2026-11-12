@@ -11,7 +11,7 @@ import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { metrics, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
 import { barOf, cues, estimates, familiar, hiding, known, record, staircase, type State, terms, troubleOf } from "@/lib/learn/model";
 import { type Aim, GOOD, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
-import { after, begin, pace, pick, type Pick, type Session } from "@/lib/learn/scheduler";
+import { after, begin, pace, pick, readOn, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
 import type { Verdict } from "@/lib/judge";
@@ -260,6 +260,8 @@ export class Engine {
     // getting familiar, with only slides still with the judge left: wait for their verdicts, not show one again
     this.waiting = !narrow && this.flow && this.pending.size > 0;
     this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session, weak));
+    // getting familiar with nothing due or ready: read on in talk order instead of stopping
+    if (!this.item && !this.waiting && this.flow) this.item = readOn(this.tree, within, this.session.last?.id ?? null, now, this.state);
     const est = estimates(this.tree, this.state, now);
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session), this.state(this.item.node.id)) : new Map();
     Object.assign(this, { peeking: false, peeks: 0, peekMs: 0, paused: false });

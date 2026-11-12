@@ -180,7 +180,9 @@ comes first, before due reviews and before a slide is tried again, and a miss mo
 going down. Once every slide in the range has started, it is due reviews, then the slides not yet at 0.6 in talk
 order. At most `FAMILIAR_HIDE` (30%) is hidden. An attempt never lifts a node's score above `FAMILIAR_CAP` (0.65), or
 above where it was if that is higher, so reading a slide aloud never counts toward the gist's slide bar of 0.8. A
-slide read well twice, the second time with some words hidden, is at its bar.
+slide read well twice, the second time with some words hidden, is at its bar. With nothing due or ready, it never
+stops at "Done for now": it reads on, the slide after the last one in talk order, back to the first after the end,
+each at its own level of hiding (`readOn`; Tim, 12 Nov: a second read-through of the whole talk).
 
 **One button, judged in the background** (Tim, 11 November: a verdict distracts from reading through the talk).
 Start records the first slide. Next slide stops the recording, sends it to the judge and shows the next slide at

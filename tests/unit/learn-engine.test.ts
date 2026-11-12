@@ -405,8 +405,8 @@ describe("getting familiar", () => {
     expect([e.item, e.waiting, e.screen]).toEqual([null, true, "session"]);
     release();
     await flush();
-    // both read well: nothing left
-    expect([e.pending.size, e.waiting, e.screen]).toEqual([0, false, "done"]);
+    // both read well: nothing due, so read on from the start (Tim, 12 Nov)
+    expect([e.pending.size, e.waiting, e.screen, e.node?.id]).toEqual([0, false, "session", one]);
   });
 
   test("waiting for the last verdict, then the slide that needs reading again", async () => {
