@@ -302,7 +302,8 @@ export class Engine {
       const open = this.shown || this.peeking;
       return { id, slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: open ? 0 : this.hide.get(id) as number,
         keep: [...(mode === "full" ? must : []), ...keep], initial: !open && mode === "initial" ? must : [],
-        seed: Number.parseInt(hash(`${id}:${this.state(id)?.n ?? 0}`), 36) >>> 0 };
+        // new words hidden on every showing of the card: its own attempt count moves each time, a leaf's may not
+        seed: Number.parseInt(hash(`${id}:${this.state(id)?.n ?? 0}:${this.state(n.id)?.n ?? 0}`), 36) >>> 0 };
     });
   }
   // Each word's trouble on the card, in the order of the node's words (0 for a word with none).

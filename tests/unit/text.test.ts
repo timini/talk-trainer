@@ -122,4 +122,16 @@ describe("redactBits", () => {
     expect(redactBits("Bake it", 1, [], ["bake"], 1, ["it"]).map((b) => b.kind)).toEqual(["cue", "text", "cue"]);
     expect(redactBits("Go", 0, [], [], 1)).toEqual([{ kind: "word", t: "Go" }]);
   });
+
+  test("hidden words are spread evenly: the share exactly, never three gaps in a row up to 30%, different per seed", () => {
+    const text = "Published benchmarks test models on ClinVar in bulk, and clinical filtering leaves only about twenty rare candidates to rank.";
+    const gaps = (seed: number, share: number) => redactBits(text, share, [], [], seed).filter((b) => b.kind !== "text")
+      .map((b) => b.kind === "hidden");
+    for (let seed = 1; seed <= 200; seed += 1) {
+      const g = gaps(seed, 0.3);
+      expect(g.filter(Boolean).length).toBe(Math.round(0.3 * g.length));
+      expect(g.some((x, i) => x && g[i + 1] && g[i + 2])).toBe(false);
+    }
+    expect(gaps(1, 0.3)).not.toEqual(gaps(2, 0.3));
+  });
 });

@@ -24,7 +24,7 @@ export const hide = (text: string, phrases: string[]): string => {
   return out + text.slice(last);
 };
 
-// A share of the words hidden, chosen afresh for each seed, as pieces to draw: text between words, a word shown, a
+// A share of the words hidden, spread evenly and chosen afresh for each seed, as pieces to draw: text between words, a word shown, a
 // word hidden (drawn as the word itself, invisible, over a line, so a gap is as long as the word it hides), or a word
 // cued by its first letter. keep: words always shown (names, numbers, acronyms not yet known, the opening words).
 // initial: words always cued (terms on their way to being hidden). cued: phrases missed last time, whose words, when
@@ -41,7 +41,9 @@ export const redactBits = (text: string, share: number, keep: string[], cued: st
       if (seq.every((b, k) => found[i + k].b === b)) { seq.forEach((_, k) => cue.add(i + k)); break; }
     }
   }
-  // a seeded shuffle (mulberry32) of the words that may be hidden; the first share of all the words are hidden
+  // the words that may be hidden, in order, cut into as many equal runs as words to hide, and one word hidden at random
+  // (seeded, mulberry32) in each run: gaps spread evenly through the text instead of clumping by chance (Tim, 12 Nov;
+  // on the talk's sentences at 30% hidden, runs of 3 or more gaps fell from 17% of sentences to none)
   let a = seed >>> 0;
   const rand = () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -51,8 +53,8 @@ export const redactBits = (text: string, share: number, keep: string[], cued: st
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
   const open = found.map((_, i) => i).filter((i) => !kept.has(found[i].b) && !firsts.has(found[i].b));
-  for (let i = open.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [open[i], open[j]] = [open[j], open[i]]; }
-  const hide = new Set(open.slice(0, Math.min(open.length, Math.round(Math.min(1, share) * found.length))));
+  const k = Math.min(open.length, Math.round(Math.min(1, share) * found.length)), run = (i: number) => Math.floor((i * open.length) / k);
+  const hide = new Set(Array.from({ length: k }, (_, i) => open[run(i) + Math.floor(rand() * (run(i + 1) - run(i)))]));
   const out: Bit[] = [];
   let last = 0;
   found.forEach((f, i) => {

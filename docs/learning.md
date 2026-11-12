@@ -129,7 +129,11 @@ trouble first.
 ## Hiding
 
 - Each leaf hides `(s - 0.2) / 0.7` of its words, in steps of 5%: nothing below 0.2, everything from 0.9. The hidden
-  words are chosen afresh each attempt, seeded.
+  words are chosen afresh on every showing of the card (seeded by the leaf's and the card's attempt counts), and spread
+  evenly: the words that may be hidden are cut into as many equal runs as words to hide, and one word in each run is
+  hidden at random (Tim, 12 Nov: clumped gaps are off-putting when starting a slide). On the talk's 211 sentences
+  (median 14 words), 1,000 draws each, the share of sentences with 3 or more gaps in a row, uniform pick against even
+  spacing: 4% against 0 at 20% hidden, 17% against 0 at 30%, 66% against 0 at 50%; the longest run is now 2.
 - The gist hides at most 50%.
 - Word for word, a whole slide is said with every word hidden: that is the aim, and the slide is at its bar only after
   such an attempt.

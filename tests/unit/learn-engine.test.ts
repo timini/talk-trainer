@@ -517,6 +517,20 @@ describe("getting familiar", () => {
     expect(e.progress().slides).toEqual([{ slide: 1, points: 60, low: "delivery" }]);
   });
 
+  test("each showing of a card hides different words", async () => {
+    const long: Script = { ...SCRIPT, slides: [{ n: 1, title: "Long", image: null, sentences: [sentence(1,
+      "Published benchmarks test models on ClinVar in bulk, and clinical filtering leaves only about twenty rare candidates.")] }] };
+    const e = new Engine(long, deps());
+    e.setAim("gist");
+    const id = e.tree.roots.get(1) as string;
+    storage.setItem(`${P}learn:n:${id}`, JSON.stringify({ s: 0.6, at: clock - 1, interval: 1, n: 3, passes: 0, lastPass: 0, run: 0, hid: 0.3 }));
+    const seed = () => e.lines()[0].seed;
+    e.start();
+    const first = seed();
+    storage.setItem(`${P}learn:n:${id}`, JSON.stringify({ s: 0.6, at: clock - 1, interval: 1, n: 4, passes: 0, lastPass: 0, run: 0, hid: 0.3 }));
+    expect(seed()).not.toBe(first);
+  });
+
   test("Peek and Show me reveal the terms shown by their first letter too", () => {
     const one: Script = { ...SCRIPT, slides: [{ ...SCRIPT.slides[1], n: 1 }] };
     const e = new Engine(one, deps());
