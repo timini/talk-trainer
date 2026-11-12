@@ -68,11 +68,12 @@ test("getting familiar: one button, the next slide, recording; judged in the bac
     await page.waitForTimeout(300);
     await big(page, "Next slide").click();
   }
-  // each slide read well once (a short first sentence is counted, 11 November): every slide learned, so done
+  // each slide read well once (a short first sentence is counted, 11 November): nothing due, so it reads on from slide 1
+  // (12 November) until End
   expect(seen).toEqual(["Slide 1 of 3 (familiar)", "Slide 2 of 3 (familiar)", "Slide 3 of 3 (familiar)"]);
-  await expect(page.getByTestId("goal-reached")).toBeVisible();
+  await expect(page.getByTestId("status")).toHaveText("Slide 1 of 3 (familiar)");
   await expect(page.getByTestId("verdict")).toHaveCount(0);
-  await page.getByRole("button", { name: "Back to the start" }).click();
+  await page.getByRole("button", { name: "End session" }).click();
   await page.getByRole("button", { name: "Progress" }).click();
   await expect(page.getByTestId("p-weakslides")).toContainText("slide 1: 100");
 });
@@ -95,7 +96,8 @@ test("offline: no microphone and no judge; Peek held is the score, Right arrow i
   await expect(page.getByTestId("status")).toHaveText("Slide 2 of 2 (familiar)");
   await expect(page.getByTestId("strip").locator("span.learning")).toHaveCount(2);
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByTestId("goal-reached")).toBeVisible();
+  // nothing due: reads on from slide 1
+  await expect(page.getByTestId("status")).toHaveText("Slide 1 of 2 (familiar)");
   expect(graded).toBe(0);
 });
 
