@@ -298,8 +298,10 @@ export class Engine {
       const must = (slide?.sentences[leaf.first]?.must_say ?? []).filter((m) => leaf.text.includes(m));
       // getting familiar keeps names and numbers in full
       const mode = this.aim === "familiar" ? "full" : terms(est.get(id) as number);
-      return { id, slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: this.shown || this.peeking ? 0 : this.hide.get(id) as number,
-        keep: [...(mode === "full" ? must : []), ...keep], initial: mode === "initial" ? must : [],
+      // Peek and Show me reveal everything, the terms shown by their first letter too
+      const open = this.shown || this.peeking;
+      return { id, slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: open ? 0 : this.hide.get(id) as number,
+        keep: [...(mode === "full" ? must : []), ...keep], initial: !open && mode === "initial" ? must : [],
         seed: Number.parseInt(hash(`${id}:${this.state(id)?.n ?? 0}`), 36) >>> 0 };
     });
   }

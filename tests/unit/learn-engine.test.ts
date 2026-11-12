@@ -517,6 +517,23 @@ describe("getting familiar", () => {
     expect(e.progress().slides).toEqual([{ slide: 1, points: 60, low: "delivery" }]);
   });
 
+  test("Peek and Show me reveal the terms shown by their first letter too", () => {
+    const one: Script = { ...SCRIPT, slides: [{ ...SCRIPT.slides[1], n: 1 }] };
+    const e = new Engine(one, deps());
+    e.setAim("gist");
+    // every node known well enough that its terms show by their first letter only
+    for (const [id, n] of e.tree.nodes) {
+      if (n.leaves.length !== 1 || n.leaves[0] !== id) continue;
+      storage.setItem(`${P}learn:n:${id}`, JSON.stringify({ s: 0.6, at: clock - 1, interval: 1, n: 1, passes: 0, lastPass: 0, run: 0, hid: 0 }));
+    }
+    e.start();
+    expect(e.lines().map((l) => l.initial)).toEqual([["500"]]);
+    e.peek(true);
+    expect(e.lines().map((l) => [l.share, l.initial])).toEqual([[0, []]]);
+    e.peek(false);
+    expect(e.lines().map((l) => l.initial)).toEqual([["500"]]);
+  });
+
   test("offline: no microphone and no judge; each reading scored from Peek", async () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     e.setAim("familiar");
