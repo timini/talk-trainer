@@ -10,7 +10,7 @@ import { byHand, outcome, peekPoints, run as runRecord, type Result } from "@/li
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { metrics, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
 import { barOf, cues, estimates, familiar, hiding, known, record, staircase, type State, terms, troubleOf } from "@/lib/learn/model";
-import { type Aim, GOOD, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
+import { type Aim, GOOD, type Rate, RATED, RATED_SAME_GIST, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
 import { after, begin, pace, pick, readOn, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
@@ -302,7 +302,8 @@ export class Engine {
       const mode = this.aim === "familiar" ? "full" : terms(est.get(id) as number);
       // Peek and Show me reveal everything, the terms shown by their first letter too
       const open = this.shown || this.peeking;
-      return { id, slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: open ? 0 : this.hide.get(id) as number,
+      // getting familiar shows every hidden word by its first letter (Tim, 12 Nov)
+      return { id, letters: this.aim === "familiar", slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: open ? 0 : this.hide.get(id) as number,
         keep: [...(mode === "full" ? must : []), ...keep], initial: !open && mode === "initial" ? must : [],
         // new words hidden on every showing of the card: its own attempt count moves each time, a leaf's may not
         seed: Number.parseInt(hash(`${id}:${this.state(id)?.n ?? 0}:${this.state(n.id)?.n ?? 0}`), 36) >>> 0 };
@@ -428,20 +429,21 @@ export class Engine {
   get offline() { return !this.micOn; }
   setOffline(on: boolean) { this.setMic(!on); }
   // The Right arrow, and the Next button: the next slide (getting familiar), the attempt said (offline), or on after a
-  // verdict.
-  advance() {
+  // verdict. Offline, rate (Tim, 12 Nov): Up harder, Down easier, Right (none) the same.
+  advance(rate: Rate = "same") {
     if (this.screen !== "session") return;
     if (this.paused) { void this.resume(); return; }
-    if (this.flow) void this.nextCard();
-    else if (this.offline && this.phase === "ready") this.nextOffline();
+    if (this.flow) void this.nextCard(rate);
+    else if (this.offline && this.phase === "ready") this.nextOffline(rate);
     else if (this.phase === "judged") this.go();
   }
-  // Offline, at the gist or word for word: the attempt scored from Peek and counted, then on.
-  nextOffline() {
+  // Offline, at the gist or word for word: the attempt rated (Tim, 12 Nov): harder counts 100, easier 40, the same
+  // RATED_SAME_GIST; then on.
+  nextOffline(rate: Rate = "same") {
     const item = this.item;
     if (!item || !this.offline || this.flow || this.phase !== "ready") return;
-    const points = peekPoints(this.peeked);
-    this.count(item, points, new Map(item.node.leaves.map((l) => [l, points])), undefined, "offline");
+    const points = rate === "same" ? RATED_SAME_GIST : RATED[rate];
+    this.count(item, points, new Map(item.node.leaves.map((l) => [l, points])), undefined, "rated");
     this.go();
   }
 
@@ -494,23 +496,25 @@ export class Engine {
   }
 
   // Getting familiar: this slide's recording goes to the judge in the background, and the next slide comes up,
-  // recording. Offline it is scored from Peek. A tap before the microphone started moves on.
-  async nextCard() {
+  // recording. Offline it is rated (Tim, 12 Nov; RATED), and the rating sets the next share to hide. A tap before the
+  // microphone started moves on.
+  async nextCard(rate: Rate = "same") {
     const item = this.item;
     if (!this.flow || !item) return;
     const at = { item, hide: this.hide, share: this.share, gap: this.gap(item.node, this.deps.now()), waited: this.waited,
       peeks: this.peeks, peekMs: this.peeked, onCard: this.deps.now() - this.cardAt };
+    const rated = RATED[rate];
     if (this.offline) {
-      const points = peekPoints(at.peekMs);
-      this.countFlow(at, points, new Map(item.node.leaves.map((l) => [l, points])), "offline", points);
+      this.countFlow(at, rated, new Map(item.node.leaves.map((l) => [l, rated])), "rated", rated, undefined, 0, undefined, rate);
     } else if (this.phase === "listening" && this.rec) {
       const t0 = this.recAt, blob = this.take();
       this.pending.add(item.node.id);
       void blob.then((b) => this.background({ ...at, spoke: this.deps.now() - t0 }, b as Blob));
     }
     this.go();
-    // offline the score is known now; read again after the next slide, as a verdict online comes in by then
-    if (this.offline) this.after1(item.node, peekPoints(at.peekMs));
+    // offline the rating is known now: easier, read again after the next slide, as a verdict online comes in by then;
+    // the same or harder, on (Tim, 12 Nov: Right is the next slide)
+    if (this.offline && rate === "down") this.after1(item.node, rated);
     if (this.item && this.micOn) await this.speak();
   }
   private async background(at: Flow & { spoke: number }, blob: Blob) {
@@ -542,24 +546,24 @@ export class Engine {
   // A familiar attempt counted on its own slide, whatever is on screen now, and logged. recall: what the staircase
   // steps on (the meaning half, or the Peek score offline).
   private countFlow(at: Flow & { spoke?: number }, points: number, leaves: Map<string, number>, why: string, recall: number,
-    trouble?: Map<string, number[]>, ms = 0, read?: Entry["read"]) {
+    trouble?: Map<string, number[]>, ms = 0, read?: Entry["read"], rate?: Rate) {
     const now = this.deps.now(), n = at.item.node;
     const got = familiar(record(this.tree, this.state, n, leaves, points, now, at.hide, estimates(this.tree, this.state, now), trouble, 0),
       this.state);
-    got.set(n.id, { ...got.get(n.id) as State, ...staircase(this.state(n.id), at.share, recall) });
+    got.set(n.id, { ...got.get(n.id) as State, ...staircase(this.state(n.id), at.share, recall, false, rate) });
     this.write(got);
     this.session = after(this.session, at.item, points >= 60);
-    this.logFlow(at, points, why, ms, read, n.leaves.map((l) => leaves.get(l) as number));
+    this.logFlow(at, points, why, ms, read, n.leaves.map((l) => leaves.get(l) as number), rate);
   }
   private logFlow(at: Flow & { spoke?: number }, points: number | null, why: string, ms: number, read?: Entry["read"],
-    leaves?: number[]) {
+    leaves?: number[], rate?: Rate) {
     const now = this.deps.now(), n = at.item.node;
     const e: Entry = { id: `${now.toString(36)}-${hash(n.id)}`, at: now, node: n.id, slide: n.slides[0], kind: n.kind,
       height: n.height, words: n.words, before: at.item.est, bar: at.item.bar,
       after: points === null ? null : estimates(this.tree, this.state, now).get(n.id) as number, hidden: at.share, points,
       pass: points === null ? null : points >= 60, ms, gap: at.gap, why: why || at.item.why, m: now, v: RULES,
       ...(leaves ? { leaves } : {}), ...(read ? { read } : {}), speak: at.spoke ?? 0, wait: at.waited, peeks: at.peeks,
-      peekMs: at.peekMs, aim: "familiar", offline: this.offline, ...(at.onCard ? { onCard: at.onCard } : {}) };
+      peekMs: at.peekMs, aim: "familiar", offline: this.offline, ...(at.onCard ? { onCard: at.onCard } : {}), ...(rate ? { rate } : {}) };
     const day = ymd(now);
     this.set(logKey(day), logged(this.get<Log | null>(logKey(day), null), e));
   }

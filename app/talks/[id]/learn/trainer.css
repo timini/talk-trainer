@@ -75,6 +75,7 @@
 .actions .minor { margin: 0 auto 0.5rem; justify-content: center; }
 .trainer main.tr-main { padding-bottom: 11rem; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.rate { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
 .keys { display: none; }
 .stack > * + * { margin-top: 0.6rem; }
 table.grid { width: 100%; border-collapse: collapse; font-size: 0.9rem; background: #fff; }

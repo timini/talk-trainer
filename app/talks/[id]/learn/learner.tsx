@@ -38,10 +38,12 @@ function Learn({ engine: e }: { engine: Engine }) {
 
   // Keys (Tim, 11 Nov): Space held is Peek; the Right arrow is the next slide, or on after a verdict; Enter is the
   // big button (speak or stop at the gist and word for word); 1 got it and 3 missed when marking yourself; R hears
-  // it; Escape closes the menu.
+  // it; Escape closes the menu. Offline in a session (Tim, 12 Nov) Up is harder next time, Down easier, Right the same.
   useEffect(() => {
     const keys: Record<string, () => void> = {
-      " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(), ArrowLeft: () => void e.back(), Enter: () => e.space(),
+      " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(),
+      ArrowUp: () => { if (e.offline && e.screen === "session") e.advance("up"); },
+      ArrowDown: () => { if (e.offline && e.screen === "session") e.advance("down"); }, ArrowLeft: () => void e.back(), Enter: () => e.space(),
       g: () => void e.giveUp(), G: () => void e.giveUp(),
       p: () => (e.paused ? void e.resume() : e.pause()), P: () => (e.paused ? void e.resume() : e.pause()),
       1: () => e.mark(true), 3: () => e.mark(false), r: () => e.hear(), R: () => e.hear(), Escape: () => setMenu(false),
@@ -235,7 +237,7 @@ function Card({ e }: { e: Engine }) {
       slideAt = l.slide;
       const num = l.sentence !== last || change;
       last = l.sentence;
-      const bits = redactBits(l.text, l.share, l.keep, [], l.seed, l.initial);
+      const bits = redactBits(l.text, l.share, l.keep, [], l.seed, l.initial, l.letters);
       return (
         <span key={l.id} className="leaf sent">
           {change && <span className="change">{`Next slide: ${l.slide}`}</span>}
@@ -256,7 +258,7 @@ function Card({ e }: { e: Engine }) {
           {slide?.image ? <img src={slide.image} alt={slide.title} /> : <div className="noimg">No slide image</div>}
         </div>
         <div className="cardcol" data-testid="card">
-          <p className="instruction" data-testid="instruction">{e.flow ? "Read it aloud, then tap Next slide." : e.instruction}</p>
+          <p className="instruction" data-testid="instruction">{e.flow ? (e.offline ? "Read it aloud, then rate it: Easier, Same or Harder." : "Read it aloud, then tap Next slide.") : e.instruction}</p>
           <p className="stitle">{slide ? `${slide.n}. ${slide.title}` : ""}</p>
           <p className="position" data-testid="position">{e.position}</p>
           {e.crumbs.length > 1 && <p className="crumbs" data-testid="crumbs">{e.crumbs.join(" > ")}</p>}
@@ -296,7 +298,15 @@ function Card({ e }: { e: Engine }) {
               {e.paused ? (
                 <button type="button" className="big primary" onClick={() => void e.resume()}>Resume</button>
               ) : (
-                <div className="pair">
+                e.offline ? (
+                  // offline, rate yourself (Tim, 12 Nov): how much to hide next time
+                  <div className="rate">
+                    <Peek e={e} />
+                    <button type="button" className="big" onClick={() => e.advance("down")}>Easier</button>
+                    <button type="button" className="big primary" onClick={() => e.advance()}>Same</button>
+                    <button type="button" className="big" onClick={() => e.advance("up")}>Harder</button>
+                  </div>
+                ) : <div className="pair">
                   <Peek e={e} />
                   <button type="button" className={`big primary${phase === "listening" ? " on" : ""}`} onClick={() => e.advance()}>
                     {e.flow ? "Next slide" : "Next"}</button>
@@ -342,7 +352,8 @@ function Card({ e }: { e: Engine }) {
                 <button type="button" className="big bad" onClick={() => e.mark(false)}>Missed</button>
               </div>)}
           </div>}
-          <p className="keys">{e.flow || e.offline ? "Keys: hold Space to peek, Right arrow for the next slide, Left arrow for the one before, P to pause, G to give up. R to hear it."
+          <p className="keys">{e.offline ? "Keys: hold Space to peek, Right arrow for the next slide the same, Up arrow harder next time, Down arrow easier, Left arrow for the one before, P to pause, G to give up. R to hear it."
+            : e.flow ? "Keys: hold Space to peek, Right arrow for the next slide, Left arrow for the one before, P to pause, G to give up. R to hear it."
             : "Keys: Enter to speak or stop, Right arrow to go on, Left arrow to go back, hold Space to peek, G to give up. R to hear it."}</p>
         </div>
       </div>
@@ -360,15 +371,15 @@ function Peek({ e, small = false }: { e: Engine; small?: boolean }) {
   );
 }
 
-// Offline: no microphone and no judge; each attempt is scored from how long Peek was held.
+// Offline: no microphone and no judge; you rate each attempt yourself.
 function Offline({ e }: { e: Engine }) {
   return <>
     <label className="toggle">
       <input type="checkbox" checked={e.offline} onChange={(ev) => e.setOffline(ev.target.checked)} /> Offline / silent mode: no microphone, no judge
     </label>
     <p className="note">Online, each attempt is recorded and sent through this site to Google&apos;s Gemini, which checks
-      the meaning and the delivery. Offline nothing is recorded or sent: say it, hold Peek for any word you need, and
-      the time you peek is the score.</p>
+      the meaning and the delivery. Offline nothing is recorded or sent: say it, hold Peek for any word you need, then
+      rate it: Harder, Same or Easier next time.</p>
   </>;
 }
 

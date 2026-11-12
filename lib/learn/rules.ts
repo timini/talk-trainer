@@ -80,7 +80,9 @@ export const BARS: Record<Aim, { node: number; top: number }> = {
 // whole slides are practised; the next new slide comes before reviews and before trying a slide again, and a miss
 // moves on instead of going down. At most FAMILIAR_HIDE is hidden, and an attempt never lifts a node's score above
 // FAMILIAR_CAP (or above where it was), so reading a slide aloud does not count toward the gist's bar of 0.8.
-export const FAMILIAR_HIDE = 0.3;
+// 0.3 was tuned for blanks; since every hidden word shows its first letter, which is easier, up to 0.5 (Tim, 12 Nov:
+// with first-letter clues).
+export const FAMILIAR_HIDE = 0.5;
 // Getting familiar hides in steps, a staircase per slide (Tim, 11 November: "I go from reading to not being able to
 // read at all"). Since 0.2 one good reading put a slide at the 30% cap at once, and 30% straight after one reading
 // was recalled 1 time in 4. The staircase steps on recall, the meaning half of a reading's score (or the Peek score
@@ -91,11 +93,20 @@ export const FAMILIAR_HIDE = 0.3;
 // and FAMILIAR_DOWN less after any other. Simulation (tests/sim/familiar.test.ts, the learners fitted to his sessions,
 // 6 readings of every slide of his talk): readings recalled 74% (both fits) and at most 12% hidden, against 51% and a
 // 30% jump before; up 5% after every recalled reading gave 64 to 66%, up 2% after two gave 75 to 76% but at most 8%.
+// (These figures are at the old 0.3 cap.)
 export const FAMILIAR_OK = 80;
 export const FAMILIAR_UP = 0.03;
 export const FAMILIAR_STREAK = 2;
 export const FAMILIAR_RELEARN = 0.06;
 export const FAMILIAR_DOWN = 0.1;
+// Offline, rating yourself (Tim, 12 Nov: after 512 familiar readings he had never seen more than 8% hidden): Up hides
+// RATE_STEP more next time, Down RATE_STEP less, Right the same. Counted as RATED points: the same and harder both
+// recalled well, so the slide moves on (Right is the next slide), easier needed help. At the gist and word for word,
+// where the hiding follows the score, the same counts RATED_SAME_GIST, a pass that moves the score little.
+export type Rate = "up" | "same" | "down";
+export const RATE_STEP = 0.1;
+export const RATED: Record<Rate, number> = { up: 100, same: 100, down: 40 };
+export const RATED_SAME_GIST = 80;
 // Offline (no microphone, no judge), an attempt scores 100 less PEEK_COST a second of Peek held. A starting value:
 // 1.5 s of peeking is still good, about 4 s a miss. To be refitted from online readings, which log peeks and the
 // judge's score together.

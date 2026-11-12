@@ -28,9 +28,10 @@ export const hide = (text: string, phrases: string[]): string => {
 // word hidden (drawn as the word itself, invisible, over a line, so a gap is as long as the word it hides), or a word
 // cued by its first letter. keep: words always shown (names, numbers, acronyms not yet known, the opening words).
 // initial: words always cued (terms on their way to being hidden). cued: phrases missed last time, whose words, when
-// hidden, are cued instead. share 1 hides every other word.
+// hidden, are cued instead. share 1 hides every other word. letters: every hidden word is cued (getting familiar, Tim,
+// 12 Nov: a first letter is easier than a blank).
 export type Bit = { kind: "text" | "word" | "hidden" | "cue"; t: string };
-export const redactBits = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = []): Bit[] => {
+export const redactBits = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = [], letters = false): Bit[] => {
   const found = [...text.matchAll(WORD)].map((m) => ({ at: m.index as number, w: m[0], b: bare(m[0]) }));
   const bares = (xs: string[]) => new Set(xs.flatMap((k) => [...k.matchAll(WORD)].map((m) => bare(m[0]))));
   const kept = bares(keep), firsts = bares(initial);
@@ -59,7 +60,7 @@ export const redactBits = (text: string, share: number, keep: string[], cued: st
   let last = 0;
   found.forEach((f, i) => {
     if (f.at > last) out.push({ kind: "text", t: text.slice(last, f.at) });
-    out.push({ kind: firsts.has(f.b) || (hide.has(i) && cue.has(i)) ? "cue" : hide.has(i) ? "hidden" : "word", t: f.w });
+    out.push({ kind: firsts.has(f.b) || (hide.has(i) && (letters || cue.has(i))) ? "cue" : hide.has(i) ? "hidden" : "word", t: f.w });
     last = f.at + f.w.length;
   });
   if (last < text.length) out.push({ kind: "text", t: text.slice(last) });

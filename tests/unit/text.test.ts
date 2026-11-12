@@ -123,6 +123,12 @@ describe("redactBits", () => {
     expect(redactBits("Go", 0, [], [], 1)).toEqual([{ kind: "word", t: "Go" }]);
   });
 
+  test("letters: every hidden word is cued by its first letter; without, blanks", () => {
+    const kinds = (letters: boolean) => redactBits("We bake bread, slowly.", 1, ["We"], [], 7, [], letters).map((b) => b.kind);
+    expect(kinds(true)).toEqual(["word", "text", "cue", "text", "cue", "text", "cue", "text"]);
+    expect(kinds(false)).toEqual(["word", "text", "hidden", "text", "hidden", "text", "hidden", "text"]);
+  });
+
   test("hidden words are spread evenly: the share exactly, never three gaps in a row up to 30%, different per seed", () => {
     const text = "Published benchmarks test models on ClinVar in bulk, and clinical filtering leaves only about twenty rare candidates to rank.";
     const gaps = (seed: number, share: number) => redactBits(text, share, [], [], seed).filter((b) => b.kind !== "text")

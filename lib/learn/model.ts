@@ -9,7 +9,7 @@
 
 import { placed } from "./align";
 import type { Problem } from "../judge";
-import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_DOWN, FAMILIAR_OK, FAMILIAR_STREAK, JUMP, FAMILIAR_HIDE, FAMILIAR_RELEARN, FAMILIAR_UP, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY,
+import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_DOWN, FAMILIAR_OK, FAMILIAR_STREAK, JUMP, FAMILIAR_HIDE, FAMILIAR_RELEARN, FAMILIAR_UP, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY, type Rate, RATE_STEP,
   GIST_CLAUSES, GIST_GROUP, GIST_TOP, GOOD, PACE_HIGH, PACE_LOW, SHIFT, SURE, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
 import type { Node, Tree } from "./tree";
 
@@ -103,7 +103,14 @@ export const skipped = (n: Node, aim: Aim, st: State | null = null, weak = false
 // The share a slide hides on its next reading, after a reading with one share hidden; the most hidden on a reading
 // recalled well; and the readings recalled well in a row (getting familiar). recall: the meaning half of its score,
 // or the Peek score offline. A reading with a Peek counts as recalled for nothing: it holds.
-export const staircase = (prev: State | null, share: number, recall: number, peeked = false) => {
+// rate (offline, Tim, 12 Nov: he says how it went): up hides RATE_STEP more, down RATE_STEP less, same the same, from
+// the share it was set to hide; the streak starts again.
+export const staircase = (prev: State | null, share: number, recall: number, peeked = false, rate?: Rate) => {
+  if (rate) {
+    const from = prev?.next ?? share, peak = prev?.peak ?? 0;
+    const next = rate === "up" ? Math.min(FAMILIAR_HIDE, from + RATE_STEP) : rate === "down" ? Math.max(0, from - RATE_STEP) : from;
+    return { next: Math.round(next * 100) / 100, peak: rate === "down" ? peak : Math.max(peak, share), streak: 0 };
+  }
   const peak = prev?.peak ?? 0, ok = recall >= FAMILIAR_OK && !peeked, streak = ok ? (prev?.streak ?? 0) + 1 : 0;
   const relearn = share < peak, up = ok && (relearn || streak >= FAMILIAR_STREAK);
   const next = recall < FAMILIAR_OK ? Math.max(0, share - FAMILIAR_DOWN)

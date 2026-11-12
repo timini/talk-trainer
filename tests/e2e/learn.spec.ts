@@ -78,7 +78,7 @@ test("getting familiar: one button, the next slide, recording; judged in the bac
   await expect(page.getByTestId("p-weakslides")).toContainText("slide 1: 100");
 });
 
-test("offline: no microphone and no judge; Peek held is the score, Right arrow is the next slide", async ({ page }) => {
+test("offline: no microphone and no judge; rate yourself: Up harder, Right the same; hidden words as first letters", async ({ page }) => {
   await open(page, "Learn offline", deck([{ title: "One", notes: ["Good morning, and thank you."] },
     { title: "Two", notes: ["Mix the flour."] }]));
   let graded = 0;
@@ -92,12 +92,18 @@ test("offline: no microphone and no judge; Peek held is the score, Right arrow i
   await page.mouse.down();
   await expect(peek).toHaveAttribute("aria-pressed", "true");
   await page.mouse.up();
-  await page.keyboard.press("ArrowRight");
+  for (const name of ["Easier", "Same", "Harder"]) await expect(page.locator(".actions").getByRole("button", { name })).toBeVisible();
+  await expect(page.locator(".keys")).toContainText("Up arrow harder");
+  // Up: harder next time
+  await page.keyboard.press("ArrowUp");
   await expect(page.getByTestId("status")).toHaveText("Slide 2 of 2 (familiar)");
   await expect(page.getByTestId("strip").locator("span.learning")).toHaveCount(2);
+  // Right: the same difficulty, and on; nothing due, so it reads on from slide 1, now with words hidden (it was rated
+  // harder), each by its first letter
   await page.keyboard.press("ArrowRight");
-  // nothing due: reads on from slide 1
   await expect(page.getByTestId("status")).toHaveText("Slide 1 of 2 (familiar)");
+  await expect(page.locator(".leaf > span > .gap").first()).toBeVisible();
+  await expect(page.locator(".leaf > .gap")).toHaveCount(0);
   expect(graded).toBe(0);
 });
 

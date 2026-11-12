@@ -68,7 +68,7 @@ describe("hiding", () => {
     expect([0, 0.2, 0.3, 0.55, 0.89, 0.9, 1].map((s) => hidden(s, "verbatim"))).toEqual([0, 0, 0.1, 0.5, 0.95, 1, 1]);
     expect(hidden(0.9, "gist")).toBe(0.5);
     expect(hidden(0.3, "gist")).toBe(0.1);
-    expect([0.3, 0.9].map((s) => hidden(s, "familiar"))).toEqual([0.1, 0.3]);
+    expect([0.3, 0.9].map((s) => hidden(s, "familiar"))).toEqual([0.1, 0.5]);
   });
 
   test("each leaf by its own estimate, moved by the pace; a whole slide word for word all hidden", () => {
@@ -169,14 +169,25 @@ describe("an attempt", () => {
 
 describe("getting familiar: the staircase", () => {
   const at = (next: number, peak = 0, streak = 0) => st({ next, peak, streak });
-  test("up 3% after two readings recalled in a row, to at most 30%; down 10% after any other; a Peek holds", () => {
+  test("up 3% after two readings recalled in a row, to at most 50%; down 10% after any other; a Peek holds", () => {
     expect(staircase(null, 0, 100)).toEqual({ next: 0, peak: 0, streak: 1 });
     expect(staircase(at(0, 0, 1), 0, 90)).toEqual({ next: 0.03, peak: 0, streak: 0 });
-    expect(staircase(at(0.3, 0.3, 1), 0.3, 100)).toEqual({ next: 0.3, peak: 0.3, streak: 0 });
+    expect(staircase(at(0.5, 0.5, 1), 0.5, 100)).toEqual({ next: 0.5, peak: 0.5, streak: 0 });
+    expect(staircase(at(0.3, 0.3, 1), 0.3, 100)).toEqual({ next: 0.33, peak: 0.3, streak: 0 });
     expect(staircase(at(0.06, 0.06, 1), 0.06, 79)).toEqual({ next: 0, peak: 0.06, streak: 0 });
     expect(staircase(at(0.15, 0.15), 0.15, 40)).toEqual({ next: 0.05, peak: 0.15, streak: 0 });
     // a reading with a Peek: not recalled well, not missed either
     expect(staircase(at(0.09, 0.09, 1), 0.09, 95, true)).toEqual({ next: 0.09, peak: 0.09, streak: 0 });
+  });
+
+  test("offline, rated (Tim, 12 Nov): harder 10% more, easier 10% less, the same holds; from 0 to 50%", () => {
+    expect(staircase(at(0.2, 0.1, 1), 0.2, 100, false, "up")).toEqual({ next: 0.3, peak: 0.2, streak: 0 });
+    expect(staircase(at(0.45, 0.4), 0.45, 100, false, "up")).toEqual({ next: 0.5, peak: 0.45, streak: 0 });
+    expect(staircase(at(0.2, 0.3, 1), 0.2, 40, false, "down")).toEqual({ next: 0.1, peak: 0.3, streak: 0 });
+    expect(staircase(at(0.05), 0.05, 40, false, "down")).toEqual({ next: 0, peak: 0, streak: 0 });
+    expect(staircase(at(0.2, 0.1, 1), 0.2, 80, false, "same")).toEqual({ next: 0.2, peak: 0.2, streak: 0 });
+    // a slide never read: from the share it hid
+    expect(staircase(null, 0, 100, false, "up")).toEqual({ next: 0.1, peak: 0, streak: 0 });
   });
 
   test("a slide forgotten climbs back 6% at a time to where it was, then 3%", () => {

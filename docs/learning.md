@@ -8,7 +8,8 @@ nowhere else.
 
 Tim learns a talk to one of three aims.
 
-- **Get familiar:** every slide read aloud well, the whole talk before any slide again, with at most 30% hidden.
+- **Get familiar:** every slide read aloud well, the whole talk before any slide again, with at most 50% hidden, each
+  hidden word shown by its first letter.
 - **Word for word:** every slide said with all of its words hidden.
 - **Get the gist:** every slide said with the meaning right, at a score of about 80, with at most half of it hidden.
 
@@ -135,6 +136,8 @@ trouble first.
   (median 14 words), 1,000 draws each, the share of sentences with 3 or more gaps in a row, uniform pick against even
   spacing: 4% against 0 at 20% hidden, 17% against 0 at 30%, 66% against 0 at 50%; the longest run is now 2.
 - The gist hides at most 50%.
+- Getting familiar shows every hidden word by its first letter (Tim, 12 Nov: a first letter is easier than a blank, so
+  more can be hidden sooner). The gist and word for word keep blanks, so the modes still get harder in order.
 - Word for word, a whole slide is said with every word hidden: that is the aim, and the slide is at its bar only after
   such an attempt.
 - Terms (names, numbers, acronyms) are in full below 0.5, then their first letter below 0.8, then hidden.
@@ -172,13 +175,13 @@ there was a goal, the last slide to work on (from slide 1); it becomes the range
 |---|---|---|
 | Word for word | 0.75 | 0.85, and every word hidden |
 | Gist | 0.5 | 0.8, at most half hidden |
-| Get familiar | (not practised) | 0.6, at most 30% hidden |
+| Get familiar | (not practised) | 0.6, at most 50% hidden, as first letters |
 
 **Getting familiar goes breadth first** (Tim, 11 November): to read the whole talk well before learning any slide.
 Only whole slides are practised: no clauses, sentences, groups, bridges or run-throughs. The next new slide in the range
 comes first, before due reviews and before a slide is tried again, and a miss moves on to the next slide instead of
 going down. Once every slide in the range has started, it is due reviews, then the slides not yet at 0.6 in talk
-order. At most `FAMILIAR_HIDE` (30%) is hidden. An attempt never lifts a node's score above `FAMILIAR_CAP` (0.65), or
+order. At most `FAMILIAR_HIDE` (50%; 30% until 12 Nov, when hidden words became first letters) is hidden. An attempt never lifts a node's score above `FAMILIAR_CAP` (0.65), or
 above where it was if that is higher, so reading a slide aloud never counts toward the gist's slide bar of 0.8. A
 slide read well twice, the second time with some words hidden, is at its bar. With nothing due or ready, it never
 stops at "Done for now": it reads on, the slide after the last one in talk order, back to the first after the end,
@@ -241,9 +244,16 @@ not the delivery. So:
   for word it is at most Nearly.
 - **Show me counts as missed** (Tim: "it didn't penalise me for looking"): said off the screen, it is scored 50, so it
   comes back easier, not harder.
-- **Offline** (no microphone, no judge): each attempt scores 100 less `PEEK_COST` (10) a second of Peek held. A starting
-  value, to be refitted from online readings, which log peeks with the judge's score.
-- **Keys:** Space held is Peek, the Right arrow the next slide (or on after a verdict), Enter speaks or stops.
+- **Offline** (no microphone, no judge): Tim rates each attempt himself (12 Nov; until then it scored 100 less
+  `PEEK_COST` a second of Peek held, and after 512 familiar readings he had never seen more than 8% hidden). The Up
+  arrow or Harder: hide more next time; the Down arrow or Easier: hide less; the Right arrow or Same: as now. Getting
+  familiar, the rating sets the slide's next share directly: Harder `RATE_STEP` (10%) more, at most `FAMILIAR_HIDE`;
+  Easier 10% less, at least 0; Same unchanged. It is logged with points 100, 100 or 40 (Same and Harder both move on) (`RATED`), `why: "rated"` and
+  `rate`, so progress, weak slides and the strip still work. At the gist and word for word, Harder counts as 100,
+  Easier as 40, and Same as 80 (`RATED_SAME_GIST`), so it moves on; the score moves the hiding as before. Peek is still there and its time still
+  logged and shown, but offline it no longer sets the score.
+- **Keys:** Space held is Peek, the Right arrow the next slide (or on after a verdict), Enter speaks or stops; offline,
+  Up and Down rate the slide.
 - **The strip** underlines the slides being practised and dims the rest.
 - **Give up** (the button, or G; Tim: "for when I just don't know the slide"): the attempt counts as 0, a miss, and
   nothing goes to the judge. Getting familiar, the slide hides less and comes back after the next one, once a

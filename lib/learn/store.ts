@@ -49,7 +49,9 @@ export type Entry = { id: string; at: number; node: string; slide: number; kind:
   // the mode, and whether it was offline (from 11 Nov; earlier entries have neither)
   aim?: string; offline?: boolean;
   // the time on the card up to the end of the attempt (ms), against which peekMs is a share
-  onCard?: number };
+  onCard?: number;
+  // offline, the rating given (Up, Right or Down; from 12 Nov)
+  rate?: "up" | "same" | "down" };
 // The version of the rules: a hash of every value in lib/learn/rules.ts.
 export const RULES = hash(JSON.stringify(rules));
 export type Log = { at: number; list: Entry[] };

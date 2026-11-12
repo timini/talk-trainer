@@ -548,14 +548,47 @@ describe("getting familiar", () => {
     expect(e.lines().map((l) => l.initial)).toEqual([["500"]]);
   });
 
-  test("offline: no microphone and no judge; each reading scored from Peek", async () => {
+  test("getting familiar draws hidden words as first letters; the gist as blanks", () => {
+    const e = make();
+    e.setAim("familiar");
+    e.start();
+    expect(e.lines().every((l) => l.letters)).toBe(true);
+    e.show("home");
+    e.setAim("gist");
+    e.start();
+    expect(e.lines().some((l) => l.letters)).toBe(false);
+  });
+
+  test("offline, rated: harder twice then easier sets the slide's next share 10%, 20%, 10%", async () => {
+    const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
+    e.setAim("familiar");
+    e.setRange([[1, 1]]);
+    const one = e.tree.roots.get(1) as string;
+    e.start();
+    e.advance("up");
+    await flush();
+    expect(state(e, one)).toMatchObject({ next: 0.1 });
+    clock += 1000;
+    e.go();
+    e.advance("up");
+    await flush();
+    expect(state(e, one)).toMatchObject({ next: 0.2 });
+    clock += 1000;
+    e.go();
+    e.advance("down");
+    await flush();
+    expect(state(e, one)).toMatchObject({ next: 0.1 });
+    expect(entries(e).map((x) => [x.points, x.rate])).toEqual([[100, "up"], [100, "up"], [40, "down"]]);
+  });
+
+  test("offline: no microphone and no judge; each reading rated, Peek still logged", async () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     e.setAim("familiar");
     expect(e.offline).toBe(true);
     e.start();
     const one = e.tree.roots.get(1) as string, two = e.tree.roots.get(2) as string;
     expect([e.node?.id, e.phase]).toEqual([one, "ready"]);
-    // peek 3 seconds in two holds: 70
+    // peek 3 seconds in two holds, then Right arrow: the same, 80
     e.peek(true);
     expect(e.lines().every((l) => l.share === 0)).toBe(true);
     clock += 1000;
@@ -565,15 +598,23 @@ describe("getting familiar", () => {
     clock += 2000;
     e.advance();
     await flush();
-    expect(entries(e)[0]).toMatchObject({ node: one, points: 70, why: "offline", peeks: 2, peekMs: 3000 });
+    expect(entries(e)[0]).toMatchObject({ node: one, points: 100, why: "rated", rate: "same", peeks: 2, peekMs: 3000 });
     expect(entries(e)[0].read).toBeUndefined();
-    // no peek: 100, at the bar
+    // harder: 100, at the bar
     expect(e.node?.id).toBe(two);
+    e.advance("up");
+    await flush();
+    expect(entries(e)[1]).toMatchObject({ node: two, points: 100, peeks: 0, rate: "up" });
+    expect(state(e, two)).toMatchObject({ next: 0.1 });
+    expect(state(e, two)?.s).toBe(0.65);
+    // the same and harder move on: nothing else, so it reads on from slide 1; nothing is ever sent to the judge
+    expect(e.node?.id).toBe(one);
+    // easier: slide 1 again after the next slide
+    e.advance("down");
+    await flush();
+    clock += 1000;
     e.advance();
     await flush();
-    expect(entries(e)[1]).toMatchObject({ node: two, points: 100, peeks: 0 });
-    expect(state(e, two)?.s).toBe(0.65);
-    // slide 1 scored 70: read again; nothing is ever sent to the judge
     expect([e.node?.id, e.item?.why]).toEqual([one, "due"]);
     expect(grade()).toEqual([]);
     e.setOffline(false);
@@ -625,7 +666,7 @@ describe("getting familiar", () => {
     expect(entries(e)[1]).toMatchObject({ peekMs: 3000, points: 70 });
   });
 
-  test("the keys' engine side: Right arrow goes on after a verdict; offline at the gist, Next counts from Peek", async () => {
+  test("the keys' engine side: Right arrow goes on after a verdict; offline at the gist, harder counts 100, easier 40, the same 80", async () => {
     const e = make();
     e.setAim("gist");
     e.start();
@@ -644,8 +685,13 @@ describe("getting familiar", () => {
     const before = e.log().length;
     clock += 1000;
     e.advance();
-    expect(e.log().at(-1)).toMatchObject({ why: "offline", points: 100, peeks: 1 });
-    expect(e.log().length).toBe(before + 1);
+    expect([e.log().length, e.log().at(-1)?.points, e.phase]).toEqual([before + 1, 80, "ready"]);
+    clock += 1000;
+    e.advance("up");
+    expect(e.log().at(-1)).toMatchObject({ why: "rated", points: 100 });
+    clock += 1000;
+    e.advance("down");
+    expect(e.log().slice(before).map((x) => x.points)).toEqual([80, 100, 40]);
     e.nextOffline();
     e.show("home");
     e.peek(true);
