@@ -8,10 +8,9 @@ nowhere else.
 
 Tim learns a talk to one of three aims.
 
-- **Get familiar:** every slide read aloud well, the whole talk before any slide again, with at most 50% hidden, each
-  hidden word shown by its first letter.
+- **Get familiar:** every slide read aloud well, the whole talk before any slide again, with up to all of it hidden.
 - **Word for word:** every slide said with all of its words hidden.
-- **Get the gist:** every slide said with the meaning right, at a score of about 80, with at most half of it hidden.
+- **Get the gist:** every slide said with the meaning right, at a score of about 80, with up to all of it hidden.
 
 The judge (`lib/judge.ts`, Gemini) listens to each attempt and lists what went wrong: a point left out, a meaning
 changed, a wrong number or name, the order, a stumble. `lib/score.ts` turns that into a score out of 100. Got it is 85
@@ -135,9 +134,14 @@ trouble first.
   hidden at random (Tim, 12 Nov: clumped gaps are off-putting when starting a slide). On the talk's 211 sentences
   (median 14 words), 1,000 draws each, the share of sentences with 3 or more gaps in a row, uniform pick against even
   spacing: 4% against 0 at 20% hidden, 17% against 0 at 30%, 66% against 0 at 50%; the longest run is now 2.
-- The gist hides at most 50%.
-- Getting familiar shows every hidden word by its first letter (Tim, 12 Nov: a first letter is easier than a blank, so
-  more can be hidden sooner). The gist and word for word keep blanks, so the modes still get harder in order.
+- One ladder in every mode (Tim, 13 Nov: "all modes should be the same, first letters then blank then just the
+  slide"). The share runs from 0 to 1. Up to 0.5, twice the share of the words are hidden, each shown by its first
+  letter. From 0.5 every word that may be hidden is, and twice (share less 0.5) of the words are blank, spread evenly
+  among the hidden ones; the rest keep their first letter. At 1 every word is blank. So at 0.3 a 20-word sentence shows
+  8 words and 12 first letters; at 0.75, 10 first letters and 10 blanks. Words kept (terms in full, the first words of
+  a node) are never hidden, and a phrase missed last time keeps its first letters even where it would be blank. The
+  gist and getting familiar can hide up to all of a slide (`GIST_HIDE` and `FAMILIAR_HIDE` are 1; both were 0.5 until
+  13 Nov, and only getting familiar used first letters, from 12 Nov).
 - Word for word, a whole slide is said with every word hidden: that is the aim, and the slide is at its bar only after
   such an attempt.
 - Terms (names, numbers, acronyms) are in full below 0.5, then their first letter below 0.8, then hidden.
@@ -174,14 +178,14 @@ there was a goal, the last slide to work on (from slide 1); it becomes the range
 | Aim | Clauses, sentences, groups, bridges | Slides, sections, the talk |
 |---|---|---|
 | Word for word | 0.75 | 0.85, and every word hidden |
-| Gist | 0.5 | 0.8, at most half hidden |
-| Get familiar | (not practised) | 0.6, at most 50% hidden, as first letters |
+| Gist | 0.5 | 0.8 |
+| Get familiar | (not practised) | 0.6 |
 
 **Getting familiar goes breadth first** (Tim, 11 November): to read the whole talk well before learning any slide.
 Only whole slides are practised: no clauses, sentences, groups, bridges or run-throughs. The next new slide in the range
 comes first, before due reviews and before a slide is tried again, and a miss moves on to the next slide instead of
 going down. Once every slide in the range has started, it is due reviews, then the slides not yet at 0.6 in talk
-order. At most `FAMILIAR_HIDE` (50%; 30% until 12 Nov, when hidden words became first letters) is hidden. An attempt never lifts a node's score above `FAMILIAR_CAP` (0.65), or
+order. At most `FAMILIAR_HIDE` (all of it since 13 Nov; 50% from 12 Nov, 30% before) is hidden. An attempt never lifts a node's score above `FAMILIAR_CAP` (0.65), or
 above where it was if that is higher, so reading a slide aloud never counts toward the gist's slide bar of 0.8. A
 slide read well twice, the second time with some words hidden, is at its bar. With nothing due or ready, it never
 stops at "Done for now": it reads on, the slide after the last one in talk order, back to the first after the end,
@@ -274,8 +278,8 @@ below the gist's slide bar of 0.8). Since 11 November:
   since. At the gist such a slide starts at its sentences, not whole.
 - **The jump from getting familiar to the gist is capped** (Tim, 11 November: "gist thinks I'm better than I am").
   His first gist attempt after getting familiar hid 50% and scored 0 (slide 13). A whole slide getting familiar has
-  read now hides at the gist at most `JUMP` (20%) more than the most it was recalled well at, then 40%, then the
-  gist's 50%. Only those slides: on every slide the cap cut the budget simulation's expected Saturday score from over
+  read now hides at the gist at most `JUMP` (20%) more than the most it was recalled well at, then 40%, then
+  as its score says (up to all of it since 13 Nov; the gist's cap was 50% until then). Only those slides: on every slide the cap cut the budget simulation's expected Saturday score from over
   0.45 to 0.23. And a slide counts as at the gist's bar only after an attempt with at least `SURE` (45%) hidden; one
   attempt at 20% had taken a slide read in getting familiar to the bar.
 - **Peek counts by the time held, online too** (Tim: "the total time I'm peeking rather than the number of peeks").

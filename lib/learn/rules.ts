@@ -59,7 +59,9 @@ export const KNOWN = 0.9;
 export const HIDE_FROM = 0.2;
 export const HIDE_SPAN = 0.7;
 export const HIDE_STEP = 0.05;
-export const GIST_HIDE = 0.5;
+// GIST_HIDE and FAMILIAR_HIDE 1 (Tim, 13 Nov: every mode goes the same way, first letters, then blanks, then just the
+// slide; at the old 0.5 cap, now every word a first letter, his gist attempts scored 80 or more 39 times in 45).
+export const GIST_HIDE = 1;
 export const TERM_HINT = 0.5;
 export const TERM_HIDE = 0.8;
 export const CUE = 3;
@@ -82,7 +84,7 @@ export const BARS: Record<Aim, { node: number; top: number }> = {
 // FAMILIAR_CAP (or above where it was), so reading a slide aloud does not count toward the gist's bar of 0.8.
 // 0.3 was tuned for blanks; since every hidden word shows its first letter, which is easier, up to 0.5 (Tim, 12 Nov:
 // with first-letter clues).
-export const FAMILIAR_HIDE = 0.5;
+export const FAMILIAR_HIDE = 1;
 // Getting familiar hides in steps, a staircase per slide (Tim, 11 November: "I go from reading to not being able to
 // read at all"). Since 0.2 one good reading put a slide at the 30% cap at once, and 30% straight after one reading
 // was recalled 1 time in 4. The staircase steps on recall, the meaning half of a reading's score (or the Peek score

@@ -302,8 +302,8 @@ export class Engine {
       const mode = this.aim === "familiar" ? "full" : terms(est.get(id) as number);
       // Peek and Show me reveal everything, the terms shown by their first letter too
       const open = this.shown || this.peeking;
-      // getting familiar shows every hidden word by its first letter (Tim, 12 Nov)
-      return { id, letters: this.aim === "familiar", slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: open ? 0 : this.hide.get(id) as number,
+      // every mode shows hidden words as first letters, then blanks (Tim, 13 Nov; redactBits)
+      return { id, slide: leaf.slides[0], sentence: leaf.first, text: leaf.text, share: open ? 0 : this.hide.get(id) as number,
         keep: [...(mode === "full" ? must : []), ...keep], initial: !open && mode === "initial" ? must : [],
         // new words hidden on every showing of the card: its own attempt count moves each time, a leaf's may not
         seed: Number.parseInt(hash(`${id}:${this.state(id)?.n ?? 0}:${this.state(n.id)?.n ?? 0}`), 36) >>> 0 };

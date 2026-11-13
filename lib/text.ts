@@ -28,10 +28,11 @@ export const hide = (text: string, phrases: string[]): string => {
 // word hidden (drawn as the word itself, invisible, over a line, so a gap is as long as the word it hides), or a word
 // cued by its first letter. keep: words always shown (names, numbers, acronyms not yet known, the opening words).
 // initial: words always cued (terms on their way to being hidden). cued: phrases missed last time, whose words, when
-// hidden, are cued instead. share 1 hides every other word. letters: every hidden word is cued (getting familiar, Tim,
-// 12 Nov: a first letter is easier than a blank).
+// hidden, are cued instead. One ladder in every mode (Tim, 13 Nov: first letters, then blanks, then just the slide):
+// up to share 0.5, twice share of the words show their first letter only; from 0.5 every word is a first letter or a
+// blank, twice (share - 0.5) of them blank; share 1 is every word blank.
 export type Bit = { kind: "text" | "word" | "hidden" | "cue"; t: string };
-export const redactBits = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = [], letters = false): Bit[] => {
+export const redactBits = (text: string, share: number, keep: string[], cued: string[], seed: number, initial: string[] = []): Bit[] => {
   const found = [...text.matchAll(WORD)].map((m) => ({ at: m.index as number, w: m[0], b: bare(m[0]) }));
   const bares = (xs: string[]) => new Set(xs.flatMap((k) => [...k.matchAll(WORD)].map((m) => bare(m[0]))));
   const kept = bares(keep), firsts = bares(initial);
@@ -54,13 +55,19 @@ export const redactBits = (text: string, share: number, keep: string[], cued: st
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
   const open = found.map((_, i) => i).filter((i) => !kept.has(found[i].b) && !firsts.has(found[i].b));
-  const k = Math.min(open.length, Math.round(Math.min(1, share) * found.length)), run = (i: number) => Math.floor((i * open.length) / k);
-  const hide = new Set(Array.from({ length: k }, (_, i) => open[run(i) + Math.floor(rand() * (run(i + 1) - run(i)))]));
+  // one of each equal run of xs, at random
+  const even = (xs: number[], k: number) => {
+    const run = (i: number) => Math.floor((i * xs.length) / k);
+    return Array.from({ length: k }, (_, i) => xs[run(i) + Math.floor(rand() * (run(i + 1) - run(i)))]);
+  };
+  const s2 = 2 * Math.min(1, share), count = (x: number) => Math.round(Math.min(1, x) * found.length);
+  const hidden = even(open, Math.min(open.length, count(s2)));
+  const hide = new Set(hidden), blank = new Set(even(hidden, Math.min(hidden.length, count(Math.max(0, s2 - 1)))));
   const out: Bit[] = [];
   let last = 0;
   found.forEach((f, i) => {
     if (f.at > last) out.push({ kind: "text", t: text.slice(last, f.at) });
-    out.push({ kind: firsts.has(f.b) || (hide.has(i) && (letters || cue.has(i))) ? "cue" : hide.has(i) ? "hidden" : "word", t: f.w });
+    out.push({ kind: firsts.has(f.b) || (hide.has(i) && (!blank.has(i) || cue.has(i))) ? "cue" : hide.has(i) ? "hidden" : "word", t: f.w });
     last = f.at + f.w.length;
   });
   if (last < text.length) out.push({ kind: "text", t: text.slice(last) });

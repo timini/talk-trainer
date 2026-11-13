@@ -64,11 +64,11 @@ describe("the score and its fading", () => {
 });
 
 describe("hiding", () => {
-  test("none below 0.2, all from 0.9, in steps of 5%; the gist at most half", () => {
+  test("none below 0.2, all from 0.9, in steps of 5%; the gist and getting familiar up to all of it (Tim, 13 Nov)", () => {
     expect([0, 0.2, 0.3, 0.55, 0.89, 0.9, 1].map((s) => hidden(s, "verbatim"))).toEqual([0, 0, 0.1, 0.5, 0.95, 1, 1]);
-    expect(hidden(0.9, "gist")).toBe(0.5);
+    expect(hidden(0.9, "gist")).toBe(1);
     expect(hidden(0.3, "gist")).toBe(0.1);
-    expect([0.3, 0.9].map((s) => hidden(s, "familiar"))).toEqual([0.1, 0.5]);
+    expect([0.3, 0.9].map((s) => hidden(s, "familiar"))).toEqual([0.1, 1]);
   });
 
   test("each leaf by its own estimate, moved by the pace; a whole slide word for word all hidden", () => {
@@ -169,10 +169,11 @@ describe("an attempt", () => {
 
 describe("getting familiar: the staircase", () => {
   const at = (next: number, peak = 0, streak = 0) => st({ next, peak, streak });
-  test("up 3% after two readings recalled in a row, to at most 50%; down 10% after any other; a Peek holds", () => {
+  test("up 3% after two readings recalled in a row, to at most 100%; down 10% after any other; a Peek holds", () => {
     expect(staircase(null, 0, 100)).toEqual({ next: 0, peak: 0, streak: 1 });
     expect(staircase(at(0, 0, 1), 0, 90)).toEqual({ next: 0.03, peak: 0, streak: 0 });
-    expect(staircase(at(0.5, 0.5, 1), 0.5, 100)).toEqual({ next: 0.5, peak: 0.5, streak: 0 });
+    expect(staircase(at(0.5, 0.5, 1), 0.5, 100)).toEqual({ next: 0.53, peak: 0.5, streak: 0 });
+    expect(staircase(at(0.99, 0.99, 1), 0.99, 100)).toEqual({ next: 1, peak: 0.99, streak: 0 });
     expect(staircase(at(0.3, 0.3, 1), 0.3, 100)).toEqual({ next: 0.33, peak: 0.3, streak: 0 });
     expect(staircase(at(0.06, 0.06, 1), 0.06, 79)).toEqual({ next: 0, peak: 0.06, streak: 0 });
     expect(staircase(at(0.15, 0.15), 0.15, 40)).toEqual({ next: 0.05, peak: 0.15, streak: 0 });
@@ -180,9 +181,10 @@ describe("getting familiar: the staircase", () => {
     expect(staircase(at(0.09, 0.09, 1), 0.09, 95, true)).toEqual({ next: 0.09, peak: 0.09, streak: 0 });
   });
 
-  test("offline, rated (Tim, 12 Nov): harder 10% more, easier 10% less, the same holds; from 0 to 50%", () => {
+  test("offline, rated (Tim, 12 Nov): harder 10% more, easier 10% less, the same holds; from 0 to 100%", () => {
     expect(staircase(at(0.2, 0.1, 1), 0.2, 100, false, "up")).toEqual({ next: 0.3, peak: 0.2, streak: 0 });
-    expect(staircase(at(0.45, 0.4), 0.45, 100, false, "up")).toEqual({ next: 0.5, peak: 0.45, streak: 0 });
+    expect(staircase(at(0.45, 0.4), 0.45, 100, false, "up")).toEqual({ next: 0.55, peak: 0.45, streak: 0 });
+    expect(staircase(at(0.95, 0.9), 0.95, 100, false, "up")).toEqual({ next: 1, peak: 0.95, streak: 0 });
     expect(staircase(at(0.2, 0.3, 1), 0.2, 40, false, "down")).toEqual({ next: 0.1, peak: 0.3, streak: 0 });
     expect(staircase(at(0.05), 0.05, 40, false, "down")).toEqual({ next: 0, peak: 0, streak: 0 });
     expect(staircase(at(0.2, 0.1, 1), 0.2, 80, false, "same")).toEqual({ next: 0.2, peak: 0.2, streak: 0 });
@@ -208,11 +210,11 @@ describe("getting familiar: the staircase", () => {
 describe("from getting familiar to the gist", () => {
   test("a whole slide getting familiar has read hides at most 20% past its peak at the gist; a gist-only slide as before", () => {
     const est = new Map([[a, 0.65], [b, 0.65], [root, 0.65]]);
-    expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.5, 0.5]);
+    expect([...hiding(tree, node(root), est, "gist", null).values()]).toEqual([0.6, 0.6]);
     expect([...hiding(tree, node(root), est, "gist", null, st({ next: 0.06, peak: 0 })).values()]).toEqual([0.2, 0.2]);
     expect([...hiding(tree, node(root), est, "gist", null, st({ next: 0.06, peak: 0.2 })).values()]).toEqual([0.4, 0.4]);
     expect([...hiding(tree, node(root), est, "gist", null, st({ next: 0.06 })).values()]).toEqual([0.2, 0.2]);
     // a sentence is not capped
-    expect([...hiding(tree, node(a), est, "gist", null, st({ next: 0.06, peak: 0 })).values()]).toEqual([0.5]);
+    expect([...hiding(tree, node(a), est, "gist", null, st({ next: 0.06, peak: 0 })).values()]).toEqual([0.6]);
   });
 });

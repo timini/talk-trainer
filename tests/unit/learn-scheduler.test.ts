@@ -200,8 +200,8 @@ describe("the gist starts each slide whole", () => {
     expect(standing(t2, from({}), NOW, "gist").ready(c12)).toBe(false);
     // a part passed over hides by the node over it, up to the node attempted
     const est = new Map([[c1, 0.2], [c2, 0.9], [c12, 0], [c3, 0.2], [s1, 0.7], [s2, 0.3], [root, 0.45]]);
-    expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "gist", null).values()]).toEqual([0.5, 0.5, 0.5]);
-    expect([...hiding(t2, t2.nodes.get(root) as Node, est, "gist", null).values()]).toEqual([0.35, 0.5, 0.35, 0.35]);
+    expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "gist", null).values()]).toEqual([0.7, 1, 0.7]);
+    expect([...hiding(t2, t2.nodes.get(root) as Node, est, "gist", null).values()]).toEqual([0.35, 1, 0.35, 0.35]);
     expect([...hiding(t2, t2.nodes.get(s1) as Node, est, "verbatim", null).values()]).toEqual([0, 1, 0]);
   });
 });

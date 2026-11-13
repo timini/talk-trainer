@@ -4,6 +4,7 @@ import { base64, type Deps, Engine, type Recording } from "@/app/talks/[id]/lear
 import type { State } from "@/lib/learn/model";
 import { nodeKey, RULES } from "@/lib/learn/store";
 import type { Script } from "@/lib/train";
+import { redactBits } from "@/lib/text";
 
 const sentence = (i: number, text: string, must: string[] = []) => ({ i, text, hash: `h${i}${text.length}`, clip: `/clip/${text.length}`, must_say: must });
 const SCRIPT: Script = {
@@ -548,15 +549,21 @@ describe("getting familiar", () => {
     expect(e.lines().map((l) => l.initial)).toEqual([["500"]]);
   });
 
-  test("getting familiar draws hidden words as first letters; the gist as blanks", () => {
-    const e = make();
-    e.setAim("familiar");
-    e.start();
-    expect(e.lines().every((l) => l.letters)).toBe(true);
-    e.show("home");
-    e.setAim("gist");
-    e.start();
-    expect(e.lines().some((l) => l.letters)).toBe(false);
+  test("getting familiar and the gist draw hidden words the same way: first letters before blanks (Tim, 13 Nov)", () => {
+    const draw = (aim: "familiar" | "gist", share: number) => {
+      const e = make();
+      e.setAim(aim);
+      e.start();
+      return e.lines().map((l) => {
+        expect(l).not.toHaveProperty("letters");
+        return redactBits(l.text, share, l.keep, [], l.seed, l.initial).map((b) => b.kind);
+      });
+    };
+    for (const aim of ["familiar", "gist"] as const) {
+      expect(draw(aim, 0.4).flat()).toContain("cue");
+      expect(draw(aim, 0.4).flat()).not.toContain("hidden");
+      expect(draw(aim, 0.8).flat()).toContain("hidden");
+    }
   });
 
   test("offline, rated: harder twice then easier sets the slide's next share 10%, 20%, 10%", async () => {

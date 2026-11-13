@@ -237,7 +237,7 @@ function Card({ e }: { e: Engine }) {
       slideAt = l.slide;
       const num = l.sentence !== last || change;
       last = l.sentence;
-      const bits = redactBits(l.text, l.share, l.keep, [], l.seed, l.initial, l.letters);
+      const bits = redactBits(l.text, l.share, l.keep, [], l.seed, l.initial);
       return (
         <span key={l.id} className="leaf sent">
           {change && <span className="change">{`Next slide: ${l.slide}`}</span>}

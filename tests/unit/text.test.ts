@@ -98,10 +98,12 @@ describe("hide", () => {
 describe("redact", () => {
   const T = "We combined CADD, SpliceAI, REVEL and AlphaMissense to rank 9 in 10 cases first.";
   test("hides that share of the words, terms shown in full or by their first letter, missed phrases cued, varied by seed", () => {
-    const half = redact(T, 0.5, [], [], 1);
+    // 14 words: at 0.75 all are hidden and round(0.5 * 14) = 7 of them blank, the rest first letters
+    const half = redact(T, 0.75, [], [], 1);
     expect(half.split(" ").filter((w) => /^_+[,.]?$/.test(w)).length).toBe(7);
-    expect(redact(T, 0.5, [], [], 1)).toBe(half);
-    expect(redact(T, 0.5, [], [], 2)).not.toBe(half);
+    expect(redact(T, 0.3, [], [], 1).split(" ").filter((w) => /^_+[,.]?$/.test(w)).length).toBe(0);
+    expect(redact(T, 0.75, [], [], 1)).toBe(half);
+    expect(redact(T, 0.75, [], [], 2)).not.toBe(half);
     const terms = ["CADD", "SpliceAI", "REVEL", "AlphaMissense", "9 in 10"];
     const kept = redact(T, 0.95, terms, [], 3);
     for (const term of ["CADD", "SpliceAI", "REVEL", "AlphaMissense"]) expect(kept).toContain(term);
@@ -123,21 +125,31 @@ describe("redactBits", () => {
     expect(redactBits("Go", 0, [], [], 1)).toEqual([{ kind: "word", t: "Go" }]);
   });
 
-  test("letters: every hidden word is cued by its first letter; without, blanks", () => {
-    const kinds = (letters: boolean) => redactBits("We bake bread, slowly.", 1, ["We"], [], 7, [], letters).map((b) => b.kind);
-    expect(kinds(true)).toEqual(["word", "text", "cue", "text", "cue", "text", "cue", "text"]);
-    expect(kinds(false)).toEqual(["word", "text", "hidden", "text", "hidden", "text", "hidden", "text"]);
+  test("one ladder: first letters up to 0.5, then blanks among them, all blank at 1; kept words stay, cued phrases stay letters", () => {
+    const text = Array.from({ length: 20 }, (_, i) => `w${i}`).join(" ");
+    const count = (share: number, kind: string) => redactBits(text, share, [], [], 3).filter((b) => b.kind === kind).length;
+    expect([count(0.3, "cue"), count(0.3, "hidden"), count(0.3, "word")]).toEqual([12, 0, 8]);
+    expect([count(0.5, "cue"), count(0.5, "hidden"), count(0.5, "word")]).toEqual([20, 0, 0]);
+    expect([count(0.75, "cue"), count(0.75, "hidden"), count(0.75, "word")]).toEqual([10, 10, 0]);
+    expect([count(1, "cue"), count(1, "hidden")]).toEqual([0, 20]);
+    const kinds = redactBits("We bake bread, slowly.", 1, ["We"], ["bread"], 7, []).map((b) => b.kind);
+    expect(kinds).toEqual(["word", "text", "hidden", "text", "cue", "text", "hidden", "text"]);
   });
 
-  test("hidden words are spread evenly: the share exactly, never three gaps in a row up to 30%, different per seed", () => {
+  test("hidden words are spread evenly: the share exactly, never three in a row at 15%, blanks spread too, different per seed", () => {
     const text = "Published benchmarks test models on ClinVar in bulk, and clinical filtering leaves only about twenty rare candidates to rank.";
-    const gaps = (seed: number, share: number) => redactBits(text, share, [], [], seed).filter((b) => b.kind !== "text")
-      .map((b) => b.kind === "hidden");
+    const kinds = (seed: number, share: number) => redactBits(text, share, [], [], seed).filter((b) => b.kind !== "text").map((b) => b.kind);
+    const run3 = (g: boolean[]) => g.some((x, i) => x && g[i + 1] && g[i + 2]);
     for (let seed = 1; seed <= 200; seed += 1) {
-      const g = gaps(seed, 0.3);
+      const g = kinds(seed, 0.15).map((k) => k !== "word");
       expect(g.filter(Boolean).length).toBe(Math.round(0.3 * g.length));
-      expect(g.some((x, i) => x && g[i + 1] && g[i + 2])).toBe(false);
+      expect(run3(g)).toBe(false);
+      const b = kinds(seed, 0.65).map((k) => k === "hidden");
+      expect(kinds(seed, 0.65).includes("word")).toBe(false);
+      expect(b.filter(Boolean).length).toBe(Math.round(0.3 * b.length));
+      expect(run3(b)).toBe(false);
     }
-    expect(gaps(1, 0.3)).not.toEqual(gaps(2, 0.3));
+    expect(kinds(1, 0.15)).not.toEqual(kinds(2, 0.15));
+    expect(kinds(1, 0.65)).not.toEqual(kinds(2, 0.65));
   });
 });
