@@ -111,7 +111,9 @@ export const FAMILIAR_DOWN = 0.1;
 export type Rate = "up" | "same" | "down";
 export const RATE_STEP = 0.1;
 export const RATED: Record<Rate, number> = { up: 100, same: 100, down: 40 };
-export const RATED_SAME_GIST = 80;
+// 90, not 80 (Tim, 13 Nov: "cant get past slide 4"): a score moves only part of the way to the points each time, so
+// 80 never reaches the gist's slide bar of 0.8 and the same slide came back again and again (slide 9 four times).
+export const RATED_SAME_GIST = 90;
 // Offline (no microphone, no judge), an attempt scores 100 less PEEK_COST a second of Peek held. A starting value:
 // 1.5 s of peeking is still good, about 4 s a miss. To be refitted from online readings, which log peeks and the
 // judge's score together.

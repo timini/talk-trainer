@@ -807,7 +807,18 @@ describe("getting familiar", () => {
     expect(entries(e)[1]).toMatchObject({ peekMs: 3000, points: 70 });
   });
 
-  test("the keys' engine side: Right arrow goes on after a verdict; offline at the gist, harder counts 100, easier 40, the same 80", async () => {
+  test("offline at the gist, Same moves a slide on: rated Same, a slide reaches the bar and is not shown again and again (13 Nov)", () => {
+    const e = make();
+    e.setAim("gist");
+    e.setOffline(true);
+    e.start();
+    const first = e.node?.id;
+    const seen: (string | undefined)[] = [];
+    for (let k = 0; k < 6; k += 1) { clock += 1000; e.advance(); seen.push(e.node?.id); }
+    expect(seen.filter((id) => id === first).length).toBeLessThan(3);
+  });
+
+  test("the keys' engine side: Right arrow goes on after a verdict; offline at the gist, harder counts 100, easier 40, the same 90", async () => {
     const e = make();
     e.setAim("gist");
     e.start();
@@ -826,13 +837,13 @@ describe("getting familiar", () => {
     const before = e.log().length;
     clock += 1000;
     e.advance();
-    expect([e.log().length, e.log().at(-1)?.points, e.phase]).toEqual([before + 1, 80, "ready"]);
+    expect([e.log().length, e.log().at(-1)?.points, e.phase]).toEqual([before + 1, 90, "ready"]);
     clock += 1000;
     e.advance("up");
     expect(e.log().at(-1)).toMatchObject({ why: "rated", points: 100 });
     clock += 1000;
     e.advance("down");
-    expect(e.log().slice(before).map((x) => x.points)).toEqual([80, 100, 40]);
+    expect(e.log().slice(before).map((x) => x.points)).toEqual([90, 100, 40]);
     e.nextOffline();
     e.show("home");
     e.peek(true);

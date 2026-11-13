@@ -268,7 +268,7 @@ not the delivery. So:
   familiar, the rating sets the slide's next share directly: Harder `RATE_STEP` (10%) more, at most `FAMILIAR_HIDE`;
   Easier 10% less, at least 0; Same unchanged. It is logged with points 100, 100 or 40 (Same and Harder both move on) (`RATED`), `why: "rated"` and
   `rate`, so progress, weak slides and the strip still work. At the gist and word for word, Harder counts as 100,
-  Easier as 40, and Same as 80 (`RATED_SAME_GIST`), so it moves on; the score moves the hiding as before. Peek is still there and its time still
+  Easier as 40, and Same as 90 (`RATED_SAME_GIST`; 80 never reached the 0.8 bar, so a slide rated Same came back again and again, Tim, 13 Nov), so it moves on; the score moves the hiding as before. Peek is still there and its time still
   logged and shown, but offline it no longer sets the score.
 - **Keys:** Space held is Peek, the Right arrow the next slide (or on after a verdict), Enter speaks or stops; offline,
   Up and Down rate the slide. R hears the clips, M your own recording.
