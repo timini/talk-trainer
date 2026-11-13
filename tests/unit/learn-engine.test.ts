@@ -447,6 +447,15 @@ describe("a run-through", () => {
     expect([e.canTurn, e.joinSlide?.n, e.phase]).toEqual([false, join.slides[1], "ready"]);
     e.turn();
     expect(e.at).toBe(1);
+    // online, Enter or the big button turns first, then stops
+    e.go({ node: join, why: "up", est: 0, bar: 0.5 });
+    await e.speak();
+    await flush();
+    e.space();
+    expect([e.at, e.phase]).toEqual([1, "listening"]);
+    e.space();
+    expect(e.phase).not.toBe("listening");
+    await flush();
     e.go({ node: e.tree.nodes.get(e.tree.roots.get(1) as string) as Node, why: "up", est: 0, bar: 0.8 });
     expect([e.isJoin, e.canTurn, e.joinSlide]).toEqual([false, false, null]);
   });

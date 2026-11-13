@@ -22,6 +22,9 @@ async function attempt(page: Page) {
   await page.getByRole("button", { name: "Tap to speak" }).click();
   await expect(page.getByTestId("listening")).toHaveText(/^Listening/);
   await page.waitForTimeout(400);
+  // a join card turns to its second slide first (13 Nov)
+  const turn = page.locator(".actions").getByRole("button", { name: /^Next slide: \d+$/ });
+  if (await turn.isVisible()) await turn.click();
   await big(page, "Tap to stop").click();
 }
 // Say the card on screen with the stand-in judge, then Next.

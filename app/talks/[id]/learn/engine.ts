@@ -352,7 +352,7 @@ export class Engine {
   space() {
     if (this.screen !== "session") { this.start(); return; }
     if (this.flow) { void this.nextCard(); return; }
-    if (this.phase === "listening") { if (this.isRun) void this.nextSlide(); else this.stop(); }
+    if (this.phase === "listening") { if (this.isRun) void this.nextSlide(); else if (this.canTurn) this.turn(); else this.stop(); }
     else if (this.phase === "ready") { if (this.micOn) void this.speak(); else this.reveal(); }
     else if (this.phase === "judged") this.go();
   }

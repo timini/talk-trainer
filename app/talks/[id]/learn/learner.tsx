@@ -304,11 +304,13 @@ function Card({ e }: { e: Engine }) {
               {e.paused ? (
                 <button type="button" className="big primary" onClick={() => void e.resume()}>Resume</button>
               ) : (
-                e.offline && e.runGoesOn ? (
-                  // offline, a run-through slide by slide (Tim, 13 Nov); the rating comes after the last slide
+                e.offline && (e.runGoesOn || e.canTurn) ? (
+                  // offline, a run-through slide by slide, or a join card turning to its second slide (Tim, 13 Nov); the
+                  // rating comes after the last slide
                   <div className="pair">
                     <Peek e={e} />
-                    <button type="button" className="big primary" onClick={() => e.advance()}>Next slide</button>
+                    <button type="button" className="big primary" onClick={() => e.advance()}>
+                      {e.canTurn ? `Next slide: ${node.slides[1]}` : "Next slide"}</button>
                   </div>
                 ) : e.offline ? (
                   // offline, rate yourself (Tim, 12 Nov): how much to hide next time
@@ -341,9 +343,11 @@ function Card({ e }: { e: Engine }) {
               {e.canGoBack && <button type="button" className="small" onClick={() => void e.back()}>Back</button>}
             </div>
             {(phase === "ready" || phase === "listening") && share > 0 && (!e.isRun || share < 1) && <Peek e={e} small />}
-            {e.canTurn && <button type="button" className="small" onClick={() => e.turn()}>{`Next slide: ${node.slides[1]}`}</button>}
             {phase === "ready" && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
-            {phase === "listening" && !e.isRun && <button type="button" className="big primary on" onClick={() => e.space()}>Tap to stop</button>}
+            {phase === "listening" && !e.isRun && (e.canTurn
+              // a join card: the big button turns to the second slide first, then stops (Tim, 13 Nov)
+              ? <button type="button" className="big primary on" onClick={() => e.turn()}>{`Next slide: ${node.slides[1]}`}</button>
+              : <button type="button" className="big primary on" onClick={() => e.space()}>Tap to stop</button>)}
             {phase === "listening" && e.isRun && (
               <button type="button" className="big primary on" onClick={() => e.space()}>
                 {e.at < node.slides.length - 1 ? "Next slide" : "Tap to stop"}</button>)}
