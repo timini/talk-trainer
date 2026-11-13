@@ -204,7 +204,7 @@ function Card({ e }: { e: Engine }) {
   if (!item || !node) return null;
   const phase = e.phase, r = e.result, share = e.share;
   const v = r && phase === "judged" ? verdict(r) : null, j = r?.judge;
-  const clips = e.clips(), slide = e.isRun ? e.runSlide : e.slides.find((s) => s.n === node.slides[0]);
+  const clips = e.clips(), slide = e.isRun ? e.runSlide : e.isJoin ? e.joinSlide : e.slides.find((s) => s.n === node.slides[0]);
   let words: React.ReactNode = null;
   // a run-through at the top of the ladder (every word hidden), or once said: the opener list, each slide's points as
   // they come in; below the top it is drawn like a slide, grouped by slide (Tim, 13 Nov)
@@ -341,6 +341,7 @@ function Card({ e }: { e: Engine }) {
               {e.canGoBack && <button type="button" className="small" onClick={() => void e.back()}>Back</button>}
             </div>
             {(phase === "ready" || phase === "listening") && share > 0 && (!e.isRun || share < 1) && <Peek e={e} small />}
+            {e.canTurn && <button type="button" className="small" onClick={() => e.turn()}>{`Next slide: ${node.slides[1]}`}</button>}
             {phase === "ready" && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
             {phase === "listening" && !e.isRun && <button type="button" className="big primary on" onClick={() => e.space()}>Tap to stop</button>}
             {phase === "listening" && e.isRun && (

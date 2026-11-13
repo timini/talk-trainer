@@ -339,6 +339,12 @@ export class Engine {
   }
   // The slide being said in a run-through.
   get runSlide() { const n = this.node; return n && this.isRun ? this.slides.find((s) => s.n === n.slides[this.at]) ?? null : null; }
+  // A join (bridge) card spans two slides, said in one go: Right or Next slide turns the picture to the second slide
+  // while speaking, as in the talk (Tim, 13 Nov: "no way to change from slide 1 to 2").
+  get isJoin() { return this.node?.kind === "bridge"; }
+  get canTurn() { return this.isJoin && this.at === 0 && (this.phase === "ready" || this.phase === "listening"); }
+  get joinSlide() { const n = this.node; return n && this.isJoin ? this.slides.find((s) => s.n === n.slides[this.at]) ?? null : null; }
+  turn() { if (this.canTurn) { this.at = 1; this.emit(); } }
 
   // The big button, and Space: start, speak, stop or go on to the next slide, or go on after the verdict.
   space() {
@@ -440,6 +446,7 @@ export class Engine {
   advance(rate: Rate = "same") {
     if (this.screen !== "session") return;
     if (this.paused) { void this.resume(); return; }
+    if (this.canTurn && rate === "same") { this.turn(); return; }
     if (this.flow) void this.nextCard(rate);
     else if (this.offline && this.phase === "ready" && this.runGoesOn && rate === "same") { this.at += 1; this.emit(); }
     else if (this.offline && this.phase === "ready") this.nextOffline(rate);

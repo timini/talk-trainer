@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { base64, type Deps, Engine, type Recording } from "@/app/talks/[id]/learn/engine";
 import type { State } from "@/lib/learn/model";
+import type { Node } from "@/lib/learn/tree";
 import { nodeKey, RULES } from "@/lib/learn/store";
 import type { Script } from "@/lib/train";
 import { redactBits } from "@/lib/text";
@@ -433,6 +434,21 @@ describe("a run-through", () => {
     await flush();
     expect(e.at).toBe(1);
     expect(await e.said.get(1)).toMatchObject({ points: 0, why: "no recording" });
+  });
+
+  test("a join card turns its picture to the second slide while speaking (13 Nov)", async () => {
+    const e = make();
+    e.setAim("gist");
+    e.start();
+    const join = [...e.tree.nodes.values()].find((n) => n.kind === "bridge") as Node;
+    e.go({ node: join, why: "up", est: 0, bar: 0.5 });
+    expect([e.isJoin, e.canTurn, e.joinSlide?.n, e.runSlide]).toEqual([true, true, join.slides[0], null]);
+    e.advance();
+    expect([e.canTurn, e.joinSlide?.n, e.phase]).toEqual([false, join.slides[1], "ready"]);
+    e.turn();
+    expect(e.at).toBe(1);
+    e.go({ node: e.tree.nodes.get(e.tree.roots.get(1) as string) as Node, why: "up", est: 0, bar: 0.8 });
+    expect([e.isJoin, e.canTurn, e.joinSlide]).toEqual([false, false, null]);
   });
 
   test("marked by hand without the microphone", () => {
