@@ -441,9 +441,13 @@ export class Engine {
     if (this.screen !== "session") return;
     if (this.paused) { void this.resume(); return; }
     if (this.flow) void this.nextCard(rate);
+    else if (this.offline && this.phase === "ready" && this.runGoesOn && rate === "same") { this.at += 1; this.emit(); }
     else if (this.offline && this.phase === "ready") this.nextOffline(rate);
     else if (this.phase === "judged") this.go();
   }
+  // Offline, a run-through is said slide by slide: Right or Next slide moves the mark on to the next slide, and the
+  // rating comes after the last one (Tim, 13 Nov: "couldnt change to the next slide"). Easier or Harder end it early.
+  get runGoesOn() { const n = this.node; return !!n && this.isRun && this.at < n.slides.length - 1; }
   // Offline, at the gist or word for word: the attempt rated (Tim, 12 Nov): harder counts 100, easier 40, the same
   // RATED_SAME_GIST; then on.
   nextOffline(rate: Rate = "same") {
@@ -578,9 +582,11 @@ export class Engine {
   // A run-through: this slide's recording goes to the judge, and the next slide's starts; after the last, the
   // verdict once every slide is judged.
   async nextSlide() {
-    if (this.phase !== "listening" || !this.isRun || !this.rec) return;
-    const item = this.item as Pick, n = item.node.slides[this.at], blob = await this.take() as Blob;
-    this.said.set(n, this.judgeSlide(n, blob));
+    if (this.phase !== "listening" || !this.isRun) return;
+    const item = this.item as Pick, n = item.node.slides[this.at];
+    // no recording (the microphone never started): the slide counts as not recorded, and the run moves on
+    const blob = this.rec ? await this.take() as Blob : null;
+    this.said.set(n, blob ? this.judgeSlide(n, blob) : Promise.resolve(this.unrecorded(n)));
     if (this.at < item.node.slides.length - 1) {
       this.at += 1;
       this.emit();
@@ -590,6 +596,10 @@ export class Engine {
     this.phase = "checking";
     this.emit();
     await this.finishRun(item);
+  }
+  private unrecorded(n: number): Said {
+    const root = this.tree.nodes.get(this.tree.roots.get(n) as string) as Node;
+    return { points: 0, leaves: new Map(root.leaves.map((l) => [l, 0])), result: null, why: "no recording" };
   }
   private async judgeSlide(n: number, blob: Blob): Promise<Said> {
     this.last = blob;

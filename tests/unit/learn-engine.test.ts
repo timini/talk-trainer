@@ -407,13 +407,32 @@ describe("a run-through", () => {
     e.setAim("verbatim");
     e.start();
     expect([e.node?.id, e.share]).toEqual(["t", 0.5]);
+    // slide by slide (Tim, 13 Nov): Right moves the mark to the next slide; the rating comes after the last
+    expect([e.runGoesOn, e.at]).toEqual([true, 0]);
     e.advance();
-    expect([state(e, "t")?.hid, state(e, "t")?.peak, e.node?.id, e.share]).toEqual([0.5, 0.5, "t", 0.7]);
+    expect([e.runGoesOn, e.at, state(e, "t")]).toEqual([false, 1, null]);
+    e.advance();
+    expect([state(e, "t")?.hid, state(e, "t")?.peak, e.node?.id, e.share, e.at]).toEqual([0.5, 0.5, "t", 0.7, 0]);
     e.advance("up");
     expect([state(e, "t")?.peak, e.node?.id, e.share]).toEqual([0.7, "t", 0.9]);
     // Easier is a miss: the peak is kept, and the next card goes down to a slide
     e.advance("down");
     expect([state(e, "t")?.hid, state(e, "t")?.peak, e.node?.kind]).toEqual([0.9, 0.7, "slide"]);
+  });
+
+  test("a run-through tapped on before the microphone has started moves on, the slide not recorded (13 Nov)", async () => {
+    const e = new Engine(SCRIPT, { ...deps(), record: () => new Promise(() => {}) });
+    const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+    e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+    e.setAim("verbatim");
+    e.start();
+    expect(e.node?.id).toBe("t");
+    e.space();
+    expect(e.phase).toBe("listening");
+    e.space();
+    await flush();
+    expect(e.at).toBe(1);
+    expect(await e.said.get(1)).toMatchObject({ points: 0, why: "no recording" });
   });
 
   test("marked by hand without the microphone", () => {

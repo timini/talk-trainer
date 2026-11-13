@@ -243,7 +243,7 @@ function Card({ e }: { e: Engine }) {
       const num = l.sentence !== last || change;
       last = l.sentence;
       const bits = redactBits(l.text, l.share, l.keep, [], l.seed, l.initial);
-      const on = e.isRun && phase === "listening" && l.slide === node.slides[e.at];
+      const on = e.isRun && (phase === "listening" || (e.offline && phase === "ready")) && l.slide === node.slides[e.at];
       return (
         <span key={l.id} className="leaf sent">
           {change && <span className={`change${on ? " on" : ""}`}>{e.isRun ? `Slide ${l.slide}` : `Next slide: ${l.slide}`}</span>}
@@ -304,7 +304,13 @@ function Card({ e }: { e: Engine }) {
               {e.paused ? (
                 <button type="button" className="big primary" onClick={() => void e.resume()}>Resume</button>
               ) : (
-                e.offline ? (
+                e.offline && e.runGoesOn ? (
+                  // offline, a run-through slide by slide (Tim, 13 Nov); the rating comes after the last slide
+                  <div className="pair">
+                    <Peek e={e} />
+                    <button type="button" className="big primary" onClick={() => e.advance()}>Next slide</button>
+                  </div>
+                ) : e.offline ? (
                   // offline, rate yourself (Tim, 12 Nov): how much to hide next time
                   <div className="rate">
                     <Peek e={e} />
