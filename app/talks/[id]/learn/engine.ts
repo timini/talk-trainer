@@ -86,6 +86,8 @@ export class Engine {
   private last: Blob | null = null;
   // a run-through: the slide being said (from 0) and each slide's outcome
   at = 0;
+  // a run-through: the Peek time on each slide said so far
+  slidePeek = new Map<number, number>();
   said = new Map<number, Promise<Said>>();
   saidDone = new Map<number, Said>();
   note = "";
@@ -271,7 +273,7 @@ export class Engine {
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session), this.state(this.item.node.id)) : new Map();
     Object.assign(this, { peeking: false, peeks: 0, peekMs: 0, paused: false });
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
-      at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
+      at: 0, slidePeek: new Map(), known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();
     this.trouble = null;
     this.last = null;
@@ -591,6 +593,9 @@ export class Engine {
   async nextSlide() {
     if (this.phase !== "listening" || !this.isRun) return;
     const item = this.item as Pick, n = item.node.slides[this.at];
+    // the Peek time on this slide alone, so one slide's peeking does not cap the others (Tim, 13 Nov: 12 slides judged
+    // 80 to 100 scored 0, from 10 s of Peek over the whole run)
+    this.slidePeek.set(n, this.peeked - [...this.slidePeek.values()].reduce((x, y) => x + y, 0));
     // no recording (the microphone never started): the slide counts as not recorded, and the run moves on
     const blob = this.rec ? await this.take() as Blob : null;
     this.said.set(n, blob ? this.judgeSlide(n, blob) : Promise.resolve(this.unrecorded(n)));
@@ -626,9 +631,11 @@ export class Engine {
       if (this.item !== item) return;
       if (!all.size) throw new Error("Nothing was recorded.");
       // as on a slide: said after Show me it counts as missed, and Peek caps it by the time held
-      const cap = this.shown ? RECOUNT.missed : peekPoints(this.peeked);
-      this.countRun(item, new Map([...all].map(([n, x]) => [n, { ...x, points: Math.min(x.points, cap),
-        leaves: new Map([...x.leaves].map(([l, p]) => [l, Math.min(p, cap)])) }])));
+      const cap = (n: number) => (this.shown ? RECOUNT.missed : peekPoints(this.slidePeek.get(n) ?? 0));
+      // the list shows each slide's score as counted, so it adds up to the run's
+      for (const [n, x] of this.saidDone) if (x.points > cap(n)) this.saidDone.set(n, { ...x, points: cap(n), why: x.why || "peeked" });
+      this.countRun(item, new Map([...all].map(([n, x]) => [n, { ...x, points: Math.min(x.points, cap(n)),
+        leaves: new Map([...x.leaves].map(([l, p]) => [l, Math.min(p, cap(n))])) }])));
     } catch (err) {
       if (this.item !== item) return;
       Object.assign(this, { phase: "failed", note: `${(err as Error).message} Try again, or mark yourself.` });
@@ -643,6 +650,7 @@ export class Engine {
     const est = estimates(this.tree, this.state, now);
     const states = runRecord(this.tree, this.state, item.node, all, now, est, this.hidOn());
     // the judge's scores, kept through a recount
+    // the scores each slide counted at, after its Peek cap, so the list adds up to the run's score
     this.runSlides ??= [...all].map(([n, x]) => [n, Math.round(x.points)]);
     const points = Math.round([...all.values()].reduce((a, x) => a + x.points, 0) / all.size);
     this.peakRun(item.node, states, points >= GOOD);

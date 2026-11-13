@@ -451,6 +451,29 @@ describe("a run-through", () => {
     expect([e.isJoin, e.canTurn, e.joinSlide]).toEqual([false, false, null]);
   });
 
+  test("a run-through caps each slide by its own Peek time, not the whole run's (13 Nov)", async () => {
+    const e = make();
+    const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+    e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+    e.setAim("gist");
+    e.start();
+    expect(e.node?.id).toBe("t");
+    await e.speak();
+    await flush();
+    // 12 s of Peek on slide 1, none on slide 2
+    e.peek(true);
+    clock += 12000;
+    e.peek(false);
+    await e.nextSlide();
+    await flush();
+    clock += 5000;
+    await e.nextSlide();
+    await flush();
+    expect(e.phase).toBe("judged");
+    expect([e.saidDone.get(1)?.points, e.saidDone.get(1)?.why, e.saidDone.get(2)?.points]).toEqual([0, "peeked", 100]);
+    expect(e.points).toBe(50);
+  });
+
   test("marked by hand without the microphone", () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
