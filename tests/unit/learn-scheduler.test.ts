@@ -122,6 +122,14 @@ describe("pick", () => {
     expect(go({ [a]: st(0.5), [b]: st(0.8) }, s, "verbatim", 1)).toEqual([a, "up"]);
   });
 
+  test("a run-through is at its bar only after an attempt at the top of the ladder: all hidden word for word, SURE at the gist (13 Nov)", () => {
+    const low = standing(tree, from({ ...known, t: st(0.9, { hid: 0.5 }) }), NOW, "verbatim");
+    expect([low.at("t"), low.ready("t")]).toEqual([false, true]);
+    expect(standing(tree, from({ ...known, t: st(0.9, { hid: 1 }) }), NOW, "verbatim").at("t")).toBe(true);
+    expect(standing(tree, from({ ...known, t: st(0.9, { hid: 0.2 }) }), NOW, "gist").at("t")).toBe(false);
+    expect(standing(tree, from({ ...known, t: st(0.9, { hid: 0.5 }) }), NOW, "gist").at("t")).toBe(true);
+  });
+
   test("the run-throughs come after the parts they are made of", () => {
     const t10 = build(Array.from({ length: 8 }, (_, k) => said(k + 1, [`Slide ${k + 1} says this.`])));
     const all = Object.fromEntries(t10.order.filter((id) => id.startsWith("s:") || id.startsWith("b:")).map((id) => [id, st(0.9)]));

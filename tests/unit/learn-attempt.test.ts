@@ -95,6 +95,13 @@ describe("a run-through", () => {
     expect(withTrouble.get(two)?.trouble).toEqual([0, 1, 1, 1, 0]);
   });
 
+  test("on the ladder (13 Nov): the run and a slide never said at 1 record the card's share; a slide said at 1 keeps it", () => {
+    const hide = new Map([...node("t").slides.flatMap((n) => node(tree.roots.get(n) as string).leaves), "t"].map((l) => [l, 0.6]));
+    const was = (id: string) => (id === one ? { s: 0.9, at: 0, interval: 1, n: 1, passes: 1, lastPass: 0, run: 0, hid: 1 } : null);
+    const out = run(tree, was, node("t"), new Map([slide(1, 100), slide(2, 100), slide(3, 100)]), 5, estimates(tree, was, 0), hide);
+    expect([out.get("t")?.hid, out.get(one)?.hid, out.get(two)?.hid]).toEqual([0.6, 1, 0.6]);
+  });
+
   test("stopped part way: only the slides said, and the bridges and runs whose slides were all said", () => {
     const out = run(tree, get, node("t"), new Map([slide(1, 100), slide(2, 100)]), 5, est);
     expect(out.has(tree.order.find((id) => id.startsWith("b:1:")) as string)).toBe(true);

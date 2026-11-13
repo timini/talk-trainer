@@ -197,3 +197,8 @@ export const build = (slides: Input[]): Tree => {
   }
   return { nodes, order, roots, talk };
 };
+
+// The leaves a node's card draws: its own, or for a run-through (none of its own) those of its slides, in order
+// (Tim, 13 Nov: a run-through on the same hiding ladder as a slide).
+export const leavesOf = (tree: Tree, node: Node) =>
+  node.leaves.length ? node.leaves : node.slides.flatMap((n) => (tree.nodes.get(tree.roots.get(n) as string) as Node).leaves);

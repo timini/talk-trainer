@@ -38,7 +38,8 @@ function Learn({ engine: e }: { engine: Engine }) {
 
   // Keys (Tim, 11 Nov): Space held is Peek; the Right arrow is the next slide, or on after a verdict; Enter is the
   // big button (speak or stop at the gist and word for word); 1 got it and 3 missed when marking yourself; R hears
-  // it; Escape closes the menu. Offline in a session (Tim, 12 Nov) Up is harder next time, Down easier, Right the same.
+  // it; M hears your own recording (13 Nov); Escape closes the menu. Offline in a session (Tim, 12 Nov) Up is harder
+  // next time, Down easier, Right the same.
   useEffect(() => {
     const keys: Record<string, () => void> = {
       " ": () => { if (e.screen === "session") e.peek(true); else e.start(); }, ArrowRight: () => e.advance(),
@@ -46,7 +47,8 @@ function Learn({ engine: e }: { engine: Engine }) {
       ArrowDown: () => { if (e.offline && e.screen === "session") e.advance("down"); }, ArrowLeft: () => void e.back(), Enter: () => e.space(),
       g: () => void e.giveUp(), G: () => void e.giveUp(),
       p: () => (e.paused ? void e.resume() : e.pause()), P: () => (e.paused ? void e.resume() : e.pause()),
-      1: () => e.mark(true), 3: () => e.mark(false), r: () => e.hear(), R: () => e.hear(), Escape: () => setMenu(false),
+      1: () => e.mark(true), 3: () => e.mark(false), r: () => e.hear(), R: () => e.hear(), m: () => e.hearMe(), M: () => e.hearMe(),
+      Escape: () => setMenu(false),
     };
     const down = (ev: KeyboardEvent) => {
       const t = ev.target as HTMLElement;
@@ -204,7 +206,9 @@ function Card({ e }: { e: Engine }) {
   const v = r && phase === "judged" ? verdict(r) : null, j = r?.judge;
   const clips = e.clips(), slide = e.isRun ? e.runSlide : e.slides.find((s) => s.n === node.slides[0]);
   let words: React.ReactNode = null;
-  if (e.isRun) {
+  // a run-through at the top of the ladder (every word hidden), or once said: the opener list, each slide's points as
+  // they come in; below the top it is drawn like a slide, grouped by slide (Tim, 13 Nov)
+  if (e.isRun && (share >= 1 || phase === "checking" || phase === "judged")) {
     words = (
       <ol className="runs">
         {node.slides.map((n, k) => {
@@ -230,17 +234,19 @@ function Card({ e }: { e: Engine }) {
     </>;
   } else {
     // each leaf hidden by its own score; its terms in full, by their first letter, or hidden; the opening words of
-    // the node and its parts shown until it is passed. A hidden word is drawn as itself, invisible, over a line.
-    let last = -1, slideAt = node.slides[0];
+    // the node and its parts shown until it is passed. A hidden word is drawn as itself, invisible, over a line. A
+    // run-through heads every slide, the one being said marked.
+    let last = -1, slideAt = e.isRun ? -1 : node.slides[0];
     words = e.lines().map((l) => {
       const change = l.slide !== slideAt;
       slideAt = l.slide;
       const num = l.sentence !== last || change;
       last = l.sentence;
       const bits = redactBits(l.text, l.share, l.keep, [], l.seed, l.initial);
+      const on = e.isRun && phase === "listening" && l.slide === node.slides[e.at];
       return (
         <span key={l.id} className="leaf sent">
-          {change && <span className="change">{`Next slide: ${l.slide}`}</span>}
+          {change && <span className={`change${on ? " on" : ""}`}>{e.isRun ? `Slide ${l.slide}` : `Next slide: ${l.slide}`}</span>}
           {num && <sup>{l.sentence + 1}</sup>}
           {bits.map((b, bi) => (b.kind === "text" ? b.t : b.kind === "word" ? <span key={bi}>{b.t}</span>
             : b.kind === "hidden" ? <span key={bi} className="gap">{b.t}</span>
@@ -317,17 +323,18 @@ function Card({ e }: { e: Engine }) {
             {e.note && <p className="note" role="status">{e.note}</p>}
             <div className="minor">
               {clips && phase !== "listening" && <button type="button" className="small" onClick={() => e.hear()}>Hear it</button>}
+              {e.canHearMe && <button type="button" className="small" onClick={() => e.hearMe()}>Hear me</button>}
               {phase === "judged" && e.counted === false && (
                 <button type="button" className="small" onClick={() => e.recount(true)}>Count it as got</button>)}
               {phase === "judged" && e.counted === true && (
                 <button type="button" className="small" onClick={() => e.recount(false)}>Count it as missed</button>)}
-              {phase === "ready" && !e.isRun && share > 0 && <button type="button" className="small" onClick={() => e.showMe()}>Show me</button>}
+              {phase === "ready" && share > 0 && (!e.isRun || share < 1) && <button type="button" className="small" onClick={() => e.showMe()}>Show me</button>}
               {phase === "ready" && !e.isRun && <button type="button" className="small" onClick={() => e.knowIt()}>I know this one</button>}
               {(phase === "ready" || phase === "listening") && !e.isRun && (
                 <button type="button" className="small" onClick={() => void e.giveUp()}>Give up</button>)}
               {e.canGoBack && <button type="button" className="small" onClick={() => void e.back()}>Back</button>}
             </div>
-            {(phase === "ready" || phase === "listening") && !e.isRun && share > 0 && <Peek e={e} small />}
+            {(phase === "ready" || phase === "listening") && share > 0 && (!e.isRun || share < 1) && <Peek e={e} small />}
             {phase === "ready" && <button type="button" className="big primary" onClick={() => e.space()}>Tap to speak</button>}
             {phase === "listening" && !e.isRun && <button type="button" className="big primary on" onClick={() => e.space()}>Tap to stop</button>}
             {phase === "listening" && e.isRun && (
@@ -354,7 +361,7 @@ function Card({ e }: { e: Engine }) {
           </div>}
           <p className="keys">{e.offline ? "Keys: hold Space to peek, Right arrow for the next slide the same, Up arrow harder next time, Down arrow easier, Left arrow for the one before, P to pause, G to give up. R to hear it."
             : e.flow ? "Keys: hold Space to peek, Right arrow for the next slide, Left arrow for the one before, P to pause, G to give up. R to hear it."
-            : "Keys: Enter to speak or stop, Right arrow to go on, Left arrow to go back, hold Space to peek, G to give up. R to hear it."}</p>
+            : "Keys: Enter to speak or stop, Right arrow to go on, Left arrow to go back, hold Space to peek, G to give up. R to hear it, M to hear your recording."}</p>
         </div>
       </div>
     </section>

@@ -144,6 +144,20 @@ trouble first.
   13 Nov, and only getting familiar used first letters, from 12 Nov).
 - Word for word, a whole slide is said with every word hidden: that is the aim, and the slide is at its bar only after
   such an attempt.
+- A run-through (a section, or the talk) climbs the same ladder (Tim, 13 Nov: it went straight to the opener list,
+  "Slide 13: Let's start with..."; "i need the first letters at least"). Its share is from its own estimate, never
+  below `RUN_FROM` (0.5: every word a first letter with its length shown), and the words of every slide in the run are
+  drawn as on a slide, under a "Slide N" heading each, the opening words of each slide kept until the run is passed.
+  It climbs `JUMP` (20%) at a time: its share is at most its peak plus `JUMP`, the peak being the most hidden it was
+  recalled well at (85 or more, or rated Same or Harder offline, with nothing shown), as a slide from getting
+  familiar to the gist. A state from before this rule has no peak, so every run starts at 50% whatever its parts (his
+  six section 1 attempts were at 100%). At 1 the card is the opener list as before. The run records the share as `hid`, and like a slide it is at its bar
+  only after an attempt at the top of the ladder word for word (`hid` 1), or with at least `SURE` hidden at the gist;
+  word for word, once its score is at the bar and its peak allows 1, it goes straight to the opener list (at 85 to 89
+  points a pass it would otherwise sit at 90% for good). A slide said in a run keeps its own `hid` if that was higher, so a run at 85% does
+  not undo a slide already said with every word hidden. Getting familiar still skips run-throughs. Data at the time
+  (13 Nov, from the log): 6 run-through attempts, all section 1 on 10 Nov, every word hidden, points 0, 87, 90, 90, 65
+  and 25, so 4 of 6 passed (mean 60); his 458 slide attempts at the gist and word for word passed 403 (88%, mean 82).
 - Terms (names, numbers, acronyms) are in full below 0.5, then their first letter below 0.8, then hidden.
 - The first 3 words of a node, and of each of its parts, stay shown until the node has been passed once. These cue the
   joins (finding 1).
@@ -257,7 +271,10 @@ not the delivery. So:
   Easier as 40, and Same as 80 (`RATED_SAME_GIST`), so it moves on; the score moves the hiding as before. Peek is still there and its time still
   logged and shown, but offline it no longer sets the score.
 - **Keys:** Space held is Peek, the Right arrow the next slide (or on after a verdict), Enter speaks or stops; offline,
-  Up and Down rate the slide.
+  Up and Down rate the slide. R hears the clips, M your own recording.
+- **Hear me** (13 Nov; Tim: to catch his own mispronunciations): on a gist or word for word verdict, the recording the
+  judge heard (in a run-through, the last slide's) is played back from memory as an object URL. Nothing is uploaded or
+  stored beyond the current card; the next card lets it go.
 - **The strip** underlines the slides being practised and dims the rest.
 - **Give up** (the button, or G; Tim: "for when I just don't know the slide"): the attempt counts as 0, a miss, and
   nothing goes to the judge. Getting familiar, the slide hides less and comes back after the next one, once a
@@ -318,8 +335,10 @@ the pass rate of the last 10 counted attempts of the session between 70% and 85%
 - **I know this one** sets the node and every part under it to 0.9, passed now. **Show me** shows every word for this
   attempt and changes nothing.
 - **Run-throughs** (a section, or the talk) are said slide by slide, one recording each, with the slide pictures and
-  each slide's opening words. Each slide is scored as an attempt at that slide with every word hidden; a slide that was
-  empty or started in the wrong place scores 0, as in a run-through it was not said. Each bridge between two slides
+  each slide's words hidden by the run's share (its opening words only at the top of the ladder; see Hiding). Each
+  slide is scored as an attempt at that slide with that share hidden (or its own last share, if higher); a slide that
+  was empty or started in the wrong place scores 0, as in a run-through it was not said. Show me and Peek work as on a
+  slide below the top of the ladder. Each bridge between two slides
   said scores the mean of its leaves, each section whose slides were all said the mean of its parts, and the
   run-through the mean of its parts. A miss zooms down to the weakest slide or bridge.
 

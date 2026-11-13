@@ -47,6 +47,7 @@ test("the sections to choose from: the deck's own, else the run-through groups, 
 });
 
 test("what the card asks for", () => {
-  expect([instruction(0), instruction(0.45), instruction(1), instruction(1, true)]).toEqual(["Read it aloud.",
-    "Say it, filling in the blanks (45% hidden).", "From memory: say it from the slide.", "From memory: say each slide, then tap Next slide."]);
+  expect([instruction(0), instruction(0.45), instruction(1), instruction(1, true), instruction(0.5, true), instruction(0, true)]).toEqual(["Read it aloud.",
+    "Say it, filling in the blanks (45% hidden).", "From memory: say it from the slide.", "From memory: say each slide, then tap Next slide.",
+    "Say each slide, filling in the blanks (50% hidden), then tap Next slide.", "Read each slide aloud, then tap Next slide."]);
 });

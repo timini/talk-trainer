@@ -259,6 +259,60 @@ test("the slides to practise: a range, a section by its name, or the opening and
   await expect(page.getByTestId("range")).toHaveText("Practising slide 3");
 });
 
+// Hear me (13 Nov): the recording the verdict judged, played back as an object URL. The page's play() is wrapped to
+// record what it was asked to play, since nothing can be heard here.
+test("Hear me on a verdict plays the recording that was judged", async ({ page }) => {
+  await open(page, "Learn hear me", deck([{ title: "One", notes: ["Good morning, and thank you."] }, { title: "Two", notes: ["Mix the flour."] }]));
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.evaluate(() => {
+    const played: string[] = [];
+    Object.assign(window, { played });
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () { played.push(this.src); return play.call(this); };
+  });
+  await expect(page.locator(".actions").getByRole("button", { name: "Hear me" })).toHaveCount(0);
+  await attempt(page);
+  await expect(page.getByTestId("verdict")).toContainText("Got it");
+  await expect(page.locator(".keys")).toContainText("M to hear your recording");
+  await page.locator(".actions").getByRole("button", { name: "Hear me" }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { played: string[] }).played)).toEqual([expect.stringMatching(/^blob:/)]);
+  await page.keyboard.press("m");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { played: string[] }).played.length)).toBe(2);
+  // the next card: nothing to hear yet
+  await big(page, "Next").click();
+  await expect(page.locator(".actions").getByRole("button", { name: "Hear me" })).toHaveCount(0);
+});
+
+// A run-through on the same hiding ladder as a slide (13 Nov): below the top it is drawn like a slide, grouped by slide,
+// every word at least a first letter; at the top, the opener list.
+test("a run-through below the top of the ladder shows every slide's words as first letters and blanks, grouped by slide", async ({ page }) => {
+  await open(page, "Learn run ladder", deck([{ title: "One", notes: ["Good morning, and thank you."] }, { title: "Two", notes: ["Mix the flour."] }]));
+  await page.getByLabel(/Get the gist/).check();
+  await page.getByRole("button", { name: "Start" }).click();
+  // each slide whole, then the bridge, then the talk (the gist hides a run-through by its score, here 95%)
+  for (let k = 0; k < 12 && !/each slide/.test(await page.getByTestId("instruction").innerText()); k += 1) await pass(page);
+  await expect(page.getByTestId("instruction")).toHaveText(/^Say each slide, filling in the blanks \(\d+% hidden\), then tap Next slide\.$/);
+  await expect(page.getByTestId("status")).toHaveText("Slide 1 of 2 (gist)");
+  await expect(page.locator(".cue .change")).toHaveText(["Slide 1", "Slide 2"]);
+  await expect(page.locator(".runs")).toHaveCount(0);
+  // the hidden words as gaps (at 95% nearly all blank; the opening words of each slide kept until it is passed)
+  await expect(page.locator(".cue .gap").first()).toBeVisible();
+  await expect(page.locator(".actions").getByRole("button", { name: "Peek" })).toBeVisible();
+  // said slide by slide, as before
+  await page.getByRole("button", { name: "Tap to speak" }).click();
+  await expect(page.getByTestId("listening")).toHaveText(/^Listening/);
+  await expect(page.locator(".cue .change.on")).toHaveText("Slide 1");
+  await page.waitForTimeout(300);
+  await big(page, "Next slide").click();
+  await expect(page.locator(".cue .change.on")).toHaveText("Slide 2");
+  await page.waitForTimeout(300);
+  await big(page, "Tap to stop").click();
+  await expect(page.getByTestId("verdict")).toContainText("Got it");
+  // once judged: the opener list with each slide's points
+  await expect(page.locator(".runs li")).toHaveText([/^Slide 1: Good morning, and\.\.\. 100$/, /^Slide 2: Mix the flour\.\.\.\. 100$/]);
+  await expect(page.locator(".actions").getByRole("button", { name: "Hear me" })).toBeVisible();
+});
+
 test("the old trainer's address opens the trainer", async ({ page }) => {
   const s = await open(page, "Learn link");
   await page.goto(`/talks/${s.talk.id}/train`);

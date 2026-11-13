@@ -10,8 +10,8 @@
 import { placed } from "./align";
 import type { Problem } from "../judge";
 import { ALPHA, ALPHA_GOOD, type Aim, BARS, CUE, FADE, FAMILIAR_CAP, FAMILIAR_DOWN, FAMILIAR_OK, FAMILIAR_STREAK, JUMP, FAMILIAR_HIDE, FAMILIAR_RELEARN, FAMILIAR_UP, FIRST, GIST_HIDE, GROW, HIDE_FROM, HIDE_SPAN, HIDE_STEP, JOIN, KEEP, KNOWN, NEARLY, type Rate, RATE_STEP,
-  GIST_CLAUSES, GIST_GROUP, GIST_TOP, GOOD, PACE_HIGH, PACE_LOW, SHIFT, SURE, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
-import type { Node, Tree } from "./tree";
+  GIST_CLAUSES, GIST_GROUP, GIST_TOP, GOOD, PACE_HIGH, PACE_LOW, RUN_FROM, SHIFT, SURE, TERM_HIDE, TERM_HINT, UNDER } from "./rules";
+import { leavesOf, type Node, type Tree } from "./tree";
 
 // s: the score; at: the last attempt; interval (ms); n: attempts; passes: attempts of NEARLY or more; lastPass: when
 // the last of them was (0: never); run: misses running; hid: the share of words hidden on the last attempt.
@@ -75,6 +75,17 @@ export const hidden = (s: number, aim: Aim) => {
 // Getting familiar hides the same share of every leaf: the slide's own next share (staircase), with no pace shift.
 export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Aim, rate: number | null, st: State | null = null) => {
   if (aim === "familiar") return spread(tree, node, st?.next ?? 0);
+  // a run-through climbs the ladder by its own estimate, from RUN_FROM (every word a first letter; Tim, 13 Nov: "i need
+  // the first letters at least") to 1 (the opener list), at most JUMP past the most it was recalled well at (its peak,
+  // as a slide from getting familiar to the gist; a state from before this rule has no peak, so it starts at RUN_FROM
+  // whatever its parts). Every leaf of its slides at that share, and the run itself, so record() keeps hid as that share.
+  // Word for word it is at its bar only after the opener list, so once its estimate is at the bar (and its peak lets
+  // it) it goes straight there: a run passed at 85 to 89 points would otherwise sit at 90% hidden for good.
+  if (node.kind === "section" || node.kind === "talk") {
+    const e = est.get(node.id) as number, cap = Math.max(RUN_FROM, Math.round(((st?.peak ?? 0) + JUMP) * 100) / 100);
+    const share = Math.min(cap, aim === "verbatim" && e >= barOf(node, aim) ? 1 : Math.max(RUN_FROM, hidden(e, aim)));
+    return new Map([...leavesOf(tree, node), node.id].map((l) => [l, share]));
+  }
   const shift = rate === null ? 0 : rate < PACE_LOW ? -SHIFT : rate > PACE_HIGH ? SHIFT : 0;
   const of = (l: string) => {
     let x = tree.nodes.get(l) as Node;
@@ -132,10 +143,11 @@ const spread = (tree: Tree, node: Node, share: number) => {
 export const terms = (s: number): "full" | "initial" | "hide" => (s < TERM_HINT ? "full" : s < TERM_HIDE ? "initial" : "hide");
 
 // The words shown as cues on a node: its first CUE words and those of each of its parts, until it has been passed
-// once.
+// once. A run-through's parts here are its slides (not its bridges or sections): the opening words of each slide.
 export const cues = (tree: Tree, node: Node, st: State | null): string[] => {
   if (st?.passes || node.kids.length < 2) return [opening(node.text)];
-  return [node, ...node.kids.map((k) => tree.nodes.get(k) as Node)].map((x) => opening(x.text));
+  const parts = node.leaves.length ? node.kids : node.slides.map((n) => tree.roots.get(n) as string);
+  return [node, ...parts.map((k) => tree.nodes.get(k) as Node)].map((x) => opening(x.text));
 };
 export const opening = (text: string) => text.split(/\s+/).slice(0, CUE).join(" ");
 
@@ -185,6 +197,7 @@ export const record = (tree: Tree, get: States, node: Node, leafScores: Map<stri
     if (add) next.trouble = troubled(st, now, add);
     else if (st?.trouble) next.trouble = st.trouble;
     if (st?.next !== undefined) Object.assign(next, { next: st.next, peak: st.peak, streak: st.streak });
+    else if (st?.peak !== undefined) next.peak = st.peak;
     out.set(id, next);
   }
   return out;

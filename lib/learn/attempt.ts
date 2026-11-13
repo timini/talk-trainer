@@ -71,16 +71,19 @@ export const byHand = (node: Node, got: boolean) => {
   return { points, leaves: new Map(node.leaves.map((l) => [l, points])) };
 };
 
-// The states a run-through writes. said: each slide said, with its points and leaf scores.
+// The states a run-through writes. said: each slide said, with its points and leaf scores. hide: the share of each
+// leaf hidden on the card, and of the run itself (from 13 Nov a run-through climbs the ladder; a leaf not in it was all
+// hidden, as every run was before). A slide said in a run with less hidden than its own last attempt keeps that: a
+// run-through at 85% does not undo a slide already said with every word hidden.
 export const run = (tree: Tree, get: States, node: Node,
   said: Map<number, { points: number; leaves: Map<string, number>; trouble?: Map<string, number[]> }>,
-  now: number, est: Map<string, number>): Map<string, State> => {
+  now: number, est: Map<string, number>, hide: Map<string, number> = new Map()): Map<string, State> => {
   const out = new Map<string, State>(), done = new Map<string, number>();
   const all = new Map([...said.values()].flatMap((x) => [...x.leaves]));
-  const full = (n: Node) => new Map(n.leaves.map((l) => [l, 1]));
+  const full = (n: Node, floor = 0) => new Map(n.leaves.map((l) => [l, Math.max(floor, hide.get(l) ?? 1)]));
   for (const [n, x] of said) {
     const root = tree.nodes.get(tree.roots.get(n) as string) as Node;
-    record(tree, get, root, x.leaves, x.points, now, full(root), est, x.trouble).forEach((v, k) => out.set(k, v));
+    record(tree, get, root, x.leaves, x.points, now, full(root, get(root.id)?.hid ?? 0), est, x.trouble).forEach((v, k) => out.set(k, v));
     done.set(root.id, x.points);
   }
   // the bridges, then the sections, then the run-through itself, each from the parts said
@@ -97,7 +100,7 @@ export const run = (tree: Tree, get: States, node: Node,
       : mean(x.kids.map((k) => done.get(k) as number));
     const one = x.kind === "bridge"
       ? record(tree, get, x, new Map(x.leaves.map((l) => [l, all.get(l) as number])), points, now, full(x), est).get(id) as State
-      : record(tree, get, x, new Map(), points, now, new Map(), est).get(id) as State;
+      : record(tree, get, x, new Map(), points, now, hide, est).get(id) as State;
     out.set(id, one);
     done.set(id, points);
   }

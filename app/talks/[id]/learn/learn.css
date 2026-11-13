@@ -3,6 +3,7 @@
 .cue .leaf + .leaf { margin-left: 0.3em; }
 .cue .change { display: block; font-size: 0.9rem; font-weight: bold; color: #005eb8; letter-spacing: normal; word-spacing: normal;
   margin: 0.4rem 0 0.2rem; }
+.cue .change.on { text-decoration: underline; }
 .known { font-size: 0.95rem; margin: 0.4rem 0 0; }
 .known.up { color: #26913c; }
 .known.down { color: #df007d; }

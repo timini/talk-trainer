@@ -27,7 +27,7 @@ class Store {
 
 type Reply = { status?: number; body: unknown };
 let clock: number, storage: Store, server: Record<string, unknown>, grades: Reply[], sent: { url: string; body: unknown }[], played: string[][];
-let micBlocked: boolean;
+let micBlocked: boolean, urls: number;
 // the judge's replies wait for this, so a test can keep an attempt with the judge
 let hold: Promise<void>;
 const deps = (): Deps => ({
@@ -52,6 +52,7 @@ const deps = (): Deps => ({
     return { stop: async () => new Blob(["sound"], { type: "audio/webm;codecs=opus" }), cancel: () => {} };
   },
   play: (clips) => { played.push(clips); return () => {}; },
+  url: () => `blob:${urls += 1}`,
 });
 
 beforeEach(() => {
@@ -63,6 +64,7 @@ beforeEach(() => {
   sent = [];
   played = [];
   micBlocked = false;
+  urls = 0;
   hold = Promise.resolve();
 });
 afterEach(() => { vi.useRealTimers(); });
@@ -309,15 +311,36 @@ describe("recount, Show me and I know this one", () => {
     // the gist starts with the whole slide: both its sentences
     expect(played).toEqual([["/clip/39", "/clip/20"], ["/clip/39", "/clip/20"]]);
   });
+
+  test("Hear me plays the recording the verdict judged, after a verdict only, and lets it go on the next card (13 Nov)", async () => {
+    const e = make();
+    e.start();
+    e.hearMe();
+    expect([e.canHearMe, played]).toEqual([false, []]);
+    await say(e);
+    expect([e.phase, e.canHearMe]).toEqual(["judged", true]);
+    e.hearMe();
+    e.hearMe();
+    expect(played).toEqual([["blob:1"], ["blob:2"]]);
+    e.go();
+    expect(e.canHearMe).toBe(false);
+    e.hearMe();
+    expect(played).toHaveLength(2);
+  });
 });
 
 describe("a run-through", () => {
-  test("said slide by slide, each judged, then the talk's verdict", async () => {
+  test("said slide by slide, each judged, then the talk's verdict; on the ladder by its own estimate (13 Nov)", async () => {
     const e = make();
-    const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+    e.setAim("verbatim");
+    const all: State = { s: 0.9, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
     e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
     e.start();
-    expect([e.node?.id, e.isRun, e.share, e.instruction]).toEqual(["t", true, 1, "From memory: say each slide, then tap Next slide."]);
+    // the talk's estimate is 0.9 x 0.9 from its parts, which would hide 85%, but never tried: the first rung, every word
+    // a first letter; drawn like a slide, both slides' leaves, the opening words of each slide kept
+    expect([e.node?.id, e.isRun, e.share, e.instruction]).toEqual(["t", true, 0.5, "Say each slide, filling in the blanks (50% hidden), then tap Next slide."]);
+    expect(e.lines().map((l) => [l.slide, l.share, l.keep])).toEqual([[1, 0.5, ["Good morning, and", "Good morning, and", "Mix 500 grams"]],
+      [1, 0.5, ["Good morning, and", "Good morning, and", "Mix 500 grams"]], [2, 0.5, ["Good morning, and", "Good morning, and", "Mix 500 grams"]]]);
     expect([e.runSlide?.n, e.clips()]).toEqual([1, null]);
     await e.speak();
     grades.push({ body: { heard: "Good morning, and thank you for coming. Today we bake bread.", meaning_ok: true, problems: [], clarity: 5, fluency: 5 } });
@@ -330,14 +353,67 @@ describe("a run-through", () => {
     expect(e.phase).toBe("judged");
     expect([...e.saidDone.entries()].map(([n, x]) => [n, x.points, x.why])).toEqual([[1, 100, ""], [2, 0, "I didn't catch that."]]);
     expect([e.points, e.counted]).toEqual([50, false]);
-    expect(state(e, "t")).toMatchObject({ n: 1, run: 1 });
+    // the run records what was hidden, 0.5, so it does not count as learned word for word yet (and missed, no peak); a
+    // slide already said with every word hidden keeps that
+    expect(state(e, "t")).toMatchObject({ n: 1, run: 1, hid: 0.5 });
+    expect(state(e, "t")?.peak).toBeUndefined();
+    expect(state(e, e.tree.roots.get(1)!)).toMatchObject({ n: 4, hid: 1 });
     expect(state(e, e.tree.roots.get(2)!)).toMatchObject({ run: 1 });
+    // Hear me: the last slide's recording, once, until the next card
+    expect(e.canHearMe).toBe(true);
+    e.hearMe();
+    expect(played.at(-1)).toEqual(["blob:1"]);
     e.recount(true);
     expect([e.points, e.counted]).toEqual([85, true]);
-    expect(state(e, "t")).toMatchObject({ n: 1, run: 0, passes: 1 });
+    // recalled well at 0.5: its peak
+    expect(state(e, "t")).toMatchObject({ n: 1, run: 0, passes: 1, peak: 0.5 });
     // logged once, with each slide's points as the judge gave them
     expect(e.log()).toHaveLength(1);
-    expect(e.log()[0]).toMatchObject({ node: "t", points: 85, slides: [[1, 100], [2, 0]] });
+    expect(e.log()[0]).toMatchObject({ node: "t", points: 85, slides: [[1, 100], [2, 0]], hidden: 0.5 });
+    // next: the talk again (not at its bar until the opener list), one JUMP up the ladder, though its score would hide
+    // 90%; at the top only once its peak lets it and its score is at the bar
+    e.go();
+    expect([e.node?.id, e.share]).toEqual(["t", 0.7]);
+    e.set(nodeKey("t"), { ...state(e, "t") as State, s: 0.9 });
+    e.go();
+    expect([e.node?.id, e.share]).toEqual(["t", 0.7]);
+    e.set(nodeKey("t"), { ...state(e, "t") as State, peak: 0.8 });
+    e.go();
+    expect([e.node?.id, e.share, e.instruction, e.canHearMe]).toEqual(["t", 1, "From memory: say each slide, then tap Next slide.", false]);
+    e.hearMe();
+    expect(played).toHaveLength(1);
+  });
+
+  test("Show me on a run-through below the top of the ladder: every word, and marked it records nothing hidden", () => {
+    const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
+    const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+    e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+    e.setAim("gist");
+    e.start();
+    expect([e.node?.id, e.share]).toEqual(["t", 0.5]);
+    e.showMe();
+    expect([e.share, e.instruction]).toEqual([0, "Read each slide aloud, then tap Next slide."]);
+    e.space();
+    e.mark(true);
+    expect(state(e, "t")).toMatchObject({ passes: 1, hid: 0 });
+    expect(state(e, "t")?.peak).toBeUndefined();
+  });
+
+  test("offline, rated: Harder and Same set the run's peak, Easier does not (13 Nov)", () => {
+    const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
+    e.setOffline(true);
+    const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+    e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+    e.setAim("verbatim");
+    e.start();
+    expect([e.node?.id, e.share]).toEqual(["t", 0.5]);
+    e.advance();
+    expect([state(e, "t")?.hid, state(e, "t")?.peak, e.node?.id, e.share]).toEqual([0.5, 0.5, "t", 0.7]);
+    e.advance("up");
+    expect([state(e, "t")?.peak, e.node?.id, e.share]).toEqual([0.7, "t", 0.9]);
+    // Easier is a miss: the peak is kept, and the next card goes down to a slide
+    e.advance("down");
+    expect([state(e, "t")?.hid, state(e, "t")?.peak, e.node?.kind]).toEqual([0.9, 0.7, "slide"]);
   });
 
   test("marked by hand without the microphone", () => {

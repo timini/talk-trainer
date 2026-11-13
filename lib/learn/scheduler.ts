@@ -39,13 +39,14 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   const bar = (id: string) => barOf(node(id), aim);
   // at its bar: attempted, its last attempt not a miss, and its own faded score at the bar (not the estimate from its
   // parts: a node just missed is not known, however well its parts are, nor however high its score still is); word for
-  // word, a slide also needs its last attempt with every word hidden
+  // word, a slide also needs its last attempt with every word hidden. A run-through the same (13 Nov: it climbs the
+  // ladder too, so word for word it needs the opener list, hid 1).
   const at = (id: string, margin = 0) => {
-    const st = get(id);
-    return !!st && st.run === 0 && fade(st, now) >= bar(id) + margin && !(aim === "verbatim" && node(id).kind === "slide" && st.hid < 1)
+    const st = get(id), top = TOP.has(node(id).kind);
+    return !!st && st.run === 0 && fade(st, now) >= bar(id) + margin && !(aim === "verbatim" && top && st.hid < 1)
       // at the gist, a slide also needs its last attempt with at least SURE hidden (11 Nov: a slide read in getting
       // familiar reached the gist's bar after one attempt with 20% hidden)
-      && !(aim === "gist" && node(id).kind === "slide" && st.hid < SURE);
+      && !(aim === "gist" && top && st.hid < SURE);
   };
   const due = (id: string) => {
     const st = get(id);
@@ -73,6 +74,8 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   return { est, rate, bar, at, due, stuck, ready, skip, parts, down };
 };
 
+// The nodes whose last attempt must have hidden enough to count: a slide and the run-throughs.
+const TOP = new Set<Node["kind"]>(["slide", "section", "talk"]);
 // In talk order, a slide's own nodes come before the bridge after it, then the section, then the talk.
 const RANK: Partial<Record<Node["kind"], number>> = { bridge: 1, section: 2, talk: 3 };
 

@@ -153,6 +153,29 @@ describe("an attempt", () => {
     expect(troubleOf(states[root], 0)).toBeNull();
   });
 
+  test("a run-through hides every leaf of its slides, and itself, at its own share: from 0.5 to 1 (13 Nov)", () => {
+    const two = build([said(1, ["Hello there."]), said(2, ["Goodbye now."])]), t = two.nodes.get("t") as Node;
+    const [one, second] = [two.roots.get(1) as string, two.roots.get(2) as string];
+    const at = (s: number) => new Map([[one, s], [second, s], [t.id, s], ...two.order.filter((id) => id.startsWith("b:")).map((id) => [id, s] as const)]);
+    expect([...hiding(two, t, at(0.3), "verbatim", null)]).toEqual([[one, 0.5], [second, 0.5], ["t", 0.5]]);
+    // at most JUMP past the most it was recalled well at; with no peak (never recalled well, or a state from before
+    // 13 Nov) the first rung whatever its parts
+    expect([...hiding(two, t, at(0.72), "gist", 0.9).values()]).toEqual([0.5, 0.5, 0.5]);
+    expect([...hiding(two, t, at(0.72), "gist", 0.9, st({ peak: 0.5 })).values()]).toEqual([0.7, 0.7, 0.7]);
+    expect([...hiding(two, t, at(0.95), "verbatim", null, st({ peak: 0.7 })).values()]).toEqual([0.9, 0.9, 0.9]);
+    expect([...hiding(two, t, at(0.95), "verbatim", null, st({ peak: 0.8 })).values()]).toEqual([1, 1, 1]);
+    // word for word, at its bar (0.85): the opener list, once the peak lets it; at the gist still by the score
+    expect([...hiding(two, t, at(0.85), "verbatim", null, st({ peak: 0.8 })).values()]).toEqual([1, 1, 1]);
+    expect([...hiding(two, t, at(0.84), "verbatim", null, st({ peak: 0.8 })).values()]).toEqual([0.9, 0.9, 0.9]);
+    expect([...hiding(two, t, at(0.85), "gist", null, st({ peak: 0.8 })).values()]).toEqual([0.9, 0.9, 0.9]);
+    // the opening words of each slide are its cues
+    expect(cues(two, t, null)).toEqual(["Hello there. Goodbye", "Hello there.", "Goodbye now."]);
+    // record() keeps the run's share as hid
+    expect(record(two, () => null, t, new Map(), 90, 9, hiding(two, t, at(0.3), "verbatim", null), at(0.3)).get("t")).toMatchObject({ hid: 0.5 });
+    // a run's peak is kept through its attempts
+    expect(record(two, () => st({ peak: 0.7 }), t, new Map(), 90, 9, new Map(), at(0.3)).get("t")).toMatchObject({ peak: 0.7 });
+  });
+
   test("a run-through has no leaves of its own: only it is written, all hidden", () => {
     const two = build([said(1, ["Hello there."]), said(2, ["Goodbye now."])]), t = two.nodes.get("t") as Node;
     const out = record(two, () => null, t, new Map(), 70, 9, new Map(), estimates(two, () => null, 9));

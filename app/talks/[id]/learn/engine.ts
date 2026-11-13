@@ -13,7 +13,7 @@ import { barOf, cues, estimates, familiar, hiding, known, record, staircase, typ
 import { type Aim, GOOD, type Rate, RATED, RATED_SAME_GIST, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
 import { after, begin, pace, pick, readOn, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
-import { build, hash, type Node, type Tree } from "@/lib/learn/tree";
+import { build, hash, leavesOf, type Node, type Tree } from "@/lib/learn/tree";
 import type { Verdict } from "@/lib/judge";
 import { merge, streak, ymd } from "@/lib/schedule";
 import type { Script, Sync } from "@/lib/train";
@@ -35,6 +35,8 @@ export type Deps = {
   record: () => Promise<Recording>;
   // play the clips one after another; returns a function that stops them
   play: (clips: string[]) => () => void;
+  // a URL for a recording, to play it back (Hear me, Tim, 13 Nov); the one before is let go
+  url: (blob: Blob) => string;
 };
 type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
 
@@ -79,6 +81,9 @@ export class Engine {
   private before = new Map<string, State | null>();
   // the trouble the judged attempt on screen put on each leaf's words
   private trouble: Map<string, number[]> | null = null;
+  // the recording the verdict on screen judged (a run-through: its last slide), for Hear me (Tim, 13 Nov: to catch his
+  // own mispronunciations); in memory until the next card, never stored
+  private last: Blob | null = null;
   // a run-through: the slide being said (from 0) and each slide's outcome
   at = 0;
   said = new Map<number, Promise<Said>>();
@@ -269,6 +274,7 @@ export class Engine {
       at: 0, known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });
     this.before = new Map();
     this.trouble = null;
+    this.last = null;
     Object.assign(this, { cardAt: now, spoke: 0, waited: null, probs: null, leafScores: null, runSlides: null, onCard: 0 });
     this.said = new Map();
     this.saidDone = new Map();
@@ -279,23 +285,24 @@ export class Engine {
   // What the card shows.
   get node(): Node | null { return this.item?.node ?? null; }
   get isRun() { const k = this.node?.kind; return k === "section" || k === "talk"; }
-  // the share of the node's words hidden
+  // the share of the node's words hidden (a run-through: its own, from hiding())
   get share() {
     const n = this.node;
     if (!n || this.shown) return 0;
-    if (this.isRun) return 1;
+    if (this.isRun) return this.hide.get(n.id) as number;
     const ws = n.leaves.map((l) => (this.tree.nodes.get(l) as Node).words), all = ws.reduce((a, b) => a + b, 0);
     return Math.round((100 * n.leaves.reduce((a, l, k) => a + (this.hide.get(l) as number) * ws[k], 0)) / all) / 100;
   }
   get instruction() { return instruction(this.share, this.isRun); }
   get position() { return this.node ? position(this.tree, this.node) : ""; }
   get crumbs() { return this.node ? crumbs(this.tree, this.node) : []; }
-  // Each leaf to draw: its text, its share hidden, the words kept, the terms cued by their first letter, and a seed.
+  // Each leaf to draw: its text, its share hidden, the words kept, the terms cued by their first letter, and a seed. A
+  // run-through draws the leaves of its slides (Tim, 13 Nov: the same ladder as a slide).
   lines() {
     const n = this.node;
     if (!n) return [];
     const est = estimates(this.tree, this.state, this.deps.now()), keep = cues(this.tree, n, this.state(n.id));
-    return n.leaves.map((id) => {
+    return leavesOf(this.tree, n).map((id) => {
       const leaf = this.tree.nodes.get(id) as Node, slide = this.slides.find((s) => s.n === leaf.slides[0]);
       const must = (slide?.sentences[leaf.first]?.must_say ?? []).filter((m) => leaf.text.includes(m));
       // getting familiar keeps names and numbers in full
@@ -443,7 +450,7 @@ export class Engine {
     const item = this.item;
     if (!item || !this.offline || this.flow || this.phase !== "ready") return;
     const points = rate === "same" ? RATED_SAME_GIST : RATED[rate];
-    this.count(item, points, new Map(item.node.leaves.map((l) => [l, points])), undefined, "rated");
+    this.count(item, points, new Map(item.node.leaves.map((l) => [l, points])), undefined, "rated", rate !== "down");
     this.go();
   }
 
@@ -585,6 +592,7 @@ export class Engine {
     await this.finishRun(item);
   }
   private async judgeSlide(n: number, blob: Blob): Promise<Said> {
+    this.last = blob;
     const root = this.tree.nodes.get(this.tree.roots.get(n) as string) as Node;
     const zero = (why: string): Said => ({ points: 0, leaves: new Map(root.leaves.map((l) => [l, 0])), result: null, why });
     const v = await this.judge(root, blob, { run: this.node?.id });
@@ -600,7 +608,10 @@ export class Engine {
       for (const [n, p] of this.said) all.set(n, await p);
       if (this.item !== item) return;
       if (!all.size) throw new Error("Nothing was recorded.");
-      this.countRun(item, all);
+      // as on a slide: said after Show me it counts as missed, and Peek caps it by the time held
+      const cap = this.shown ? RECOUNT.missed : peekPoints(this.peeked);
+      this.countRun(item, new Map([...all].map(([n, x]) => [n, { ...x, points: Math.min(x.points, cap),
+        leaves: new Map([...x.leaves].map(([l, p]) => [l, Math.min(p, cap)])) }])));
     } catch (err) {
       if (this.item !== item) return;
       Object.assign(this, { phase: "failed", note: `${(err as Error).message} Try again, or mark yourself.` });
@@ -608,18 +619,28 @@ export class Engine {
     this.emit();
   }
   private countRun(item: Pick, all: Map<number, Said>) {
-    const now = this.deps.now(), est = estimates(this.tree, this.state, now), gap = this.gap(item.node, now);
+    const now = this.deps.now(), gap = this.gap(item.node, now);
     this.before.forEach((v, k) => (v === null ? this.remove(nodeKey(k)) : this.set(nodeKey(k), v)));
-    const states = runRecord(this.tree, this.state, item.node, all, now, est);
+    // the estimates after a recount has put back what the first count replaced, as in count() (13 Nov: a recount of a
+    // run-through moved each slide from its score after the first count, not before it)
+    const est = estimates(this.tree, this.state, now);
+    const states = runRecord(this.tree, this.state, item.node, all, now, est, this.hidOn());
     // the judge's scores, kept through a recount
     this.runSlides ??= [...all].map(([n, x]) => [n, Math.round(x.points)]);
+    const points = Math.round([...all.values()].reduce((a, x) => a + x.points, 0) / all.size);
+    this.peakRun(item.node, states, points >= GOOD);
     this.before = new Map([...states.keys()].map((k) => [k, this.state(k)]));
     this.write(states);
-    const points = Math.round([...all.values()].reduce((a, x) => a + x.points, 0) / all.size);
     this.counted = points >= 60;
     this.points = points;
     this.logAttempt(item, points, now, gap);
     this.phase = "judged";
+  }
+  // A run-through recalled well (GOOD or more, or rated Same or Harder offline) with nothing shown: the most hidden it
+  // was recalled at, for the cap in hiding() (13 Nov: it climbs JUMP at a time from RUN_FROM).
+  private peakRun(n: Node, states: Map<string, State>, well: boolean) {
+    const st = states.get(n.id);
+    if (st && (n.kind === "section" || n.kind === "talk") && well && !this.shown) st.peak = Math.max(this.state(n.id)?.peak ?? 0, this.share);
   }
   // The time since a node was last tried (null: never).
   private gap(n: Node, now: number) { const st = this.state(n.id); return st ? now - st.at : null; }
@@ -640,6 +661,7 @@ export class Engine {
     return body;
   }
   private async ask(item: Pick, blob: Blob) {
+    this.last = blob;
     try {
       const v = await this.judge(item.node, blob);
       if (this.item !== item) return;
@@ -670,18 +692,19 @@ export class Engine {
 
   // Count the attempt on screen: the states move and the attempt is logged. Counting again (a recount) first puts
   // back what the last count replaced.
-  private count(item: Pick, points: number, leaves: Map<string, number>, trouble?: Map<string, number[]>, why?: string) {
+  // well: recalled well, for a run-through's peak (offline, rated Same or Harder).
+  private count(item: Pick, points: number, leaves: Map<string, number>, trouble?: Map<string, number[]>, why?: string, well = points >= GOOD) {
     const now = this.deps.now();
     this.before.forEach((v, k) => (v === null ? this.remove(nodeKey(k)) : this.set(nodeKey(k), v)));
     const est = estimates(this.tree, this.state, now), gap = this.gap(item.node, now);
-    const hide = this.shown ? new Map(item.node.leaves.map((l) => [l, 0])) : this.hide;
-    const got = record(this.tree, this.state, item.node, leaves, points, now, hide, est, trouble);
+    const got = record(this.tree, this.state, item.node, leaves, points, now, this.hidOn(), est, trouble);
     const states = this.aim === "familiar" ? familiar(got, this.state) : got;
     // a whole slide recalled well at the gist, with nothing shown: the most it was recalled at, for the cap in hiding()
     const slide = states.get(item.node.id);
     if (slide && item.node.kind === "slide" && this.aim === "gist" && points >= GOOD && !this.shown) {
       slide.peak = Math.max(this.state(item.node.id)?.peak ?? 0, this.share);
     }
+    this.peakRun(item.node, states, well);
     this.before = new Map([...states.keys()].map((k) => [k, this.state(k)]));
     this.write(states);
     this.points = points;
@@ -689,6 +712,8 @@ export class Engine {
     this.leafScores ??= item.node.leaves.map((l) => leaves.get(l) ?? 0);
     this.logAttempt(item, points, now, gap, why);
   }
+  // What was hidden on this attempt: the card's shares, or nothing after Show me.
+  private hidOn() { return this.shown ? new Map([...this.hide.keys()].map((k) => [k, 0])) : this.hide; }
   private write(states: Map<string, State>) {
     states.forEach((v, k) => this.set(nodeKey(k), v));
     this.pushSoon();
@@ -759,6 +784,13 @@ export class Engine {
     this.quiet?.();
     this.quiet = this.deps.play(clips);
   }
+  // Hear me (Tim, 13 Nov): the recording the verdict on screen judged.
+  get canHearMe() { return this.phase === "judged" && this.last !== null; }
+  hearMe() {
+    if (!this.canHearMe) return;
+    this.quiet?.();
+    this.quiet = this.deps.play([this.deps.url(this.last as Blob)]);
+  }
 
   // Stop anything under way: a recording (thrown away) and Hear it.
   halt() {
@@ -769,6 +801,7 @@ export class Engine {
     rec?.cancel();
     this.quiet?.();
     this.quiet = null;
+    this.last = null;
   }
 
   // Progress online, per talk: merged with this browser's on opening, saved a few seconds after each attempt, and at
@@ -814,9 +847,10 @@ export const base64 = async (blob: Blob) => {
   return btoa(s);
 };
 
-// The browser's parts: localStorage, fetch, the clock, the microphone (Opus at 16 kbps) and an audio element.
+// The browser's parts: localStorage, fetch, the clock, the microphone (Opus at 16 kbps), an audio element and object
+// URLs for recordings (one at a time).
 export const browser = (): Deps => {
-  let audio: HTMLAudioElement | null = null;
+  let audio: HTMLAudioElement | null = null, url: string | null = null;
   return {
     storage: localStorage,
     fetch: (...a) => fetch(...a),
@@ -844,6 +878,11 @@ export const browser = (): Deps => {
       a.onended = () => { i += 1; if (i < clips.length) go(); };
       go();
       return () => { a.onended = null; a.pause(); };
+    },
+    url: (blob) => {
+      if (url) URL.revokeObjectURL(url);
+      url = URL.createObjectURL(blob);
+      return url;
     },
   };
 };

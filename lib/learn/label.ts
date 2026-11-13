@@ -65,7 +65,9 @@ export const sections = (slides: { n: number; section?: string | null }[], tree:
 };
 
 // What the card asks for, by the share hidden.
-export const instruction = (share: number, run = false) => (run ? "From memory: say each slide, then tap Next slide."
+export const instruction = (share: number, run = false) => (run && share === 0 ? "Read each slide aloud, then tap Next slide."
+  : run && share < 1 ? `Say each slide, filling in the blanks (${Math.round(share * 100)}% hidden), then tap Next slide.`
+  : run ? "From memory: say each slide, then tap Next slide."
   : share === 0 ? "Read it aloud."
   : share >= 1 ? "From memory: say it from the slide."
   : `Say it, filling in the blanks (${Math.round(share * 100)}% hidden).`);
