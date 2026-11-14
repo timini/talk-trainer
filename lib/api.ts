@@ -156,7 +156,8 @@ export const script = async (env: ApiEnv, id: string) => {
   });
 };
 
-const PROGRESS_LIMIT = 1024 * 1024;
+// 16 MB (was 1 MB, Tim, 14 Nov: a week of practice passed 1 MB and every save was refused, silently)
+const PROGRESS_LIMIT = 16 * 1024 * 1024;
 
 const saved = async (env: ApiEnv, id: string) => {
   const { results } = await env.DB.prepare("SELECT card, state, updated FROM progress WHERE talk = ?").bind(id)

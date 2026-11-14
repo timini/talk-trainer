@@ -85,6 +85,6 @@ describe("progress", () => {
     for (const bad of [null, {}, { items: [] }, { items: 3 }]) {
       expect(await answer(await putProgress(put(bad), env, id))).toEqual([400, { error: "items are needed." }]);
     }
-    expect(await answer(await putProgress(put("x".repeat(1024 * 1024 + 1)), env, id))).toEqual([413, { error: "Too large." }]);
+    expect(await answer(await putProgress(put("x".repeat(16 * 1024 * 1024 + 1)), env, id))).toEqual([413, { error: "Too large." }]);
   });
 });
