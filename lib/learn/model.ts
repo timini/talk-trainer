@@ -74,7 +74,9 @@ export const hidden = (s: number, aim: Aim) => {
 // when that is higher.
 // Getting familiar hides the same share of every leaf: the slide's own next share (staircase), with no pace shift.
 export const hiding = (tree: Tree, node: Node, est: Map<string, number>, aim: Aim, rate: number | null, st: State | null = null) => {
-  if (aim === "familiar") return spread(tree, node, st?.next ?? 0);
+  // getting familiar starts where the slide stands in any mode: its own level, or the most it was recalled with hidden
+  // at the gist or word for word (peak), whichever is higher (Tim, 13 Nov: "import the gist scores")
+  if (aim === "familiar") return spread(tree, node, Math.min(FAMILIAR_HIDE, Math.max(st?.next ?? 0, st?.peak ?? 0)));
   // a run-through climbs the ladder by its own estimate, from RUN_FROM (every word a first letter; Tim, 13 Nov: "i need
   // the first letters at least") to 1 (the opener list), at most JUMP past the most it was recalled well at (its peak,
   // as a slide from getting familiar to the gist; a state from before this rule has no peak, so it starts at RUN_FROM

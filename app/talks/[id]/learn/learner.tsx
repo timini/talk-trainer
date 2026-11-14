@@ -86,6 +86,12 @@ function Learn({ engine: e }: { engine: Engine }) {
       <header className="tr-head">
         <button type="button" className="name" onClick={() => e.show("home")}>Learn</button>
         <span className="status" data-testid="status">{status}</span>
+        {e.screen === "session" && e.sections.length > 1 && (
+          <select className="ghost" aria-label="Jump to section" value=""
+            onChange={(ev) => { const x = e.sections[Number(ev.target.value)]; if (x) e.jump(x.from, x.to); }}>
+            <option value="" disabled>Jump to</option>
+            {e.sections.map((x, k) => <option key={x.from} value={k}>{`${x.name} (${x.from} to ${x.to})`}</option>)}
+          </select>)}
         {e.screen === "session" && <button type="button" className="ghost" onClick={() => e.show("home")} aria-label="End session">End</button>}
         <button type="button" className="ghost" aria-expanded={menu} onClick={() => setMenu(!menu)}>Menu</button>
       </header>

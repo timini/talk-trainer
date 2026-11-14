@@ -223,6 +223,13 @@ export class Engine {
     this.show(this.item ? "session" : "done");
     if (this.flow && this.item && this.micOn) void this.speak();
   }
+  // Jump to a section mid-session (Tim, 13 Nov): practise its slides from its first, as the range buttons do at home.
+  jump(from: number, to: number) {
+    this.halt();
+    this.setRange([[from, to]]);
+    this.session = { ...this.session, last: null };
+    this.start();
+  }
   // Getting familiar: one button, the next slide; each attempt is judged in the background and never shown.
   get flow() { return this.aim === "familiar"; }
   // The slides getting familiar found hard, hardest first, for the gist and word for word to start on (Tim, 11 Nov): its

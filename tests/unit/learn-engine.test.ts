@@ -483,6 +483,27 @@ describe("a run-through", () => {
     expect(e.points).toBe(50);
   });
 
+  test("Jump to: a section mid-session starts at its first slide, with that range (13 Nov)", () => {
+    const three: Script = { ...SCRIPT, slides: [...SCRIPT.slides, { n: 3, title: "Rest", image: null, sentences: [sentence(1, "Let it rest.")] }] };
+    const e = new Engine(three, deps());
+    e.setAim("familiar");
+    e.setOffline(true);
+    e.start();
+    e.jump(3, 3);
+    expect([e.range, e.screen, e.node?.slides[0]]).toEqual([[[3, 3]], "session", 3]);
+  });
+
+  test("getting familiar starts a slide at the most it was recalled with hidden at the gist (13 Nov)", () => {
+    const e = make();
+    const one = e.tree.roots.get(1) as string;
+    e.set(nodeKey(one), { s: 0.8, at: clock, interval: 600000, n: 4, passes: 2, lastPass: clock, run: 0, hid: 0.6, peak: 0.6 });
+    e.setAim("familiar");
+    e.setOffline(true);
+    e.start();
+    e.go({ node: e.tree.nodes.get(one) as Node, why: "due", est: 0.8, bar: 0.6 });
+    expect(e.share).toBeCloseTo(0.6, 1);
+  });
+
   test("marked by hand without the microphone", () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
