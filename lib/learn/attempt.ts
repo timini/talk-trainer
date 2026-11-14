@@ -16,7 +16,7 @@ import { grade, normalise } from "../grade";
 import { empty, readScore, start } from "../score";
 import { sentences } from "../text";
 import { place, record, type State, type States } from "./model";
-import { EMPTY, NEARLY, PEEK_COST, RECOUNT } from "./rules";
+import { EMPTY, NEARLY, PEEK_COST, RECOUNT, DELIVERY_FROM, DELIVERY_WEIGHT } from "./rules";
 import type { Node, Tree } from "./tree";
 
 export type Result = ReturnType<typeof judged>;
@@ -32,7 +32,10 @@ const where = (tree: Tree, node: Node) => {
 
 // An attempt at a node from the judge's verdict. must: the must-say items of its text. read: getting familiar, scored
 // on the meaning and the delivery (readScore) instead of the problems alone.
-export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[], read = false): Outcome => {
+// hidden: the share of the card hidden, for the delivery weight at the gist and word for word (deliveryWeight).
+export const deliveryWeight = (hidden: number) =>
+  hidden < DELIVERY_FROM ? 0 : DELIVERY_WEIGHT * Math.min(1, (hidden - DELIVERY_FROM) / (1 - DELIVERY_FROM));
+export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[], read = false, hidden = 0): Outcome => {
   const { texts, from } = where(tree, node);
   const begun = start(v.heard ?? "", texts, from);
   if (begun !== null && begun !== from) {
@@ -57,7 +60,12 @@ export const outcome = (tree: Tree, node: Node, v: Verdict, must: string[], read
     return { ...x, ok: !at.missed.has(k), crit: at.crit.has(k) };
   }) }));
   const out = { counted: true as const, leaves: at.leaves, trouble: at.trouble, result: { ...result, parts } };
-  if (!read) return { ...out, points: result.score };
+  if (!read) {
+    const wd = deliveryWeight(hidden);
+    if (!wd) return { ...out, points: result.score };
+    const delivery = 10 * ((v.clarity ?? 3) + (v.fluency ?? 3));
+    return { ...out, points: Math.round((1 - wd) * result.score + wd * Math.min(result.score, delivery)) };
+  }
   const r = readScore(result.problems, node.text, v);
   return { ...out, points: r.points, read: { meaning: r.meaning, delivery: r.delivery } };
 };

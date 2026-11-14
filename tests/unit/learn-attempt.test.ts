@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { byHand, outcome, run } from "@/lib/learn/attempt";
+import { byHand, deliveryWeight, outcome, run } from "@/lib/learn/attempt";
 import { estimates, type State } from "@/lib/learn/model";
 import { ALPHA_GOOD } from "@/lib/learn/rules";
 import { build, type Input, type Node } from "@/lib/learn/tree";
@@ -13,6 +13,22 @@ const heard = (text: string, problems: { kind: "left_out" | "changed" | "wrong_t
   ({ heard: text, meaning_ok: !problems.length, problems, clarity: 5, fluency: 5, pace: "good", tip: "Good." });
 
 describe("outcome", () => {
+  test("delivery counts at the gist only near the top of the ladder: none below 75% hidden, up to 30% (14 Nov)", () => {
+    expect([0, 0.5, 0.75, 0.875, 1].map(deliveryWeight)).toEqual([0, 0, 0, 0.15, 0.3]);
+    const text = "Good morning, and thank you for coming. Today we bake bread.";
+    const stutter = { ...heard(text), clarity: 2, fluency: 1 };
+    const at = (hidden: number) => { const o = outcome(tree, node(one), stutter, [], false, hidden); return o.counted && o.points; };
+    // the words right but stop-start and unclear (delivery 30): no cost at half hidden, 21 off with everything hidden
+    expect([at(0.5), at(0.875), at(1)]).toEqual([100, 90, 79]);
+    // no delivery scores from the judge: taken as middling (3 and 3, delivery 60)
+    const none = outcome(tree, node(one), { ...heard(text), clarity: undefined, fluency: undefined }, [], false, 1);
+    expect(none.counted && none.points).toBe(88);
+    // a smooth delivery never lifts a score
+    const o = outcome(tree, node(one), heard("Good morning, and thank you for coming.", [{ kind: "left_out", script: "Today we bake bread." }]), [], false, 1);
+    const plain = outcome(tree, node(one), heard("Good morning, and thank you for coming.", [{ kind: "left_out", script: "Today we bake bread." }]), []);
+    expect(o.counted && plain.counted && o.points).toBe(plain.counted && plain.points);
+  });
+
   test("a pass: scored, and each leaf scored where the problems fell", () => {
     const o = outcome(tree, node(one), heard("Good morning, and thank you for coming. Today we bake bread."), []);
     expect(o.counted && o.points).toBe(100);

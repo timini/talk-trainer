@@ -68,6 +68,11 @@ export const CUE = 3;
 // A run-through (a section or the talk) climbs the same ladder by its own score, but never from below RUN_FROM: every
 // word at least a first letter (Tim, 13 Nov: "i need the first letters at least"; it went straight to the opener list).
 export const RUN_FROM = 0.5;
+// The gist and word for word count the delivery too (stutters, hesitation, unclear words: the judge's fluency and
+// clarity), but only near the top of the ladder, once at least DELIVERY_FROM is hidden, rising to DELIVERY_WEIGHT of the
+// score with everything hidden (Tim, 14 Nov: "only start penalising for these in the upper ranges of memorisation").
+export const DELIVERY_FROM = 0.75;
+export const DELIVERY_WEIGHT = 0.3;
 
 // The bars: the score at which a node counts as known, by aim. top: a slide, a section or the whole talk; node:
 // everything else. Word for word, a slide is said with every word hidden, and is at its bar only after such an

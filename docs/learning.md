@@ -165,6 +165,11 @@ trouble first.
 **Why.** Recalling with the words hidden is retrieval practice, which builds memory better than rereading (Roediger
 and Karpicke, 2006). Hiding more as the score rises keeps each attempt effortful but possible.
 
+**Delivery near the top of the ladder** (Tim, 14 Nov). At the gist and word for word, the judge's fluency (stutters,
+hesitation, stop-start) and clarity (unclear words) count once at least `DELIVERY_FROM` (75%) of the card is hidden,
+rising to `DELIVERY_WEIGHT` (30%) of the score with everything hidden: points = (1 - w) x meaning + w x min(meaning,
+10 x (clarity + fluency)). Below 75% hidden only the words count; a smooth delivery never lifts a score.
+
 ## What to say next (`scheduler.ts`)
 
 One rule, in order:

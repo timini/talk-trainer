@@ -618,7 +618,7 @@ export class Engine {
     const root = this.tree.nodes.get(this.tree.roots.get(n) as string) as Node;
     const zero = (why: string): Said => ({ points: 0, leaves: new Map(root.leaves.map((l) => [l, 0])), result: null, why });
     const v = await this.judge(root, blob, { run: this.node?.id });
-    const o = outcome(this.tree, root, v, this.mustOf(root));
+    const o = outcome(this.tree, root, v, this.mustOf(root), false, this.share);
     const out = o.counted ? { points: o.points, leaves: o.leaves, trouble: o.trouble, result: o.result, why: "" } : zero(o.why);
     this.saidDone.set(n, out);
     this.emit();
@@ -691,7 +691,7 @@ export class Engine {
       const v = await this.judge(item.node, blob);
       if (this.item !== item) return;
       this.probs = (v.problems ?? []).reduce<Record<string, number>>((a, x) => ({ ...a, [x.kind]: (a[x.kind] ?? 0) + 1 }), {});
-      const o = outcome(this.tree, item.node, v, this.mustOf(item.node));
+      const o = outcome(this.tree, item.node, v, this.mustOf(item.node), false, this.share);
       if (!o.counted) {
         this.session = after(this.session, item, null);
         this.logAttempt(item, null, this.deps.now(), this.gap(item.node, this.deps.now()));
