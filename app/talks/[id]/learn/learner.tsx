@@ -160,7 +160,9 @@ function Home({ e }: { e: Engine }) {
           <label className="gistmax">{"Most hidden "}
             <select aria-label="Most hidden" value={e.gistMax} onChange={(ev) => e.setGistMax(Number(ev.target.value))}>
               {GIST_MAXES.map((v) => <option key={v} value={v}>{pct(v)}</option>)}
-            </select></label></>)}
+            </select></label>
+          <label className="joins"><input type="checkbox" checked={e.joins} onChange={(ev) => e.setJoins(ev.target.checked)} />
+            {" Joins between slides"}</label></>)}
       <Offline e={e} />
       <div className="goal" role="group" aria-label="Slides to practise">
         <p data-testid="range">{`Practising ${rangeLine(e.range)}`}</p>

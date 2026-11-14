@@ -179,6 +179,9 @@ export class Engine {
     return GIST_MAXES.includes(v) ? v : 1;
   }
   setGistMax(v: number) { this.put("gistMax", v); }
+  // Joins (the cards from one slide into the next), on by default (Tim, 14 Nov: a switch to leave them out)
+  get joins(): boolean { return this.get<Setting<boolean> | null>(SETTINGS.joins, null)?.v !== false; }
+  setJoins(on: boolean) { this.put("joins", on); }
   // The slides to work on: a range, or from before there were ranges the last slide (from slide 1), 14 at first.
   get range(): Range {
     const r = this.get<Setting<Range> | null>(SETTINGS.range, null)?.v;
@@ -288,10 +291,10 @@ export class Engine {
     if (!this.redo.length) this.drill = false;
     const weak = this.weak();
     const narrow = back ? this.again1(back.node.id, now) : redo ? this.again1(redo, now)
-      : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak, this.gistTop);
+      : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak, this.gistTop, this.joins);
     // getting familiar, with only slides still with the judge left: wait for their verdicts, not show one again
     this.waiting = !narrow && this.flow && this.pending.size > 0;
-    this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session, weak, this.gistTop));
+    this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session, weak, this.gistTop, this.joins));
     // getting familiar with nothing due or ready: read on in talk order instead of stopping
     if (!this.item && !this.waiting && this.flow) this.item = readOn(this.tree, within, this.session.last?.id ?? null, now, this.state);
     const est = estimates(this.tree, this.state, now);

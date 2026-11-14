@@ -542,6 +542,20 @@ describe("a run-through", () => {
     expect(e.gistMax).toBe(1);
   });
 
+  test("joins off: no join card is picked at the gist, on by default (14 Nov)", () => {
+    const e = make();
+    e.setAim("gist");
+    expect(e.joins).toBe(true);
+    e.setJoins(false);
+    e.setOffline(true);
+    e.start();
+    const kinds: string[] = [];
+    for (let k = 0; k < 12 && e.node; k += 1) { kinds.push(e.node.kind); clock += 1000; e.advance("up"); }
+    expect(kinds).not.toContain("bridge");
+    e.setJoins(true);
+    expect(e.joins).toBe(true);
+  });
+
   test("marked by hand without the microphone", () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };

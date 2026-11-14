@@ -34,7 +34,7 @@ export const pace = (s: Session) => {
 // weak: the slides getting familiar found hard, in the order to take them (lowest first); at the gist they start at
 // their sentences. gistTop: the gist pass level for a slide or a run-through (barOf).
 export const standing = (tree: Tree, get: States, now: number, aim: Aim, session: Session = begin(), weak: number[] = [],
-  gistTop?: number) => {
+  gistTop?: number, joins = true) => {
   const est = estimates(tree, get, now), rate = pace(session);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const bar = (id: string) => barOf(node(id), aim, gistTop);
@@ -57,8 +57,10 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
   const margin = rate !== null && rate > PACE_HIGH ? -EASE : 0;
   // a node's parts and where a miss goes down to, through the parts passed over at this aim
   const hard = new Set(weak);
-  const skip = (id: string) => skipped(node(id), aim, get(id), hard.has(node(id).slides[0]));
-  const through = (ids: string[]): string[] => ids.flatMap((k) => (skip(k) ? through(node(k).kids) : [k]));
+  // joins off (Tim, 14 Nov: to get through the talk faster): no bridge is picked, and none is a run-through's part
+  const join = (id: string) => !joins && node(id).kind === "bridge";
+  const skip = (id: string) => join(id) || skipped(node(id), aim, get(id), hard.has(node(id).slides[0]));
+  const through = (ids: string[]): string[] => ids.flatMap((k) => (join(k) ? [] : skip(k) ? through(node(k).kids) : [k]));
   const parts = (id: string) => through(node(id).kids);
   const down = (id: string) => through(node(id).down);
   // a part anywhere under a node whose last attempt missed (passing over the parts not practised at this aim): the node
@@ -83,9 +85,9 @@ const RANK: Partial<Record<Node["kind"], number>> = { bridge: 1, section: 2, tal
 // goal: the slides to work on now, the last one (from slide 1) or a test of a slide's number; nothing outside it is
 // picked, so a due node outside it waits.
 export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number | ((n: number) => boolean), session: Session,
-  weak: number[] = [], gistTop?: number): Pick | null => {
+  weak: number[] = [], gistTop?: number, joins = true): Pick | null => {
   const within = typeof goal === "number" ? (n: number) => n <= goal : goal;
-  const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session, weak, gistTop);
+  const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session, weak, gistTop, joins);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const started = new Set<number>();
   for (const id of tree.order) if (get(id)) node(id).slides.forEach((n) => started.add(n));
