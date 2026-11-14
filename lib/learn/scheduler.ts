@@ -14,7 +14,7 @@
 // rule 3, and a miss does not go down; with nothing left it reads on in talk order (readOn).
 
 import { barOf, estimates, fade, skipped, type States } from "./model";
-import { type Aim, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK, SURE } from "./rules";
+import { type Aim, BARS, EASE, LIFT, PACE_HIGH, PACE_LOW, PACE_MIN, PACE_OF, REVIEWS, SAME, STUCK, SURE } from "./rules";
 import type { Node, Tree } from "./tree";
 
 // The session so far: each counted attempt's pass, the last attempt, how many times running that node was picked,
@@ -47,7 +47,9 @@ export const standing = (tree: Tree, get: States, now: number, aim: Aim, session
     return !!st && st.run === 0 && fade(st, now) >= bar(id) + margin && !(aim === "verbatim" && top && st.hid < 1)
       // at the gist, a slide also needs its last attempt with at least SURE hidden (11 Nov: a slide read in getting
       // familiar reached the gist's bar after one attempt with 20% hidden)
-      && !(aim === "gist" && top && st.hid < SURE);
+      // SURE scales with the gist pass level (Tim, 14 Nov: "thats not respecting the thresholds we set"): 45% at the
+      // default 80%, about 23% at 40%
+      && !(aim === "gist" && top && st.hid < SURE * (gistTop ?? BARS.gist.top) / BARS.gist.top);
   };
   const due = (id: string) => {
     const st = get(id);

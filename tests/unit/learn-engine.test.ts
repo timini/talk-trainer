@@ -556,6 +556,19 @@ describe("a run-through", () => {
     expect(e.joins).toBe(true);
   });
 
+  test("a lower gist pass level lowers the hidden share a slide needs to count too (14 Nov)", () => {
+    const e = make();
+    const one = e.tree.roots.get(1) as string;
+    e.setAim("gist");
+    const st: State = { s: 0.7, at: clock, interval: 600000, n: 2, passes: 1, lastPass: clock, run: 0, hid: 0.35 };
+    e.set(nodeKey(one), st);
+    // at 80%: 0.7 is under the bar anyway; at 40%, 0.35 hidden is over 45% x 40 / 80 = 22.5%, so it counts
+    e.setGistTop(0.4);
+    expect(e.summary().at).toBeGreaterThan(0);
+    e.set(nodeKey(one), { ...st, hid: 0.2 });
+    expect(e.summary().at).toBe(0);
+  });
+
   test("marked by hand without the microphone", () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
