@@ -88,6 +88,9 @@ export const BARS: Record<Aim, { node: number; top: number }> = {
 // The gist pass levels the start screen offers for gist.top (Tim, 14 Nov); the node bar stays at 0.5.
 // down to 40% (Tim, 14 Nov: "i need lower gist levels"); the SURE rule still needs one attempt with 45% hidden
 export const GIST_LEVELS = [0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8];
+// The most a gist card may hide (Tim, 14 Nov: "these slides have like 80 coverage ... i cant remember 80 right now").
+// Never under SURE (45%), the share a slide must be recalled at to count at the gist, so every slide can still pass.
+export const GIST_MAXES = [0.5, 0.6, 0.7, 0.8, 1];
 
 // Get familiar (Tim, 11 November): breadth first over the talk, to read every slide well before learning any. Only
 // whole slides are practised; the next new slide comes before reviews and before trying a slide again, and a miss

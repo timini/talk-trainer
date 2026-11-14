@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { type Aim, GIST_LEVELS, TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
+import { type Aim, GIST_LEVELS, GIST_MAXES, TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
 import { type Range, rangeLine } from "@/lib/learn/store";
 import { ago, countdown } from "@/lib/schedule";
 import { redactBits } from "@/lib/text";
@@ -150,13 +150,17 @@ function Home({ e }: { e: Engine }) {
             <strong>{name}</strong><span>{hint}</span>
           </label>))}
       </div>
-      {e.aim === "gist" && (
+      {e.aim === "gist" && (<>
         <label className="pass">Gist pass level{" "}
           {/* the score a slide needs before the gist counts it learned (Tim, 14 Nov) */}
           <select aria-label="Gist pass level" value={e.gistTop} onChange={(ev) => e.setGistTop(Number(ev.target.value))}>
             {GIST_LEVELS.map((v) => <option key={v} value={v}>{pct(v)}</option>)}
           </select>
-        </label>)}
+        </label>
+          <label className="gistmax">{"Most hidden "}
+            <select aria-label="Most hidden" value={e.gistMax} onChange={(ev) => e.setGistMax(Number(ev.target.value))}>
+              {GIST_MAXES.map((v) => <option key={v} value={v}>{pct(v)}</option>)}
+            </select></label></>)}
       <Offline e={e} />
       <div className="goal" role="group" aria-label="Slides to practise">
         <p data-testid="range">{`Practising ${rangeLine(e.range)}`}</p>

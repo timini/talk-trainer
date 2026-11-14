@@ -528,6 +528,20 @@ describe("a run-through", () => {
     expect([e.node?.id, e.item?.why]).toEqual([e.tree.roots.get(1), "due"]);
   });
 
+  test("Most hidden: a gist card never hides more than the setting, 100% by default (14 Nov)", () => {
+    const e = make();
+    const all: State = { s: 0.95, at: clock - 1, interval: 1, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+    e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+    e.setAim("gist");
+    expect(e.gistMax).toBe(1);
+    e.setGistMax(0.5);
+    e.start();
+    expect(e.gistMax).toBe(0.5);
+    expect(Math.max(...e.hide.values())).toBeLessThanOrEqual(0.5);
+    e.set("learn:set:gistMax", { v: 0.3, at: clock });
+    expect(e.gistMax).toBe(1);
+  });
+
   test("marked by hand without the microphone", () => {
     const e = new Engine(SCRIPT, { ...deps(), canRecord: false });
     const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };

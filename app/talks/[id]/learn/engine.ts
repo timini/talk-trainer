@@ -10,7 +10,7 @@ import { byHand, outcome, peekPoints, run as runRecord, type Result } from "@/li
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
 import { metrics, slideStats, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
 import { barOf, cues, estimates, familiar, hiding, known, record, staircase, type State, terms, troubleOf } from "@/lib/learn/model";
-import { type Aim, BARS, GIST_LEVELS, GOOD, type Rate, RATED, RATED_SAME_GIST, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
+import { type Aim, BARS, GIST_LEVELS, GIST_MAXES, GOOD, type Rate, RATED, RATED_SAME_GIST, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
 import { after, begin, pace, pick, readOn, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, leavesOf, type Node, type Tree } from "@/lib/learn/tree";
@@ -173,6 +173,12 @@ export class Engine {
     return GIST_LEVELS.includes(v) ? v : BARS.gist.top;
   }
   setGistTop(v: number) { this.put("gistTop", v); }
+  // The most a gist card hides, one of GIST_MAXES (Tim, 14 Nov); 100% by default.
+  get gistMax(): number {
+    const v = this.get<Setting<number> | null>(SETTINGS.gistMax, null)?.v ?? 1;
+    return GIST_MAXES.includes(v) ? v : 1;
+  }
+  setGistMax(v: number) { this.put("gistMax", v); }
   // The slides to work on: a range, or from before there were ranges the last slide (from slide 1), 14 at first.
   get range(): Range {
     const r = this.get<Setting<Range> | null>(SETTINGS.range, null)?.v;
@@ -290,6 +296,7 @@ export class Engine {
     if (!this.item && !this.waiting && this.flow) this.item = readOn(this.tree, within, this.session.last?.id ?? null, now, this.state);
     const est = estimates(this.tree, this.state, now);
     this.hide = this.item ? hiding(this.tree, this.item.node, est, this.aim, pace(this.session), this.state(this.item.node.id)) : new Map();
+    if (this.aim === "gist") this.hide.forEach((v, k) => this.hide.set(k, Math.min(v, this.gistMax)));
     Object.assign(this, { peeking: false, peeks: 0, peekMs: 0, paused: false });
     Object.assign(this, { phase: "ready", result: null, points: null, counted: null, entry: null, note: "", shown: false,
       at: 0, slidePeek: new Map(), known: this.item ? { before: this.item.est, after: null, bar: this.item.bar } : null });

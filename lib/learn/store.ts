@@ -14,7 +14,7 @@ import { hash, type Node, type Tree } from "./tree";
 export const nodeKey = (id: string) => `learn:n:${id}`;
 export const logKey = (day: string) => `learn:log:${day}`;
 export const SETTINGS = { aim: "learn:set:aim", goal: "learn:set:goal", range: "learn:set:range", mic: "learn:set:mic",
-  gistTop: "learn:set:gistTop", migrated: "learn:set:migrated" };
+  gistTop: "learn:set:gistTop", gistMax: "learn:set:gistMax", migrated: "learn:set:migrated" };
 
 // The slides to work on: spans of slide numbers, from and to, both included ("Opening and close" is two).
 export type Range = [number, number][];
