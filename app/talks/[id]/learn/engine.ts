@@ -245,6 +245,8 @@ export class Engine {
   // Jump to a section mid-session (Tim, 13 Nov): practise its slides from its first, as the range buttons do at home.
   jump(from: number, to: number) {
     this.halt();
+    // a drill queued by a run-through elsewhere does not follow you (Tim, 14 Nov: "jump to isnt working")
+    Object.assign(this, { redo: [], drill: false });
     this.setRange([[from, to]]);
     this.session = { ...this.session, last: null };
     this.start();
@@ -287,6 +289,7 @@ export class Engine {
     const within = inRange(this.range), busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
     this.passed.forEach((n) => busy.add(n));
     // read again next: getting familiar's slides under GOOD, and after a run-through its slides under GOOD (Tim, 13 Nov)
+    if (this.drill) this.redo = this.redo.filter((id) => inRange(this.range)((this.tree.nodes.get(id) as Node).slides[0]));
     const redo = !back && (this.flow || this.drill) ? this.redo.shift() : undefined;
     if (!this.redo.length) this.drill = false;
     const weak = this.weak();
@@ -801,6 +804,8 @@ export class Engine {
   // "Count it as got" or "Count it as missed": the attempt rescored, every leaf alike.
   recount(pass: boolean) {
     if (this.phase !== "judged" || this.counted === pass || !this.item) return;
+    // counted as got: no drill of that run's slides
+    if (pass && this.drill) Object.assign(this, { redo: [], drill: false });
     if (this.isRun) {
       const all = new Map([...this.saidDone.keys()].map((n) => {
         const root = this.tree.nodes.get(this.tree.roots.get(n) as string) as Node, h = byHand(root, pass);

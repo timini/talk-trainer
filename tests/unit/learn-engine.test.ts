@@ -372,10 +372,7 @@ describe("a run-through", () => {
     expect(e.log()).toHaveLength(1);
     expect(e.log()[0]).toMatchObject({ node: "t", points: 85, slides: [[1, 100], [2, 0]], hidden: 0.5 });
     // next: the talk again (not at its bar until the opener list), one JUMP up the ladder, though its score would hide
-    // 90%; at the top only once its peak lets it and its score is at the bar. First the drill: slide 2, said under GOOD
-    // in the run, comes back on its own (13 Nov)
-    e.go();
-    expect([e.node?.id, e.item?.why]).toEqual([e.tree.roots.get(2), "due"]);
+    // 90%; at the top only once its peak lets it and its score is at the bar (counted as got, so no drill, 14 Nov)
     e.go();
     expect([e.node?.id, e.share]).toEqual(["t", 0.7]);
     e.set(nodeKey("t"), { ...state(e, "t") as State, s: 0.9 });
@@ -567,6 +564,37 @@ describe("a run-through", () => {
     expect(e.summary().at).toBeGreaterThan(0);
     e.set(nodeKey(one), { ...st, hid: 0.2 });
     expect(e.summary().at).toBe(0);
+  });
+
+  test("the drill after a run-through: cleared by Count it as got and by Jump to, and kept inside the range (14 Nov)", async () => {
+    const run = async (e: Engine) => {
+      const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+      e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+      e.setAim("gist");
+      e.start();
+      grades.push({ body: { heard: "Good morning.", meaning_ok: false, problems: [{ kind: "left_out", script: "and thank you for coming. Today we bake bread." }],
+        clarity: 4, fluency: 4, pace: "good", tip: "Say the rest." } });
+      await e.speak();
+      await flush();
+      await e.nextSlide();
+      await flush();
+      await e.nextSlide();
+      await flush();
+    };
+    const a = make();
+    await run(a);
+    a.recount(true);
+    a.go();
+    expect(a.item?.why).not.toBe("due");
+    const b = make();
+    await run(b);
+    b.jump(2, 2);
+    expect(b.node?.slides[0]).not.toBe(1);
+    const c = make();
+    await run(c);
+    c.setRange([[2, 2]]);
+    c.go();
+    expect(c.node?.slides[0]).not.toBe(1);
   });
 
   test("marked by hand without the microphone", () => {
