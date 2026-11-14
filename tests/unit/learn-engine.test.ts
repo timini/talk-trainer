@@ -372,7 +372,10 @@ describe("a run-through", () => {
     expect(e.log()).toHaveLength(1);
     expect(e.log()[0]).toMatchObject({ node: "t", points: 85, slides: [[1, 100], [2, 0]], hidden: 0.5 });
     // next: the talk again (not at its bar until the opener list), one JUMP up the ladder, though its score would hide
-    // 90%; at the top only once its peak lets it and its score is at the bar
+    // 90%; at the top only once its peak lets it and its score is at the bar. First the drill: slide 2, said under GOOD
+    // in the run, comes back on its own (13 Nov)
+    e.go();
+    expect([e.node?.id, e.item?.why]).toEqual([e.tree.roots.get(2), "due"]);
     e.go();
     expect([e.node?.id, e.share]).toEqual(["t", 0.7]);
     e.set(nodeKey("t"), { ...state(e, "t") as State, s: 0.9 });
@@ -502,6 +505,27 @@ describe("a run-through", () => {
     e.start();
     e.go({ node: e.tree.nodes.get(one) as Node, why: "due", est: 0.8, bar: 0.6 });
     expect(e.share).toBeCloseTo(0.6, 1);
+  });
+
+  test("after a run-through, its slides under GOOD are drilled next, weakest first (13 Nov)", async () => {
+    const e = make();
+    const all: State = { s: 0.95, at: clock, interval: 600000, n: 3, passes: 3, lastPass: clock, run: 0, hid: 1 };
+    e.tree.order.filter((id) => id !== "t").forEach((id) => e.set(nodeKey(id), all));
+    e.setAim("gist");
+    e.start();
+    expect(e.node?.id).toBe("t");
+    // slide 1 said badly (most of it left out), slide 2 well
+    grades.push({ body: { heard: "Good morning.", meaning_ok: false, problems: [{ kind: "left_out", script: "and thank you for coming. Today we bake bread." }],
+      clarity: 4, fluency: 4, pace: "good", tip: "Say the rest." } });
+    await e.speak();
+    await flush();
+    await e.nextSlide();
+    await flush();
+    await e.nextSlide();
+    await flush();
+    expect(e.phase).toBe("judged");
+    e.go();
+    expect([e.node?.id, e.item?.why]).toEqual([e.tree.roots.get(1), "due"]);
   });
 
   test("marked by hand without the microphone", () => {

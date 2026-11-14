@@ -74,6 +74,8 @@ export class Engine {
   // getting familiar: slides to read again next (a verdict under GOOD, or not counted), each once a session; and the
   // slides not counted twice, passed over as new while there is anything else
   private redo: string[] = [];
+  // after a run-through: its weak slides are being drilled, one by one, before anything else
+  private drill = false;
   // waiting for the judge's last verdicts before choosing the next slide
   waiting = false;
   private again = new Set<string>();
@@ -267,7 +269,9 @@ export class Engine {
     // a slide still with the judge is not picked again until its verdict is in, unless there is nothing else
     const within = inRange(this.range), busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
     this.passed.forEach((n) => busy.add(n));
-    const redo = this.flow && !back ? this.redo.shift() : undefined;
+    // read again next: getting familiar's slides under GOOD, and after a run-through its slides under GOOD (Tim, 13 Nov)
+    const redo = !back && (this.flow || this.drill) ? this.redo.shift() : undefined;
+    if (!this.redo.length) this.drill = false;
     const weak = this.weak();
     const narrow = back ? this.again1(back.node.id, now) : redo ? this.again1(redo, now)
       : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak);
@@ -660,6 +664,13 @@ export class Engine {
     // the scores each slide counted at, after its Peek cap, so the list adds up to the run's score
     this.runSlides ??= [...all].map(([n, x]) => [n, Math.round(x.points)]);
     const points = Math.round([...all.values()].reduce((a, x) => a + x.points, 0) / all.size);
+    // the slides said under GOOD come next, one at a time, weakest first, each with its own verdict (Tim, 13 Nov: "at the
+    // end of a run through it should drill you on the slides you didnt do well on")
+    if (this.redo.length === 0 && !this.drill) {
+      this.redo = [...all].filter(([, x]) => x.points < GOOD).sort((x, y) => x[1].points - y[1].points)
+        .map(([n]) => this.tree.roots.get(n) as string);
+      this.drill = this.redo.length > 0;
+    }
     this.peakRun(item.node, states, points >= GOOD);
     this.before = new Map([...states.keys()].map((k) => [k, this.state(k)]));
     this.write(states);
