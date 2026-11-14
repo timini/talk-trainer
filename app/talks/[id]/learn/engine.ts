@@ -8,9 +8,9 @@
 
 import { byHand, outcome, peekPoints, run as runRecord, type Result } from "@/lib/learn/attempt";
 import { crumbs, instruction, position, sections } from "@/lib/learn/label";
-import { metrics, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
+import { metrics, slideStats, slidesAt, strip, weakest, weakSlides } from "@/lib/learn/metrics";
 import { barOf, cues, estimates, familiar, hiding, known, record, staircase, type State, terms, troubleOf } from "@/lib/learn/model";
-import { type Aim, GOOD, type Rate, RATED, RATED_SAME_GIST, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
+import { type Aim, BARS, GIST_LEVELS, GOOD, type Rate, RATED, RATED_SAME_GIST, RECOUNT, WEAK_PEEK } from "@/lib/learn/rules";
 import { after, begin, pace, pick, readOn, type Pick, type Session } from "@/lib/learn/scheduler";
 import { type Entry, inRange, type Log, logged, logKey, migrate, nodeKey, type Range, RULES, type Setting, SETTINGS, tidy } from "@/lib/learn/store";
 import { build, hash, leavesOf, type Node, type Tree } from "@/lib/learn/tree";
@@ -166,6 +166,13 @@ export class Engine {
     return a === "verbatim" || a === "familiar" ? a : "gist";
   }
   setAim(aim: Aim) { this.put("aim", aim); }
+  // The gist pass level (Tim, 14 Nov): the bar a slide, a section or the talk needs at the gist, one of GIST_LEVELS;
+  // passed to the scheduler and the metrics, so a change counts from the next card.
+  get gistTop(): number {
+    const v = this.get<Setting<number> | null>(SETTINGS.gistTop, null)?.v ?? BARS.gist.top;
+    return GIST_LEVELS.includes(v) ? v : BARS.gist.top;
+  }
+  setGistTop(v: number) { this.put("gistTop", v); }
   // The slides to work on: a range, or from before there were ranges the last slide (from slide 1), 14 at first.
   get range(): Range {
     const r = this.get<Setting<Range> | null>(SETTINGS.range, null)?.v;
@@ -189,13 +196,13 @@ export class Engine {
   }
 
   // The home screen and the Progress screen.
-  summary() { return slidesAt(this.tree, this.state, this.deps.now(), this.aim); }
+  summary() { return slidesAt(this.tree, this.state, this.deps.now(), this.aim, this.gistTop); }
   // The strip across the top: each slide, how well it is known, whether it is on screen or with the judge, and
   // whether it is in the slides being practised (Tim, 11 Nov).
   strip() {
     const on = this.node?.slides ?? [], busy = new Set([...this.pending].flatMap((id) => (this.tree.nodes.get(id) as Node).slides));
     const within = inRange(this.range);
-    return strip(this.tree, this.state, this.deps.now(), this.aim).map((x) => ({ ...x, now: on.includes(x.n), judging: busy.has(x.n),
+    return strip(this.tree, this.state, this.deps.now(), this.aim, this.gistTop).map((x) => ({ ...x, now: on.includes(x.n), judging: busy.has(x.n),
       learning: within(x.n) }));
   }
   log(): Entry[] {
@@ -204,7 +211,8 @@ export class Engine {
   }
   progress() {
     const log = this.log();
-    return { ...metrics(log, this.since), weakest: weakest(this.tree, this.state, this.deps.now()), slides: weakSlides(log) };
+    return { ...metrics(log, this.since), weakest: weakest(this.tree, this.state, this.deps.now()), slides: weakSlides(log),
+      bySlide: slideStats(this.tree, this.state, log, this.deps.now(), this.aim, this.gistTop) };
   }
   get days() {
     return streak(Object.entries(this.items()).filter(([k, v]) => k.startsWith("learn:log:") && (v as Log).list.length)
@@ -251,7 +259,7 @@ export class Engine {
   // A slide to read again, as a pick.
   private again1(id: string, now: number): Pick {
     const node = this.tree.nodes.get(id) as Node;
-    return { node, why: "due", est: estimates(this.tree, this.state, now).get(id) as number, bar: barOf(node, this.aim) };
+    return { node, why: "due", est: estimates(this.tree, this.state, now).get(id) as number, bar: barOf(node, this.aim, this.gistTop) };
   }
   // After a familiar verdict: under GOOD, or not counted, the slide comes next, once a session; not counted again, it
   // is passed over as new while there is anything else.
@@ -274,10 +282,10 @@ export class Engine {
     if (!this.redo.length) this.drill = false;
     const weak = this.weak();
     const narrow = back ? this.again1(back.node.id, now) : redo ? this.again1(redo, now)
-      : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak);
+      : pick(this.tree, this.state, now, this.aim, (n) => within(n) && !busy.has(n), this.session, weak, this.gistTop);
     // getting familiar, with only slides still with the judge left: wait for their verdicts, not show one again
     this.waiting = !narrow && this.flow && this.pending.size > 0;
-    this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session, weak));
+    this.item = narrow ?? (this.waiting ? null : pick(this.tree, this.state, now, this.aim, within, this.session, weak, this.gistTop));
     // getting familiar with nothing due or ready: read on in talk order instead of stopping
     if (!this.item && !this.waiting && this.flow) this.item = readOn(this.tree, within, this.session.last?.id ?? null, now, this.state);
     const est = estimates(this.tree, this.state, now);

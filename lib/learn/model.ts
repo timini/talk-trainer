@@ -43,8 +43,10 @@ export const estimates = (tree: Tree, get: States, now: number) => {
   return out;
 };
 
-// The bar a node must reach at an aim.
-export const barOf = (node: Node, aim: Aim) => (node.top ? BARS[aim].top : BARS[aim].node);
+// The bar a node must reach at an aim. gistTop: the gist's bar for a slide, a section or the talk, the user's "Gist pass
+// level" (Tim, 14 Nov: 60 to 80%; BARS.gist.top when not given).
+export const barOf = (node: Node, aim: Aim, gistTop = BARS.gist.top) =>
+  (node.top ? (aim === "gist" ? gistTop : BARS[aim].top) : BARS[aim].node);
 
 // A node after an attempt scored points (0 to 100). base: its estimate before; hid: the share of its words hidden;
 // alpha: how far the score moves (ALPHA for the node attempted, ALPHA_GOOD after a confident pass, UNDER for the

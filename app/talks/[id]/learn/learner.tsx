@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { type Aim, TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
+import { type Aim, GIST_LEVELS, TROUBLE_HIGH, TROUBLE_LOW } from "@/lib/learn/rules";
 import { type Range, rangeLine } from "@/lib/learn/store";
-import { countdown } from "@/lib/schedule";
+import { ago, countdown } from "@/lib/schedule";
 import { redactBits } from "@/lib/text";
 import { deliveryLine, plural, savedLine, type Script, verdict } from "@/lib/train";
 import { browser, Engine } from "./engine";
@@ -150,6 +150,13 @@ function Home({ e }: { e: Engine }) {
             <strong>{name}</strong><span>{hint}</span>
           </label>))}
       </div>
+      {e.aim === "gist" && (
+        <label className="pass">Gist pass level{" "}
+          {/* the score a slide needs before the gist counts it learned (Tim, 14 Nov) */}
+          <select aria-label="Gist pass level" value={e.gistTop} onChange={(ev) => e.setGistTop(Number(ev.target.value))}>
+            {GIST_LEVELS.map((v) => <option key={v} value={v}>{pct(v)}</option>)}
+          </select>
+        </label>)}
       <Offline e={e} />
       <div className="goal" role="group" aria-label="Slides to practise">
         <p data-testid="range">{`Practising ${rangeLine(e.range)}`}</p>
@@ -200,6 +207,21 @@ function Progress({ e }: { e: Engine }) {
         <dt>Most attempts</dt>
         <dd data-testid="p-slowest">{m.slowest.length ? m.slowest.map((x) => `slide ${x.slide} ${x.kind}: ${x.attempts}${x.reached ? "" : ", not yet"}`).join("; ") : "none yet"}</dd>
       </dl>
+      {/* each slide (Tim, 14 Nov); scrolls sideways on a phone */}
+      <div className="byslide">
+        <table data-testid="p-byslide">
+          <thead><tr><th>Slide</th><th>Tries</th><th>Level</th><th>Bar</th><th>Peak</th><th>Last hid</th><th>Last</th><th>Status</th></tr></thead>
+          <tbody>
+            {m.bySlide.map((x) => (
+              <tr key={x.n}>
+                <td>{`${x.n}. ${e.slides.find((s) => s.n === x.n)?.title ?? ""}`}</td>
+                <td>{`${x.attempts} (${x.logged})`}</td><td>{pct(x.level)}</td><td>{pct(x.bar)}</td>
+                <td>{x.peak === null ? "" : pct(x.peak)}</td><td>{x.hid === null ? "" : pct(x.hid)}</td>
+                <td>{x.last === null ? "never" : ago(x.last, e.now)}</td><td>{x.status}</td>
+              </tr>))}
+          </tbody>
+        </table>
+      </div>
       <button type="button" className="big" onClick={() => e.show("home")}>Back to the start</button>
     </section>
   );

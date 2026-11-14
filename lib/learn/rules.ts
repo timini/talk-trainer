@@ -85,6 +85,8 @@ export const BARS: Record<Aim, { node: number; top: number }> = {
   gist: { node: 0.5, top: 0.8 },
   familiar: { node: 0.4, top: 0.6 },
 };
+// The gist pass levels the start screen offers for gist.top (Tim, 14 Nov); the node bar stays at 0.5.
+export const GIST_LEVELS = [0.6, 0.65, 0.7, 0.75, 0.8];
 
 // Get familiar (Tim, 11 November): breadth first over the talk, to read every slide well before learning any. Only
 // whole slides are practised; the next new slide comes before reviews and before trying a slide again, and a miss

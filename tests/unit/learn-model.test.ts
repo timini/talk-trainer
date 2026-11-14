@@ -53,6 +53,8 @@ describe("the score and its fading", () => {
     expect([barOf(node(a), "verbatim"), barOf(node(root), "verbatim"), barOf(node(a), "gist"), barOf(node(root), "gist")])
       .toEqual([0.75, 0.85, 0.5, 0.8]);
     expect([barOf(node(a), "familiar"), barOf(node(root), "familiar")]).toEqual([0.4, 0.6]);
+    // the gist pass level moves only the slide bar (Tim, 14 Nov)
+    expect([barOf(node(a), "gist", 0.65), barOf(node(root), "gist", 0.65), barOf(node(root), "verbatim", 0.65)]).toEqual([0.5, 0.65, 0.85]);
   });
 
   test("getting familiar lifts no score above 0.65, or above where it was", () => {

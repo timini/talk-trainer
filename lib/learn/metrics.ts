@@ -48,16 +48,32 @@ export const weakSlides = (entries: Entry[], n = 5) => {
 
 // The strip across the top of a session: each slide in talk order, how well it is known (its estimate as a share of
 // its bar, at most 1), whether it was ever tried and whether it is at its bar.
-export const strip = (tree: Tree, get: States, now: number, aim: Aim) => {
-  const s = standing(tree, get, now, aim);
+export const strip = (tree: Tree, get: States, now: number, aim: Aim, gistTop?: number) => {
+  const s = standing(tree, get, now, aim, undefined, undefined, gistTop);
   return [...tree.roots].map(([n, id]) => ({ n, known: Math.min(1, (s.est.get(id) as number) / s.bar(id)), tried: !!get(id), at: s.at(id) }));
 };
 
 // The slides at their aim now, of the slides with a script; and how many nodes are due.
-export const slidesAt = (tree: Tree, get: States, now: number, aim: Aim) => {
-  const s = standing(tree, get, now, aim);
+export const slidesAt = (tree: Tree, get: States, now: number, aim: Aim, gistTop?: number) => {
+  const s = standing(tree, get, now, aim, undefined, undefined, gistTop);
   return { at: [...tree.roots.values()].filter((id) => s.at(id)).length, total: tree.roots.size,
     due: tree.order.filter((id) => s.due(id)).length };
+};
+
+// Each slide in talk order (Tim, 14 Nov: per-slide stats on the Progress screen): attempts at the slide itself (its
+// root's n) and logged attempts at any of its nodes; its level now (its estimate) against its bar at the aim; the most
+// it was recalled well with hidden (peak) and the share hidden on its last attempt; when it was last practised, by any of its nodes (null:
+// never); and whether it is at its bar ("learned"), started ("learning") or not ("not started").
+export const slideStats = (tree: Tree, get: States, entries: Entry[], now: number, aim: Aim, gistTop?: number) => {
+  const s = standing(tree, get, now, aim, undefined, undefined, gistTop);
+  return [...tree.roots].map(([n, id]) => {
+    const st = get(id), mine = entries.filter((x) => x.slide === n && x.why !== "known");
+    const own = tree.order.filter((k) => (tree.nodes.get(k) as Node).slides.includes(n)).map(get).filter((x) => x !== null);
+    const last = Math.max(0, ...own.map((x) => x.at), ...mine.map((x) => x.at));
+    return { n, attempts: st?.n ?? 0, logged: mine.length, level: s.est.get(id) as number, bar: s.bar(id), peak: st?.peak ?? null,
+      hid: st ? st.hid : null, last: last > 0 ? last : null,
+      status: s.at(id) ? "learned" : own.length || mine.length ? "learning" : "not started" };
+  });
 };
 
 // since: when this session started. entries: every attempt logged, oldest first.

@@ -321,3 +321,30 @@ test("the old trainer's address opens the trainer", async ({ page }) => {
   await page.goto(`/talks/${s.talk.id}/train`);
   await expect(page).toHaveURL(new RegExp(`/talks/${s.talk.id}/learn$`));
 });
+
+// Tim, 14 Nov: the gist pass level, on the start screen at the gist only, kept after a reload.
+test("the gist pass level: shown at the gist, 80% at first, changed to 65% and kept", async ({ page }) => {
+  await open(page, "Learn pass level");
+  await expect(page.getByLabel("Gist pass level")).toHaveCount(0);
+  await page.getByLabel(/Get the gist/).check();
+  await expect(page.getByLabel("Gist pass level")).toHaveValue("0.8");
+  await page.getByLabel("Gist pass level").selectOption({ label: "65%" });
+  await expect(page.getByTestId("saved")).toHaveText(/^Saved in this browser and online/);
+  await page.reload();
+  await expect(page.getByLabel("Gist pass level")).toHaveValue("0.65");
+});
+
+// Tim, 14 Nov: a row per slide on the Progress screen.
+test("the Progress screen has a row per slide: tries, level, bar, last practised and status", async ({ page }) => {
+  await open(page, "Learn by slide");
+  await page.getByRole("button", { name: "Start" }).click();
+  await walk(page, 2);
+  await page.getByRole("button", { name: "End session" }).click();
+  await page.getByRole("button", { name: "Progress" }).click();
+  const rows = page.getByTestId("p-byslide").locator("tbody tr");
+  await expect(rows.first()).toContainText("learning");
+  await expect(rows.first()).toContainText("85%");
+  await expect(rows.first()).toContainText("just now");
+  await expect(rows.last()).toContainText("never");
+  await expect(rows.last()).toContainText("not started");
+});

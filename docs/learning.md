@@ -200,6 +200,11 @@ there was a goal, the last slide to work on (from slide 1); it becomes the range
 | Gist | 0.5 | 0.8 |
 | Get familiar | (not practised) | 0.6 |
 
+**The gist pass level** (Tim, 14 November): the gist's bar for slides, sections and the talk can be set on the start
+screen to 60, 65, 70, 75 or 80% (`GIST_LEVELS`; 80% at first). The engine passes it to the scheduler and the metrics
+(`barOf(node, aim, gistTop)`), so a change counts from the next card. The node bar stays at 0.5, and a slide still
+needs an attempt with at least 45% hidden (`SURE`).
+
 **Getting familiar goes breadth first** (Tim, 11 November): to read the whole talk well before learning any slide.
 Only whole slides are practised: no clauses, sentences, groups, bridges or run-throughs. The next new slide in the range
 comes first, before due reviews and before a slide is tried again, and a miss moves on to the next slide instead of
@@ -352,7 +357,7 @@ the pass rate of the last 10 counted attempts of the session between 70% and 85%
 Kept in the browser's localStorage under `talk-trainer:<talk id>:` and online in D1, per talk:
 
 - `learn:n:<node id>`: a node's state, with a leaf's trouble.
-- `learn:set:aim`, `learn:set:range`, `learn:set:mic`: the settings, each `{ v, at }`; the range is a list of spans
+- `learn:set:aim`, `learn:set:range`, `learn:set:mic`, `learn:set:gistTop`: the settings, each `{ v, at }`; the range is a list of spans
   `[from, to]`. `learn:set:goal`, from before ranges, is read once if there is no range.
 - `learn:log:<day>`: the day's attempts, for the metrics, `{ at, list }`.
 
@@ -379,7 +384,10 @@ The judge's log in KV gets the place in the tree as well, kept 14 days with the 
 - attempts to reach the bar, by kind of node;
 - retention: the pass rate after a gap of more than 30 minutes;
 - the weakest phrases;
-- the parts that have taken the most attempts.
+- the parts that have taken the most attempts;
+- a table of every slide (`slideStats`, 14 November): attempts at the slide (and logged attempts at any of its parts),
+  its level now against its bar at this aim, the most hidden recalled well (peak), the share hidden last time, when it
+  was last practised, and whether it is learned at this aim, learning or not started. It scrolls sideways on a phone.
 
 ## Verification
 

@@ -32,11 +32,12 @@ export const pace = (s: Session) => {
 
 // Where each node stands now.
 // weak: the slides getting familiar found hard, in the order to take them (lowest first); at the gist they start at
-// their sentences.
-export const standing = (tree: Tree, get: States, now: number, aim: Aim, session: Session = begin(), weak: number[] = []) => {
+// their sentences. gistTop: the gist pass level for a slide or a run-through (barOf).
+export const standing = (tree: Tree, get: States, now: number, aim: Aim, session: Session = begin(), weak: number[] = [],
+  gistTop?: number) => {
   const est = estimates(tree, get, now), rate = pace(session);
   const node = (id: string) => tree.nodes.get(id) as Node;
-  const bar = (id: string) => barOf(node(id), aim);
+  const bar = (id: string) => barOf(node(id), aim, gistTop);
   // at its bar: attempted, its last attempt not a miss, and its own faded score at the bar (not the estimate from its
   // parts: a node just missed is not known, however well its parts are, nor however high its score still is); word for
   // word, a slide also needs its last attempt with every word hidden. A run-through the same (13 Nov: it climbs the
@@ -82,9 +83,9 @@ const RANK: Partial<Record<Node["kind"], number>> = { bridge: 1, section: 2, tal
 // goal: the slides to work on now, the last one (from slide 1) or a test of a slide's number; nothing outside it is
 // picked, so a due node outside it waits.
 export const pick = (tree: Tree, get: States, now: number, aim: Aim, goal: number | ((n: number) => boolean), session: Session,
-  weak: number[] = []): Pick | null => {
+  weak: number[] = [], gistTop?: number): Pick | null => {
   const within = typeof goal === "number" ? (n: number) => n <= goal : goal;
-  const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session, weak);
+  const { est, rate, bar, at, due, stuck, ready, skip: passed, parts, down: under } = standing(tree, get, now, aim, session, weak, gistTop);
   const node = (id: string) => tree.nodes.get(id) as Node;
   const started = new Set<number>();
   for (const id of tree.order) if (get(id)) node(id).slides.forEach((n) => started.add(n));

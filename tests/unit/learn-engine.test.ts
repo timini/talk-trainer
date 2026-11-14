@@ -1133,6 +1133,12 @@ describe("settings, sync and migration", () => {
     e.setRange([[Number.NaN, 1]]);
     expect(e.range).toEqual([[1, 2]]);
     expect(JSON.parse(storage.getItem(`${P}learn:set:aim`)!)).toEqual({ v: "gist", at: clock });
+    // the gist pass level (Tim, 14 Nov): 0.8 at first, one of the levels, else 0.8; the slides' bars follow it
+    expect(e.gistTop).toBe(0.8);
+    e.setGistTop(0.65);
+    expect([e.gistTop, e.progress().bySlide[0].bar]).toEqual([0.65, 0.65]);
+    storage.setItem(`${P}learn:set:gistTop`, JSON.stringify({ v: 0.3, at: clock }));
+    expect(e.gistTop).toBe(0.8);
     // the goal set in the new trainer before ranges
     storage.removeItem(`${P}learn:set:range`);
     storage.setItem(`${P}learn:set:goal`, JSON.stringify({ v: 2, at: 1 }));

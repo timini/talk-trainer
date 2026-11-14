@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { metrics, slidesAt, weakest, weakSlides } from "@/lib/learn/metrics";
+import { metrics, slideStats, slidesAt, weakest, weakSlides } from "@/lib/learn/metrics";
 import type { State } from "@/lib/learn/model";
 import { FIRST, GAP } from "@/lib/learn/rules";
 import type { Entry } from "@/lib/learn/store";
@@ -44,6 +44,25 @@ describe("metrics", () => {
     const one = tree.roots.get(1) as string, two = tree.roots.get(2) as string;
     expect(slidesAt(tree, (id) => (id === one ? st : null), 0, "verbatim")).toEqual({ at: 1, total: 2, due: 0 });
     expect(slidesAt(tree, (id) => (id === one || id === two ? st : null), 10 * FIRST, "verbatim")).toEqual({ at: 0, total: 2, due: 2 });
+  });
+});
+
+describe("slideStats", () => {
+  test("each slide: attempts, level, bar, peak, last hidden, last practised and status (Tim, 14 Nov)", () => {
+    const tree = build([{ n: 1, sentences: [{ text: "Hello there." }] }, { n: 2, sentences: [{ text: "Goodbye now." }, { text: "See you." }] },
+      { n: 3, sentences: [{ text: "Thanks." }] }]);
+    const one = tree.roots.get(1) as string, two = tree.roots.get(2) as string, leaf = tree.order.find((id) => id !== two && tree.nodes.get(id)?.slides[0] === 2) as string;
+    const st: State = { s: 0.7, at: 5, interval: FIRST, n: 3, passes: 3, lastPass: 5, run: 0, hid: 0.5, peak: 0.4 };
+    const states: Record<string, State> = { [one]: st, [leaf]: { ...st, n: 1, peak: undefined } };
+    const get = (id: string) => states[id] ?? null;
+    const log = [e(one, 2, 90, 0.7), e(one, 9, 90, 0.7), e(one, 10, null, null, { why: "known" }), e(leaf, 4, 70, 0.5, { slide: 2 })];
+    const rows = slideStats(tree, get, log, 20, "gist");
+    expect(rows.map((x) => [x.n, x.attempts, x.logged, x.bar, x.peak, x.hid, x.last, x.status])).toEqual([
+      [1, 3, 2, 0.8, 0.4, 0.5, 9, "learning"], [2, 0, 1, 0.8, null, null, 5, "learning"], [3, 0, 0, 0.8, null, null, null, "not started"]]);
+    expect(rows[0].level).toBeCloseTo(0.7);
+    // at a pass level of 70%, slide 1 is learned; a slide with only a logged attempt is learning
+    expect(slideStats(tree, get, [e("z", 1, 50, 0.1, { slide: 3 })], 20, "gist", 0.7).map((x) => [x.bar, x.last, x.status])).toEqual([[0.7, 5, "learned"],
+      [0.7, 5, "learning"], [0.7, 1, "learning"]]);
   });
 });
 
