@@ -128,7 +128,8 @@ export const RATED_SAME_GIST = 90;
 // Offline (no microphone, no judge), an attempt scores 100 less PEEK_COST a second of Peek held. A starting value:
 // 1.5 s of peeking is still good, about 4 s a miss. To be refitted from online readings, which log peeks and the
 // judge's score together.
-export const PEEK_COST = 10;
+// 3, not 10 (Tim, 14 Nov: "please penalise peeking less"): 5 s of Peek still passes at 85, 10 s at 70.
+export const PEEK_COST = 3;
 
 // Across modes (Tim, 11 Nov: "gist thinks I'm better than I am"). A whole slide that getting familiar has read hides at
 // the gist at most JUMP more than the most it was recalled well at (its peak: familiar's staircase, then each gist

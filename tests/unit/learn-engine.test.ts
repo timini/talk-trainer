@@ -479,8 +479,8 @@ describe("a run-through", () => {
     await e.nextSlide();
     await flush();
     expect(e.phase).toBe("judged");
-    expect([e.saidDone.get(1)?.points, e.saidDone.get(1)?.why, e.saidDone.get(2)?.points]).toEqual([0, "peeked", 100]);
-    expect(e.points).toBe(50);
+    expect([e.saidDone.get(1)?.points, e.saidDone.get(1)?.why, e.saidDone.get(2)?.points]).toEqual([64, "peeked", 100]);
+    expect(e.points).toBe(82);
   });
 
   test("Jump to: a section mid-session starts at its first slide, with that range (13 Nov)", () => {
@@ -907,27 +907,27 @@ describe("getting familiar", () => {
     expect(state(e, one)).toMatchObject({ next: 0.03, streak: 0 });
   });
 
-  test("online, Peek counts by the time held: half a second scores at most 95, three seconds at most 70", async () => {
+  test("online, Peek counts by the time held: 1.7 s scores at most 95, ten seconds at most 70 (3 a second, 14 Nov)", async () => {
     const e = make();
     e.setAim("familiar");
     const one = e.tree.roots.get(1) as string;
     e.start();
     await flush();
     e.peek(true);
-    clock += 500;
+    clock += 1667;
     e.peek(false);
     await e.nextCard();
     await flush();
     // 95: still recalled well
     expect(state(e, one)).toMatchObject({ next: 0, streak: 1 });
-    expect(entries(e)[0]).toMatchObject({ peeks: 1, peekMs: 500, points: 95 });
-    // slide 2 held for 3 s: 70, under the bar, so it comes back
+    expect(entries(e)[0]).toMatchObject({ peeks: 1, peekMs: 1667, points: 95 });
+    // slide 2 held for 10 s: 70, under the bar, so it comes back
     e.peek(true);
-    clock += 3000;
+    clock += 10000;
     e.peek(false);
     await e.nextCard();
     await flush();
-    expect(entries(e)[1]).toMatchObject({ peekMs: 3000, points: 70 });
+    expect(entries(e)[1]).toMatchObject({ peekMs: 10000, points: 70 });
   });
 
   test("offline at the gist, Same moves a slide on: rated Same, a slide reaches the bar and is not shown again and again (13 Nov)", () => {
@@ -1005,7 +1005,7 @@ describe("looking counts", () => {
     e.peek(false);
     clock += 2000;
     await say(e);
-    expect(e.points).toBe(80);
+    expect(e.points).toBe(94);
     // half the time on the card was spent peeking, shown on the verdict and logged
     expect([e.peekShare, e.onCard]).toEqual([0.5, 4000]);
     expect(e.log().at(-1)).toMatchObject({ peekMs: 2000, onCard: 4000 });
